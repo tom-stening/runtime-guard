@@ -1,0 +1,2 @@
+[console_scripts]
+runtime-guard = runtime_guard:_cli

@@ -83,6 +83,8 @@ __all__ = [
     "render_prometheus_metrics",
     "validate_runtime_guard_config",
     "attach_signal_recovery",
+    "resolve_signal_recovery_policy",
+    "install_signal_recovery_from_policy",
     "append_audit_log",
     "fips_event_hash",
     "verify_audit_log_chain",
@@ -1897,6 +1899,95 @@ def attach_signal_recovery(
             signal_func(sig, prev)
 
     return _restore
+
+
+def resolve_signal_recovery_policy(
+    *,
+    env_prefix: str = "RUNTIME_GUARD",
+    module: Any | None = None,
+) -> dict[str, Any]:
+    """Resolve signal-recovery behavior from environment variables.
+
+    Variables:
+    - ``<PREFIX>_SIGNAL_RECOVERY_ENABLE`` (bool, default: true)
+    - ``<PREFIX>_SIGNAL_RECOVERY_AUTO_INTERVENE`` (bool, default: false)
+    - ``<PREFIX>_SIGNAL_RECOVERY_CHAIN_PREVIOUS`` (bool, default: false)
+    - ``<PREFIX>_SIGNAL_RECOVERY_STAGE_PREFIX`` (str, default: signal)
+    - ``<PREFIX>_SIGNAL_RECOVERY_KILL_HOGS_MB`` (int or unset)
+    - ``<PREFIX>_SIGNAL_RECOVERY_SIGNALS`` (CSV: names or ints)
+      default: ``SIGTERM,SIGINT,SIGUSR1``
+    """
+    signal_mod = module
+    if signal_mod is None:
+        import signal as signal_mod
+
+    def _env(name: str, default: str | None = None) -> str | None:
+        return os.getenv(f"{env_prefix}_{name}", default)
+
+    def _as_bool(raw: str | None, default: bool) -> bool:
+        if raw is None:
+            return default
+        value = str(raw).strip().lower()
+        if value in {"1", "true", "yes", "on"}:
+            return True
+        if value in {"0", "false", "no", "off"}:
+            return False
+        return default
+
+    enabled = _as_bool(_env("SIGNAL_RECOVERY_ENABLE"), True)
+    auto_intervene = _as_bool(_env("SIGNAL_RECOVERY_AUTO_INTERVENE"), False)
+    chain_previous = _as_bool(_env("SIGNAL_RECOVERY_CHAIN_PREVIOUS"), False)
+    stage_prefix = str(_env("SIGNAL_RECOVERY_STAGE_PREFIX", "signal") or "signal")
+
+    kill_raw = _env("SIGNAL_RECOVERY_KILL_HOGS_MB")
+    kill_hogs_above_mb: int | None = None
+    if kill_raw is not None and kill_raw.strip() != "":
+        kill_hogs_above_mb = int(kill_raw)
+
+    signals_csv = _env("SIGNAL_RECOVERY_SIGNALS", "SIGTERM,SIGINT,SIGUSR1") or ""
+    signals_to_handle: list[int] = []
+    for token in signals_csv.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        if item.isdigit():
+            signals_to_handle.append(int(item))
+            continue
+        name = item if item.startswith("SIG") else f"SIG{item}"
+        signum = getattr(signal_mod, name.upper(), None)
+        if isinstance(signum, int):
+            signals_to_handle.append(signum)
+
+    return {
+        "enabled": enabled,
+        "signals_to_handle": signals_to_handle,
+        "stage_prefix": stage_prefix,
+        "auto_intervene": auto_intervene,
+        "kill_hogs_above_mb": kill_hogs_above_mb,
+        "chain_previous": chain_previous,
+    }
+
+
+def install_signal_recovery_from_policy(
+    guard: "RuntimeGuard",
+    *,
+    env_prefix: str = "RUNTIME_GUARD",
+    module: Any | None = None,
+) -> Callable[[], None]:
+    """Install signal recovery using environment-resolved policy settings."""
+    policy = resolve_signal_recovery_policy(env_prefix=env_prefix, module=module)
+    if not bool(policy.get("enabled", True)):
+        return lambda: None
+
+    return attach_signal_recovery(
+        guard,
+        signals_to_handle=list(policy.get("signals_to_handle", [])),
+        stage_prefix=str(policy.get("stage_prefix", "signal")),
+        auto_intervene=bool(policy.get("auto_intervene", False)),
+        kill_hogs_above_mb=policy.get("kill_hogs_above_mb"),
+        chain_previous=bool(policy.get("chain_previous", False)),
+        module=module,
+    )
 
 
 def fips_event_hash(payload: str, *, hash_algo: str = "sha256") -> str:

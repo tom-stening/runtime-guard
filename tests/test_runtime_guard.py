@@ -25,6 +25,7 @@ from runtime_guard import (
     RuntimeGuard,
     attach_dask_guard,
     attach_signal_recovery,
+    install_signal_recovery_from_policy,
     append_audit_log,
     aggregate_worker_reports,
     emit_otel_event,
@@ -33,6 +34,7 @@ from runtime_guard import (
     make_sitecustomize_content,
     soc2_required_controls,
     soc2_gap_assessment,
+    resolve_signal_recovery_policy,
     verify_audit_log_chain,
     pressure_report_attributes,
     render_prometheus_metrics,
@@ -1211,6 +1213,30 @@ class TestSignalRecovery:
             restore()
 
         assert chained == [sigmod.SIGINT]
+
+    def test_resolve_policy_from_env(self, monkeypatch):
+        sigmod = self._DummySignalModule()
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_ENABLE", "true")
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_AUTO_INTERVENE", "1")
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_CHAIN_PREVIOUS", "yes")
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_STAGE_PREFIX", "ops")
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_KILL_HOGS_MB", "2048")
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_SIGNALS", "SIGTERM,2")
+
+        out = resolve_signal_recovery_policy(module=sigmod)
+        assert out["enabled"] is True
+        assert out["auto_intervene"] is True
+        assert out["chain_previous"] is True
+        assert out["stage_prefix"] == "ops"
+        assert out["kill_hogs_above_mb"] == 2048
+        assert out["signals_to_handle"] == [sigmod.SIGTERM, 2]
+
+    def test_install_from_policy_can_be_disabled(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_ENABLE", "0")
+        restore = install_signal_recovery_from_policy(guard)
+        assert callable(restore)
+        restore()
 
 
 # ---------------------------------------------------------------------------

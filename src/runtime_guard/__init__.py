@@ -58,6 +58,7 @@ import threading
 import time
 import weakref
 from dataclasses import dataclass, field
+from typing import Any, Callable
 
 __all__ = [
     "RuntimeGuard",
@@ -71,6 +72,7 @@ __all__ = [
     "apply_kernel_params",
     "wsl_system_report",
     "make_conftest_content",
+    "attach_polars_guard",
 ]
 
 logger = logging.getLogger(__name__)
@@ -1087,6 +1089,62 @@ def _read_proc_version() -> str:
             return fh.read().strip()[:100]
     except OSError:
         return "unknown"
+
+
+def attach_polars_guard(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "polars-collect",
+    module: Any | None = None,
+) -> Callable[[], None]:
+    """Attach RuntimeGuard checks to ``polars.LazyFrame.collect``.
+
+    This helper provides M1-C01 integration scaffolding without introducing
+    a hard runtime dependency on Polars. If ``module`` is not supplied, the
+    function attempts to import ``polars`` lazily at call time.
+
+    Returns
+    -------
+    Callable[[], None]
+        Restore function that undoes the monkeypatch.
+    """
+    if module is None:
+        try:
+            import polars as module  # type: ignore
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeError(
+                "Polars is not installed. Install polars or pass module=<polars module>."
+            ) from exc
+
+    lazyframe_cls = getattr(module, "LazyFrame", None)
+    if lazyframe_cls is None:
+        raise RuntimeError("The provided module does not expose polars.LazyFrame.")
+
+    original_collect = getattr(lazyframe_cls, "collect", None)
+    if original_collect is None or not callable(original_collect):
+        raise RuntimeError("polars.LazyFrame.collect is missing or not callable.")
+
+    # Idempotent attach to avoid nested wrappers and duplicated checks.
+    if getattr(original_collect, "_runtime_guard_wrapped", False):
+        original = getattr(original_collect, "_runtime_guard_original", original_collect)
+
+        def _restore() -> None:
+            setattr(lazyframe_cls, "collect", original)
+
+        return _restore
+
+    def _guarded_collect(self: Any, *args: Any, **kwargs: Any) -> Any:
+        guard.check_and_log(stage=stage)
+        return original_collect(self, *args, **kwargs)
+
+    setattr(_guarded_collect, "_runtime_guard_wrapped", True)
+    setattr(_guarded_collect, "_runtime_guard_original", original_collect)
+    setattr(lazyframe_cls, "collect", _guarded_collect)
+
+    def _restore() -> None:
+        setattr(lazyframe_cls, "collect", original_collect)
+
+    return _restore
 
 
 # ---------------------------------------------------------------------------

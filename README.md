@@ -269,6 +269,7 @@ Raw memory values from the OS at a point in time.
 |---|---|
 | `make_pytest_guard(**kwargs) → RuntimeGuard` | Return a `RuntimeGuard` configured for pytest environments. |
 | `make_conftest_content(**kwargs) → str` | Generate a ready-to-use `conftest.py` string for pytest projects. |
+| `attach_polars_guard(guard, stage="polars-collect", module=None) → Callable[[], None]` | Monkeypatch `polars.LazyFrame.collect` to run `guard.check_and_log()` before each collect call. Returns a restore function. |
 | `generate_wslconfig(memory_gb, ...) → str` | Generate `.wslconfig` content (or write/merge to file). |
 | `recommend_kernel_params(...) → list[KernelParamRecommendation]` | Return sysctl recommendations for WSL 2 memory tuning. |
 | `apply_kernel_params(recommendations) → list[InterventionResult]` | Apply sysctl recommendations (requires root). |

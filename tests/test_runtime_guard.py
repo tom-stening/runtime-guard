@@ -18,7 +18,13 @@ import time
 import unittest.mock as mock
 
 import pytest
-from runtime_guard import MemSnapshot, PressureReport, RuntimeGuard, _read_snapshot
+from runtime_guard import (
+    MemSnapshot,
+    PressureReport,
+    RuntimeGuard,
+    _read_snapshot,
+    attach_polars_guard,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -544,6 +550,63 @@ class TestPerStageCooldown:
         g.log(_make_report(stage="train"))
         assert "\x00warning" in g._last_logged
         assert "train\x00warning" in g._last_logged
+
+
+# ---------------------------------------------------------------------------
+# M1-C01 — Polars integration hook
+# ---------------------------------------------------------------------------
+
+
+class TestPolarsIntegration:
+    class _DummyPolars:
+        class LazyFrame:
+            def collect(self, multiplier: int = 1) -> int:
+                return 21 * multiplier
+
+    def test_attach_calls_check_before_collect(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+
+        def fake_check_and_log(stage: str = "") -> None:
+            calls.append(stage)
+
+        monkeypatch.setattr(guard, "check_and_log", fake_check_and_log)
+        restore = attach_polars_guard(guard, stage="polars-pipeline", module=self._DummyPolars)
+        try:
+            result = self._DummyPolars.LazyFrame().collect(multiplier=2)
+            assert result == 42
+            assert calls == ["polars-pipeline"]
+        finally:
+            restore()
+
+    def test_restore_restores_original_collect(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        original = self._DummyPolars.LazyFrame.collect
+        restore = attach_polars_guard(guard, module=self._DummyPolars)
+        restore()
+        assert self._DummyPolars.LazyFrame.collect is original
+
+    def test_attach_is_idempotent(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+        restore_a = attach_polars_guard(guard, stage="s1", module=self._DummyPolars)
+        restore_b = attach_polars_guard(guard, stage="s2", module=self._DummyPolars)
+        try:
+            self._DummyPolars.LazyFrame().collect()
+            # Single wrapper only; second attach should not double-wrap.
+            assert len(calls) == 1
+        finally:
+            restore_b()
+            restore_a()
+
+    def test_attach_raises_when_no_lazyframe(self):
+        class NoLazyFrame:
+            pass
+
+        with pytest.raises(RuntimeError, match="LazyFrame"):
+            attach_polars_guard(RuntimeGuard(), module=NoLazyFrame)
 
 
 class TestUnsupportedPlatformWarning:

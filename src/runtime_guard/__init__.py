@@ -94,6 +94,7 @@ __all__ = [
     "soc2_gap_assessment",
     "soc2_evidence_requirements",
     "soc2_readiness_report",
+    "build_adoption_scorecard",
     "make_worker_report",
     "aggregate_worker_reports",
 ]
@@ -2346,6 +2347,64 @@ def soc2_readiness_report(
         "missing_evidence_controls": missing_evidence_controls,
         "missing_evidence_by_control": missing_evidence_by_control,
         "evidence_ratio": evidence_ratio,
+    }
+
+
+def build_adoption_scorecard(
+    team_records: list[dict[str, Any]],
+    *,
+    stages: list[str] | None = None,
+    success_stage: str = "production",
+) -> dict[str, Any]:
+    """Summarize multi-team adoption progress for rollout tracking."""
+
+    stage_order = stages or [
+        "discover",
+        "pilot",
+        "trial",
+        "staging",
+        "production",
+    ]
+    stage_index = {name: idx for idx, name in enumerate(stage_order)}
+    success_norm = str(success_stage).strip().lower()
+
+    def _stage(value: Any) -> str:
+        return str(value or "discover").strip().lower()
+
+    team_count = len(team_records)
+    stage_counts: dict[str, int] = {name: 0 for name in stage_order}
+    stage_counts["unknown"] = 0
+    missing_evidence_teams: list[str] = []
+
+    reached_success = 0
+    for row in team_records:
+        team_name = str(row.get("team") or row.get("name") or "unknown-team")
+        stage = _stage(row.get("stage"))
+
+        if stage in stage_counts:
+            stage_counts[stage] += 1
+        else:
+            stage_counts["unknown"] += 1
+
+        if stage_index.get(stage, -1) >= stage_index.get(success_norm, len(stage_order)):
+            reached_success += 1
+
+        evidence = row.get("evidence", [])
+        evidence_items = [str(item).strip() for item in evidence if str(item).strip() != ""]
+        if stage in stage_index and stage != "discover" and len(evidence_items) == 0:
+            missing_evidence_teams.append(team_name)
+
+    adoption_ratio = (reached_success / team_count) if team_count else 0.0
+    status = "on-track" if reached_success >= 5 else "in-progress"
+
+    return {
+        "total_teams": team_count,
+        "reached_success_stage": reached_success,
+        "success_stage": success_norm,
+        "adoption_ratio": adoption_ratio,
+        "stage_counts": stage_counts,
+        "missing_evidence_teams": sorted(missing_evidence_teams),
+        "status": status,
     }
 
 

@@ -66,6 +66,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Audit policy taxonomy helpers: `audit_policy_taxonomy()` and
   `normalize_policy_violation_event()` with canonical token normalization for
   `event_type=policy_violation` records.
+- Adoption execution automation: `build_adoption_scorecard()` API for multi-team
+  rollout progress tracking plus `scripts/adoption_scorecard.py` CLI for
+  stage aggregation and missing-evidence reporting.
 - SOC2 readiness enhancements: `soc2_evidence_requirements()` and
   `soc2_readiness_report()` now track evidence completeness alongside control
   coverage for audit-readiness evaluation.

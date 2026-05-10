@@ -292,6 +292,7 @@ Raw memory values from the OS at a point in time.
 | `soc2_gap_assessment(control_state, required_controls=None) → dict[str, Any]` | Summarize SOC2 coverage, missing required controls, and unknown control IDs. |
 | `soc2_evidence_requirements(required_controls=None) → dict[str, list[str]]` | Return expected evidence artifact IDs for tracked SOC2 controls. |
 | `soc2_readiness_report(control_state, evidence_state=None, ...) → dict[str, Any]` | Evaluate SOC2 readiness with both control coverage and evidence completeness ratios. |
+| `build_adoption_scorecard(team_records, success_stage="production") → dict[str, Any]` | Summarize multi-team adoption progress and flag teams missing evidence for audit. |
 | `make_worker_report(guard, ...) → dict[str, Any]` | Build a process-local worker pressure report for parent-process orchestration. |
 | `aggregate_worker_reports(reports) → dict[str, Any]` | Aggregate worker reports into pool/job-queue summary metrics and worst severity. |
 | `generate_wslconfig(memory_gb, ...) → str` | Generate `.wslconfig` content (or write/merge to file). |

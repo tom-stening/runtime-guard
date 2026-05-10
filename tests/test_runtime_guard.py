@@ -29,6 +29,7 @@ from runtime_guard import (
     append_audit_log,
     audit_policy_taxonomy,
     aggregate_worker_reports,
+    build_adoption_scorecard,
     emit_otel_event,
     fips_event_hash,
     make_worker_report,
@@ -1497,6 +1498,39 @@ class TestSoc2GapAssessment:
         assert out["maturity"] == "controls-implemented-evidence-pending"
         assert out["missing_evidence_controls"] == ["CC6.1", "CC7.1", "CC7.2"]
         assert out["evidence_ratio"] == pytest.approx(0.5)
+
+
+class TestAdoptionScorecard:
+    def test_builds_stage_counts_and_success_ratio(self):
+        out = build_adoption_scorecard(
+            [
+                {"team": "t1", "stage": "pilot", "evidence": ["e1"]},
+                {"team": "t2", "stage": "production", "evidence": ["e2"]},
+                {"team": "t3", "stage": "production", "evidence": ["e3"]},
+            ]
+        )
+        assert out["total_teams"] == 3
+        assert out["reached_success_stage"] == 2
+        assert out["adoption_ratio"] == pytest.approx(2 / 3)
+        assert out["stage_counts"]["pilot"] == 1
+        assert out["stage_counts"]["production"] == 2
+
+    def test_flags_missing_evidence_after_discover(self):
+        out = build_adoption_scorecard(
+            [
+                {"team": "alpha", "stage": "trial", "evidence": []},
+                {"team": "beta", "stage": "discover", "evidence": []},
+                {"team": "gamma", "stage": "staging", "evidence": ["ticket-1"]},
+            ]
+        )
+        assert out["missing_evidence_teams"] == ["alpha"]
+        assert out["status"] == "in-progress"
+
+    def test_status_on_track_when_five_teams_reach_success(self):
+        rows = [{"team": f"t{i}", "stage": "production", "evidence": ["e"]} for i in range(1, 6)]
+        out = build_adoption_scorecard(rows)
+        assert out["reached_success_stage"] == 5
+        assert out["status"] == "on-track"
 
 
 class TestUnsupportedPlatformWarning:

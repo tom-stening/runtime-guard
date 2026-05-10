@@ -50,6 +50,7 @@ New in v0.2.0
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import subprocess
@@ -81,6 +82,7 @@ __all__ = [
     "render_prometheus_metrics",
     "validate_runtime_guard_config",
     "attach_signal_recovery",
+    "append_audit_log",
 ]
 
 logger = logging.getLogger(__name__)
@@ -551,6 +553,30 @@ class RuntimeGuard:
             kill_hogs_above_mb=kill_hogs_above_mb,
             chain_previous=chain_previous,
         )
+
+    def audit(
+        self,
+        report: "PressureReport",
+        *,
+        path: str,
+        action: str = "pressure-detected",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Append a pressure event to an audit log file."""
+        event: dict[str, Any] = {
+            "action": action,
+            "severity": "critical" if report.is_critical else "warning",
+            "stage": report.stage,
+            "pid": report.pid,
+            "cause": report.cause,
+            "self_inflicted": report.self_inflicted,
+            "self_pct": report.self_pct,
+            "missing_mem_mb": report.missing_mem_mb,
+            "swap_excess_pct": report.swap_excess_pct,
+        }
+        if metadata:
+            event["metadata"] = metadata
+        return append_audit_log(path, event)
 
     # ------------------------------------------------------------------
     # Background check
@@ -1669,6 +1695,48 @@ def attach_signal_recovery(
             signal_func(sig, prev)
 
     return _restore
+
+
+def append_audit_log(path: str, event: dict[str, Any]) -> dict[str, Any]:
+    """Append an event to a newline-delimited JSON audit log.
+
+    Records are chained by hash (`prev_hash` -> `hash`) to make tampering
+    evident during downstream verification.
+    """
+    expanded = os.path.expanduser(path)
+    os.makedirs(os.path.dirname(expanded) or ".", exist_ok=True)
+
+    prev_hash = ""
+    if os.path.exists(expanded):
+        try:
+            with open(expanded, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        prev_hash = str(json.loads(line).get("hash", ""))
+                    except Exception:
+                        continue
+        except OSError:
+            prev_hash = ""
+
+    ts = int(time.time())
+    event_payload = json.dumps(event, sort_keys=True, separators=(",", ":"))
+    chain_input = f"{prev_hash}\n{ts}\n{event_payload}".encode("utf-8")
+    digest = hashlib.sha256(chain_input).hexdigest()
+
+    record: dict[str, Any] = {
+        "ts": ts,
+        "event": event,
+        "prev_hash": prev_hash,
+        "hash": digest,
+    }
+
+    with open(expanded, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+
+    return record
 
 
 # ---------------------------------------------------------------------------

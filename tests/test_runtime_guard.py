@@ -25,6 +25,7 @@ from runtime_guard import (
     RuntimeGuard,
     attach_dask_guard,
     attach_signal_recovery,
+    append_audit_log,
     emit_otel_event,
     pressure_report_attributes,
     render_prometheus_metrics,
@@ -1075,6 +1076,40 @@ class TestSignalRecovery:
             restore()
 
         assert chained == [sigmod.SIGINT]
+
+
+# ---------------------------------------------------------------------------
+# M2-C02 — Audit log scaffold
+# ---------------------------------------------------------------------------
+
+
+class TestAuditLog:
+    def test_append_audit_log_creates_record(self, tmp_path):
+        path = tmp_path / "audit.log"
+        record = append_audit_log(str(path), {"action": "test", "value": 1})
+        assert path.exists()
+        assert record["event"]["action"] == "test"
+        assert isinstance(record["hash"], str)
+        assert len(record["hash"]) == 64
+
+    def test_append_audit_log_hash_chain(self, tmp_path):
+        path = tmp_path / "audit.log"
+        first = append_audit_log(str(path), {"n": 1})
+        second = append_audit_log(str(path), {"n": 2})
+        assert second["prev_hash"] == first["hash"]
+
+    def test_runtime_guard_audit_writes_pressure_fields(self, tmp_path):
+        guard = RuntimeGuard(log_tag="audit-test")
+        report = _make_report(stage="train")
+        out = guard.audit(
+            report,
+            path=str(tmp_path / "audit.log"),
+            action="policy-violation",
+            metadata={"run_id": "abc123"},
+        )
+        assert out["event"]["action"] == "policy-violation"
+        assert out["event"]["stage"] == "train"
+        assert out["event"]["metadata"]["run_id"] == "abc123"
 
 
 class TestUnsupportedPlatformWarning:

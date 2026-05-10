@@ -27,6 +27,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `async with` for phase-scoped memory checks.
 - Signal recovery scaffolding: `attach_signal_recovery()` and
   `RuntimeGuard.install_signal_recovery()` for final signal-triggered checks.
+- Audit scaffolding: `append_audit_log()` and `RuntimeGuard.audit()` for
+  append-only hash-chained policy event records.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -38,6 +40,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M1-C07 moved to IN PROGRESS based on implemented config scaffold.
 - Roadmap M1-C08 moved to IN PROGRESS based on implemented phase scaffold.
 - Roadmap M2-C01 moved to IN PROGRESS based on implemented signal scaffold.
+- Roadmap M2-C02 moved to IN PROGRESS based on implemented audit scaffold.
 
 ## [0.3.0] - 2026-05-10
 

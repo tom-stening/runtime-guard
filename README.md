@@ -23,8 +23,9 @@ Instead of a generic "memory is low" alert, runtime-guard tells you _which side_
 7. [Background Monitoring](#background-monitoring)
 8. [WSL 2 Utilities](#wsl-2-utilities)
 9. [Enterprise Support](#enterprise-support)
-10. [Architecture](#architecture)
-11. [FAQ](#faq)
+10. [Framework Integration Guides](#framework-integration-guides)
+11. [Architecture](#architecture)
+12. [FAQ](#faq)
 
 ---
 
@@ -400,6 +401,12 @@ generate_wslconfig(memory_gb=8, output_path="~/.wslconfig", dry_run=False)
 Enterprise-facing support scope, severity definitions, response targets, and
 incident runbook entry points are documented in
 [ENTERPRISE_SUPPORT.md](ENTERPRISE_SUPPORT.md).
+
+---
+
+## Framework Integration Guides
+
+- Polars: [INTEGRATION_POLARS.md](INTEGRATION_POLARS.md)
 
 ---
 

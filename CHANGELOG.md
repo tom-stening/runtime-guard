@@ -37,6 +37,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   audit-chain verification via `verify_audit_log_chain()`.
 - Compliance scaffold: `soc2_gap_assessment()` for SOC2 control coverage,
   missing-control reporting, and readiness status.
+- SOC2 baseline helper: `soc2_required_controls()` and expanded gap output
+  with missing required controls and unknown control detection.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.

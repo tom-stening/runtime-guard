@@ -30,6 +30,7 @@ from runtime_guard import (
     emit_otel_event,
     fips_event_hash,
     make_worker_report,
+    soc2_required_controls,
     soc2_gap_assessment,
     verify_audit_log_chain,
     pressure_report_attributes,
@@ -1276,11 +1277,17 @@ class TestMultiProcessOrchestration:
 
 
 class TestSoc2GapAssessment:
+    def test_required_controls_baseline_contains_core_ids(self):
+        required = soc2_required_controls()
+        assert set(required) == {"CC6.1", "CC7.1", "CC7.2"}
+
     def test_reports_ready_when_all_controls_present(self):
-        out = soc2_gap_assessment({"CC6.1": True, "CC7.1": True})
-        assert out["total_controls"] == 2
-        assert out["covered_controls"] == 2
+        out = soc2_gap_assessment({"CC6.1": True, "CC7.1": True, "CC7.2": True})
+        assert out["total_controls"] == 3
+        assert out["covered_controls"] == 3
         assert out["missing_controls"] == []
+        assert out["missing_required_controls"] == []
+        assert out["unknown_controls"] == []
         assert out["coverage_ratio"] == 1.0
         assert out["status"] == "ready"
 
@@ -1289,6 +1296,8 @@ class TestSoc2GapAssessment:
         assert out["total_controls"] == 3
         assert out["covered_controls"] == 1
         assert out["missing_controls"] == ["CC7.1", "CC8.1"]
+        assert out["missing_required_controls"] == ["CC7.1", "CC7.2"]
+        assert out["unknown_controls"] == ["CC8.1"]
         assert out["coverage_ratio"] == pytest.approx(1 / 3)
         assert out["status"] == "gaps-found"
 
@@ -1297,8 +1306,10 @@ class TestSoc2GapAssessment:
         assert out["total_controls"] == 0
         assert out["covered_controls"] == 0
         assert out["missing_controls"] == []
+        assert out["missing_required_controls"] == ["CC6.1", "CC7.1", "CC7.2"]
+        assert out["unknown_controls"] == []
         assert out["coverage_ratio"] == 0.0
-        assert out["status"] == "ready"
+        assert out["status"] == "gaps-found"
 
 
 class TestUnsupportedPlatformWarning:

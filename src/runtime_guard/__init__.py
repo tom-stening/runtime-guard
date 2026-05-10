@@ -85,6 +85,7 @@ __all__ = [
     "append_audit_log",
     "fips_event_hash",
     "verify_audit_log_chain",
+    "soc2_required_controls",
     "soc2_gap_assessment",
     "make_worker_report",
     "aggregate_worker_reports",
@@ -100,6 +101,11 @@ _json_logger = logging.getLogger("runtime_guard.events")
 _active_guards: list[weakref.ref] = []
 _atfork_registered: bool = False
 _FIPS_HASH_ALGOS: set[str] = {"sha256", "sha384", "sha512"}
+_SOC2_RUNTIME_GUARD_CONTROLS: dict[str, str] = {
+    "CC6.1": "Logical access controls and role-bound privileged actions.",
+    "CC7.1": "Monitoring for anomalies and operational events.",
+    "CC7.2": "Incident response workflow and escalation evidence.",
+}
 
 
 def _atfork_child_reset() -> None:  # pragma: no cover
@@ -1933,16 +1939,40 @@ def verify_audit_log_chain(path: str) -> dict[str, Any]:
     return {"ok": True, "line": line_no, "records": line_no, "last_hash": prev_hash}
 
 
-def soc2_gap_assessment(control_state: dict[str, bool]) -> dict[str, Any]:
+def soc2_required_controls() -> dict[str, str]:
+    """Return the default SOC2 control baseline tracked by runtime-guard."""
+
+    return dict(_SOC2_RUNTIME_GUARD_CONTROLS)
+
+
+def soc2_gap_assessment(
+    control_state: dict[str, bool],
+    *,
+    required_controls: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Summarize SOC2 control coverage and missing controls.
 
-    The function is intentionally generic so callers can map internal controls
-    (for example CC6.1, CC7.1, CC8.1) to boolean evidence states.
+    By default this evaluates runtime-guard's baseline controls (CC6.1, CC7.1,
+    CC7.2). Callers can pass ``required_controls`` to override the baseline.
     """
+
+    required = (
+        dict(required_controls) if required_controls is not None else soc2_required_controls()
+    )
 
     items: list[tuple[str, bool]] = []
     for key, value in control_state.items():
         items.append((str(key), bool(value)))
+
+    provided: dict[str, bool] = {key: state for key, state in items}
+    missing_required = [
+        control_id
+        for control_id in sorted(required.keys())
+        if not bool(provided.get(control_id, False))
+    ]
+    unknown_controls = [
+        control_id for control_id in sorted(provided.keys()) if control_id not in required
+    ]
 
     total = len(items)
     covered = sum(1 for _, state in items if state)
@@ -1953,8 +1983,10 @@ def soc2_gap_assessment(control_state: dict[str, bool]) -> dict[str, Any]:
         "total_controls": total,
         "covered_controls": covered,
         "missing_controls": missing,
+        "missing_required_controls": missing_required,
+        "unknown_controls": unknown_controls,
         "coverage_ratio": score,
-        "status": "ready" if missing == [] else "gaps-found",
+        "status": "ready" if missing_required == [] else "gaps-found",
     }
 
 

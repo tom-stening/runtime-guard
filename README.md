@@ -10,9 +10,9 @@ Instead of a generic "memory is low" alert, runtime-guard tells you _which side_
 - **Threshold presets** — `tight`, `relaxed`, and `ci` bundles for instant configuration.
 - **CLI first-class** — `runtime-guard --check` integrates cleanly into shell scripts, CI gates, and health-check loops.
 
-
 ## Table of Contents
 
+1. [Install](#install)
 2. [Quickstart](#quickstart)
 3. [Configuration](#configuration)
 4. [CLI Reference](#cli-reference)
@@ -22,10 +22,10 @@ Instead of a generic "memory is low" alert, runtime-guard tells you _which side_
 8. [WSL 2 Utilities](#wsl-2-utilities)
 9. [Enterprise Support](#enterprise-support)
 10. [Team Adoption Guide](#team-adoption-guide)
-11. [Operations & Deployment](#operations--deployment)
-12. [Framework Integration Guides](#framework-integration-guides)
-13. [Architecture](#architecture)
-14. [FAQ](#faq)
+11. [Framework Integration Guides](#framework-integration-guides)
+12. [Architecture](#architecture)
+13. [FAQ](#faq)
+
 ---
 
 ## Install
@@ -475,6 +475,10 @@ generate_wslconfig(memory_gb=8, output_path="~/.wslconfig", dry_run=False)
 Enterprise-facing support scope, severity definitions, response targets, and
 incident runbook entry points are documented in
 [ENTERPRISE_SUPPORT.md](ENTERPRISE_SUPPORT.md).
+
+Production deployment steps, systemd examples, logging integration, metrics
+export, and live policy reload procedures are documented in
+[OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md).
 
 ---
 

@@ -15,9 +15,10 @@ Python data pipelines and ML workflows.
 2. [Systemd Service Setup](#systemd-service-setup)
 3. [Logging Integration](#logging-integration)
 4. [Metrics Export](#metrics-export)
-5. [Troubleshooting](#troubleshooting)
-6. [Performance & Resource Impact](#performance--resource-impact)
-7. [Rollback & Recovery](#rollback--recovery)
+5. [Dynamic Policy Reloading](#dynamic-policy-reloading)
+6. [Troubleshooting](#troubleshooting)
+7. [Performance & Resource Impact](#performance--resource-impact)
+8. [Rollback & Recovery](#rollback--recovery)
 
 ---
 
@@ -340,6 +341,97 @@ with tracer.start_as_current_span("data-processing") as span:
         emit_otel_event(report, event_name="runtime_guard.pressure", span=span)
         # Continue with mitigation...
 ```
+
+---
+
+## Dynamic Policy Reloading
+
+runtime-guard can load threshold and posture overrides from a JSON policy file
+and automatically refresh them when the file changes on disk. This allows ops
+teams to tighten or relax thresholds without restarting the monitored process.
+
+### Supported flow
+
+```python
+from runtime_guard import RuntimeGuard
+
+guard = RuntimeGuard()
+guard.load_policy_file("/etc/runtime-guard/policy.json", auto_reload=True)
+
+# Each check() call will reload automatically when the file mtime changes.
+guard.check_and_log(stage="background")
+```
+
+### Example policy file
+
+```json
+{
+    "posture": "relaxed",
+    "min_mem_available_mb": 1536,
+    "critical_mem_mb": 768,
+    "max_swap_used_pct": 90,
+    "critical_swap_pct": 97,
+    "self_inflicted_pct": 20
+}
+```
+
+### Precedence rules
+
+Threshold resolution uses the following order:
+
+1. Environment variables
+2. Loaded policy file / in-memory policy overrides
+3. Built-in preset posture defaults
+
+This means emergency overrides can still be applied immediately with
+environment variables, even when policy-file reloading is enabled.
+
+### Operational rollout pattern
+
+1. Create a policy file in a stable location such as
+     `/etc/runtime-guard/policy.json`.
+2. Load it once during process startup with `load_policy_file(..., auto_reload=True)`.
+3. Update the file atomically during incidents:
+
+```bash
+cat > /tmp/runtime-guard-policy.json <<'EOF'
+{
+    "posture": "ci",
+    "min_mem_available_mb": 1024,
+    "critical_mem_mb": 512
+}
+EOF
+mv /tmp/runtime-guard-policy.json /etc/runtime-guard/policy.json
+```
+
+4. The next `check()` or `check_and_log()` call reloads the file automatically.
+
+### Manual validation
+
+```bash
+python - <<'EOF'
+from runtime_guard import RuntimeGuard
+
+guard = RuntimeGuard()
+before = guard.load_policy_file("/etc/runtime-guard/policy.json", auto_reload=True)
+print("Loaded:", before)
+print("Reloaded?", guard.reload_policy_if_changed())
+EOF
+```
+
+### Failure modes
+
+| Failure mode | Behavior | Operator action |
+|---|---|---|
+| Policy file missing after startup | Reload is skipped and current policy remains active | Restore the file at the configured path |
+| Invalid JSON | Reload raises `ValueError` on the next reload attempt | Validate JSON before replacing the live file |
+| Invalid config values | Reload raises validation error and existing policy remains in memory | Fix the bad values and rewrite atomically |
+| File updated without mtime change | Reload may not trigger on that check cycle | Use atomic replace (`mv`) rather than in-place edits |
+
+### Recommendation
+
+Prefer atomic file replacement over editing the file in place. It gives a clean
+mtime change, avoids partial writes, and makes rollback trivial.
 
 ---
 

@@ -1,0 +1,115 @@
+name: Dask Memory Diagnostics
+about: Report Dask memory pressure incidents with runtime-guard context.
+title: "[Dask][Memory] "
+labels: ["dask", "memory", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a Dask memory diagnostics issue.
+        Please provide enough context to reproduce and attribute pressure.
+
+  - type: input
+    id: runtime_guard_version
+    attributes:
+      label: runtime-guard version
+      description: Output of `runtime-guard --version`
+      placeholder: "0.3.0"
+    validations:
+      required: true
+
+  - type: input
+    id: dask_version
+    attributes:
+      label: Dask version
+      placeholder: "2026.x"
+    validations:
+      required: true
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      placeholder: "3.12.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - WSL 2
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: workload
+    attributes:
+      label: Workload summary
+      description: Describe compute graph shape, dataset size, and expected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: check_output
+    attributes:
+      label: runtime-guard check output
+      description: Include `runtime-guard --check --stage dask` output or equivalent log excerpt.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: snapshot_output
+    attributes:
+      label: Snapshot output
+      description: Include `runtime-guard --snapshot` output from the same run window.
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: self_inflicted
+    attributes:
+      label: Was pressure marked self-inflicted?
+      options:
+        - "true"
+        - "false"
+        - unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: top_processes
+    attributes:
+      label: Top process table excerpt
+      description: Paste top-RSS process lines from runtime-guard output.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Share a minimal script or notebook steps.
+      render: python
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I ran the issue with a recent runtime-guard version.
+          required: true
+        - label: I included memory check and snapshot outputs.
+          required: true
+        - label: I removed secrets from logs before posting.
+          required: true

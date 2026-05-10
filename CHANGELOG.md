@@ -48,6 +48,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   severities, response targets, and runbook entry points.
 - Enterprise adoption execution tracker in `ADOPTION_TRACKER.md` with stage
   definitions, per-team evidence checklist, and milestone success criteria.
+- Polars adoption playbook in `INTEGRATION_POLARS.md` with rollout phases,
+  validation workflow, and evidence checklist for M1-I01.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -66,6 +68,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M2-C06 moved to IN PROGRESS based on implemented compliance scaffold.
 - Roadmap M2-I01 moved to IN PROGRESS based on enterprise support package draft.
 - Roadmap M2-I02 moved to IN PROGRESS based on adoption tracker kickoff.
+- Roadmap M1-I01 moved to IN PROGRESS based on Polars integration playbook kickoff.
 
 ## [0.3.0] - 2026-05-10
 

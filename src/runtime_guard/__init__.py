@@ -2676,6 +2676,7 @@ def attach_signal_recovery(
     chain_previous: bool = False,
     audit_log_path: str | None = None,
     hash_algo: str = "sha256",
+    audit_deduplicator: "FipsDeduplicator" | None = None,
     module: Any | None = None,
 ) -> Callable[[], None]:
     """Install signal handlers that emit a final pressure report.
@@ -2743,6 +2744,7 @@ def attach_signal_recovery(
                             "intervened": auto_intervene and should_intervene,
                         },
                         hash_algo=hash_algo,
+                        deduplicator=audit_deduplicator,
                     )
                 except Exception:
                     pass  # never let audit-log failure interrupt signal handling
@@ -2780,6 +2782,7 @@ def resolve_signal_recovery_policy(
       default: ``SIGTERM,SIGINT,SIGUSR1,SIGABRT``
     - ``<PREFIX>_SIGNAL_RECOVERY_AUDIT_LOG`` (path or unset)
     - ``<PREFIX>_SIGNAL_RECOVERY_HASH_ALGO`` (sha256|sha384|sha512, default: sha256)
+    - ``<PREFIX>_SIGNAL_RECOVERY_AUDIT_DEDUP_TTL_S`` (float seconds or unset)
     """
     signal_mod = module
     if signal_mod is None:
@@ -2806,6 +2809,20 @@ def resolve_signal_recovery_policy(
             return None
         try:
             parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed <= 0:
+            return None
+        return parsed
+
+    def _as_positive_float(raw: str | None) -> float | None:
+        if raw is None:
+            return None
+        value = str(raw).strip()
+        if value == "":
+            return None
+        try:
+            parsed = float(value)
         except (TypeError, ValueError):
             return None
         if parsed <= 0:
@@ -2850,6 +2867,7 @@ def resolve_signal_recovery_policy(
     hash_algo_env = str(_env("SIGNAL_RECOVERY_HASH_ALGO", "sha256") or "sha256").strip().lower()
     if hash_algo_env not in _FIPS_HASH_ALGOS:
         hash_algo_env = "sha256"
+    audit_dedup_ttl_s = _as_positive_float(_env("SIGNAL_RECOVERY_AUDIT_DEDUP_TTL_S"))
 
     return {
         "enabled": enabled,
@@ -2861,6 +2879,7 @@ def resolve_signal_recovery_policy(
         "chain_previous": chain_previous,
         "audit_log_path": audit_log_path,
         "hash_algo": hash_algo_env,
+        "audit_dedup_ttl_s": audit_dedup_ttl_s,
     }
 
 
@@ -2875,6 +2894,15 @@ def install_signal_recovery_from_policy(
     if not bool(policy.get("enabled", True)):
         return lambda: None
 
+    audit_deduplicator: FipsDeduplicator | None = None
+    if policy.get("audit_log_path"):
+        ttl_s = policy.get("audit_dedup_ttl_s")
+        if ttl_s is not None:
+            audit_deduplicator = FipsDeduplicator(
+                hash_algo=str(policy.get("hash_algo", "sha256")),
+                ttl_s=float(ttl_s),
+            )
+
     return attach_signal_recovery(
         guard,
         signals_to_handle=list(policy.get("signals_to_handle", [])),
@@ -2885,6 +2913,7 @@ def install_signal_recovery_from_policy(
         chain_previous=bool(policy.get("chain_previous", False)),
         audit_log_path=policy.get("audit_log_path"),
         hash_algo=str(policy.get("hash_algo", "sha256")),
+        audit_deduplicator=audit_deduplicator,
         module=module,
     )
 

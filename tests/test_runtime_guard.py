@@ -1700,6 +1700,7 @@ class TestSignalRecovery:
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_STAGE_PREFIX", "ops")
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_KILL_HOGS_MB", "2048")
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_SIGNALS", "SIGTERM,2")
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_AUDIT_DEDUP_TTL_S", "120")
 
         out = resolve_signal_recovery_policy(module=sigmod)
         assert out["enabled"] is True
@@ -1709,6 +1710,7 @@ class TestSignalRecovery:
         assert out["stage_prefix"] == "ops"
         assert out["kill_hogs_above_mb"] == 2048
         assert out["signals_to_handle"] == [sigmod.SIGTERM, 2]
+        assert out["audit_dedup_ttl_s"] == 120.0
 
     def test_resolve_policy_sanitizes_invalid_rollout_values(self, monkeypatch):
         sigmod = self._DummySignalModule()
@@ -1814,6 +1816,38 @@ class TestSignalRecovery:
 
         out = resolve_signal_recovery_policy(module=sigmod)
         assert out["hash_algo"] == "sha256"  # falls back to default
+
+    def test_resolve_policy_sanitizes_invalid_audit_dedup_ttl(self, monkeypatch):
+        sigmod = self._DummySignalModule()
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_AUDIT_DEDUP_TTL_S", "0")
+        out = resolve_signal_recovery_policy(module=sigmod)
+        assert out["audit_dedup_ttl_s"] is None
+
+    def test_attach_signal_recovery_dedups_audit_log_events(self, tmp_path, monkeypatch):
+        guard = RuntimeGuard()
+        sigmod = self._DummySignalModule()
+        monkeypatch.setattr(guard, "check", lambda stage="": _make_report(stage=stage))
+        monkeypatch.setattr(guard, "log", lambda report: None)
+        monkeypatch.setattr(guard, "intervene", lambda report, **kw: None)
+
+        audit_path = str(tmp_path / "signal_audit_dedup.jsonl")
+        dedup = FipsDeduplicator(ttl_s=300)
+        restore = attach_signal_recovery(
+            guard,
+            module=sigmod,
+            signals_to_handle=[sigmod.SIGTERM],
+            audit_log_path=audit_path,
+            audit_deduplicator=dedup,
+        )
+        try:
+            handler = sigmod.handlers[sigmod.SIGTERM]
+            handler(sigmod.SIGTERM, None)
+            handler(sigmod.SIGTERM, None)
+        finally:
+            restore()
+
+        lines = Path(audit_path).read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
 
 
 # ---------------------------------------------------------------------------

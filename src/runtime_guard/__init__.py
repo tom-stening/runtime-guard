@@ -38,6 +38,7 @@ import subprocess
 import sys
 import threading
 import time
+import weakref
 from dataclasses import dataclass, field
 
 __all__ = [
@@ -49,6 +50,31 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 _json_logger = logging.getLogger("runtime_guard.events")
+
+# ---------------------------------------------------------------------------
+# Fork-safety: reset background-check thread state in child processes (KI-003)
+# ---------------------------------------------------------------------------
+
+_active_guards: list[weakref.ref] = []
+_atfork_registered: bool = False
+
+
+def _atfork_child_reset() -> None:  # pragma: no cover
+    """Called in the child process after os.fork().  Clears thread handles so
+    the child can call start_background_check() without the stale parent ref."""
+    for ref in list(_active_guards):
+        guard = ref()
+        if guard is not None:
+            guard._bg_stop = None   # type: ignore[attr-defined]
+            guard._bg_thread = None  # type: ignore[attr-defined]
+    _active_guards.clear()
+
+
+# ---------------------------------------------------------------------------
+# Unsupported-platform warning sentinel (KI-005)
+# ---------------------------------------------------------------------------
+
+_unsupported_platform_warned: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +452,7 @@ class RuntimeGuard:
         self,
         interval_s: float = 60.0,
         stage: str = "background",
-    ) -> None:
+    ) -> None:  # noqa: E501
         """Start a periodic background pressure check on a daemon thread.
 
         Pressure events detected between call sites are logged via the normal
@@ -437,6 +463,13 @@ class RuntimeGuard:
         replaces the existing interval and stage without creating a second
         thread.
         """
+        # Register the fork handler once so child processes start clean (KI-003).
+        global _atfork_registered
+        if not _atfork_registered and hasattr(os, "register_at_fork"):
+            os.register_at_fork(after_in_child=_atfork_child_reset)  # type: ignore[attr-defined]
+            _atfork_registered = True
+        _active_guards.append(weakref.ref(self))
+
         self.stop_background_check()
         self._bg_stop = threading.Event()
         stop_event = self._bg_stop  # local ref for closure
@@ -637,7 +670,16 @@ def _read_snapshot() -> MemSnapshot:
         _read_macos(snap)
     elif sys.platform == "win32":
         _read_windows(snap)
-    # Other platforms: snapshot stays all zeros (silently no-op)
+    else:
+        # KI-005: warn once so callers know monitoring is inactive.
+        global _unsupported_platform_warned
+        if not _unsupported_platform_warned:
+            logger.warning(
+                "[RuntimeGuard] Unsupported platform %r: memory snapshot will be "
+                "zero-filled and pressure will never be reported.",
+                sys.platform,
+            )
+            _unsupported_platform_warned = True
 
     return snap
 
@@ -706,29 +748,33 @@ def _read_macos(snap: MemSnapshot) -> None:
         pass
 
     try:
-        # Available memory: vm_stat gives pages; page size is 4096 on Apple Silicon and x86
+        # KI-001: use sysctl hw.pagesize instead of parsing the vm_stat header
+        # to avoid locale-sensitive text matching.
+        try:
+            ps_out = subprocess.check_output(
+                ["sysctl", "-n", "hw.pagesize"], stderr=subprocess.DEVNULL, timeout=3
+            )
+            page_size = int(ps_out.strip())
+        except Exception:
+            page_size = 4096  # safe fallback for any kernel
+
+        # Available memory: vm_stat gives page counts in a fixed-format output.
+        # We match lines by their page-count field name using a locale-independent
+        # regex so the parse works regardless of LANG / LC_ALL settings.
+        import re as _re
         out = subprocess.check_output(
             ["vm_stat"], stderr=subprocess.DEVNULL, timeout=3, text=True
         )
-        page_size = 4096
-        pages_free = 0
-        pages_inactive = 0
-        pages_speculative = 0
-        for line in out.splitlines():
-            if line.startswith("Mach Virtual Memory Statistics"):
-                # "page size of N bytes"
-                import re as _re
-                m = _re.search(r"page size of (\d+) bytes", line)
-                if m:
-                    page_size = int(m.group(1))
-            elif "Pages free:" in line:
-                pages_free = int(line.split(":")[1].strip().rstrip("."))
-            elif "Pages inactive:" in line:
-                pages_inactive = int(line.split(":")[1].strip().rstrip("."))
-            elif "Pages speculative:" in line:
-                pages_speculative = int(line.split(":")[1].strip().rstrip("."))
-        available_bytes = (pages_free + pages_inactive + pages_speculative) * page_size
-        snap.mem_available_mb = available_bytes // (1024 * 1024)
+        _VM_STAT_RE = _re.compile(r"^\s*Pages\s+(free|inactive|speculative):\s+(\d+)", _re.M)
+        counts: dict[str, int] = {}
+        for m in _VM_STAT_RE.finditer(out):
+            counts[m.group(1)] = int(m.group(2))
+        pages_available = (
+            counts.get("free", 0)
+            + counts.get("inactive", 0)
+            + counts.get("speculative", 0)
+        )
+        snap.mem_available_mb = (pages_available * page_size) // (1024 * 1024)
     except Exception:
         pass
 
@@ -748,7 +794,55 @@ def _read_macos(snap: MemSnapshot) -> None:
 # -- Windows ---------------------------------------------------------------
 
 def _read_windows(snap: MemSnapshot) -> None:
-    """Populate snap using ``wmic`` queries."""
+    """Populate snap using PowerShell Get-CimInstance (KI-002 fix), falling
+    back to ``wmic`` on older Windows builds where PowerShell is restricted."""
+    # --- System memory: try PowerShell first (Win11 23H2+ safe) ---
+    _read_windows_powershell(snap)
+    if snap.mem_total_mb == 0:
+        _read_windows_wmic(snap)
+
+
+def _read_windows_powershell(snap: MemSnapshot) -> bool:
+    """Populate snap via PowerShell Get-CimInstance.  Returns True on success."""
+    try:
+        out = subprocess.check_output(
+            [
+                "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                "Get-CimInstance Win32_OperatingSystem "
+                "| Select-Object FreePhysicalMemory,TotalVisibleMemorySize "
+                "| ConvertTo-Csv -NoTypeInformation",
+            ],
+            stderr=subprocess.DEVNULL, timeout=8, text=True,
+        )
+        lines = [ln.strip().strip('"') for ln in out.splitlines() if ln.strip()]
+        if len(lines) >= 2:
+            headers = [h.strip('"') for h in lines[0].split(",")]
+            values  = [v.strip('"') for v in lines[1].split(",")]
+            row: dict[str, str] = dict(zip(headers, values))
+            snap.mem_total_mb     = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
+            snap.mem_available_mb = int(row.get("FreePhysicalMemory",    0) or 0) // 1024
+    except Exception:
+        return False
+
+    # Process RSS via PowerShell
+    try:
+        pid = os.getpid()
+        out = subprocess.check_output(
+            [
+                "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                f"(Get-Process -Id {pid}).WorkingSet64",
+            ],
+            stderr=subprocess.DEVNULL, timeout=5, text=True,
+        )
+        snap.rss_mb = int(out.strip()) // (1024 * 1024)
+    except Exception:
+        pass
+
+    return snap.mem_total_mb > 0
+
+
+def _read_windows_wmic(snap: MemSnapshot) -> None:
+    """Legacy wmic fallback for Windows 10 and earlier."""
     try:
         out = subprocess.check_output(
             ["wmic", "OS", "get",
@@ -1098,11 +1192,84 @@ def generate_wslconfig(
 
     if output_path and not dry_run:
         expanded = os.path.expanduser(output_path)
-        with open(expanded, "w", encoding="utf-8") as fh:
-            fh.write(content)
-        logger.info("[RuntimeGuard] Wrote recommended .wslconfig to %s", expanded)
+        # KI-006: merge existing file rather than overwriting it blindly.
+        _merge_wslconfig(expanded, content)
 
     return content
+
+
+def _merge_wslconfig(path: str, generated: str) -> None:
+    """Safely merge the runtime-guard [wsl2] keys into an existing .wslconfig.
+
+    Algorithm:
+    1. If the file does not exist, write *generated* directly.
+    2. If it exists, back it up as ``<path>.bak``, then merge:
+       - Preserve all sections and keys NOT produced by runtime-guard.
+       - Overwrite only the keys in the ``[wsl2]`` section that runtime-guard
+         manages: ``memory``, ``swap``, ``processors``, ``pageReporting``,
+         ``localhostForwarding``, ``nestedVirtualization``.
+    """
+    _MANAGED_KEYS = {
+        "memory", "swap", "processors",
+        "pagereporting", "localhostforwarding", "nestedvirtualization",
+    }
+
+    if not os.path.isfile(path):
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(generated)
+        logger.info("[RuntimeGuard] Wrote .wslconfig to %s", path)
+        return
+
+    # Back up the existing file before touching it.
+    backup = path + ".bak"
+    try:
+        with open(path, encoding="utf-8") as fh:
+            existing = fh.read()
+        with open(backup, "w", encoding="utf-8") as fh:
+            fh.write(existing)
+        logger.info("[RuntimeGuard] Backed up existing .wslconfig to %s", backup)
+    except OSError as exc:
+        logger.warning("[RuntimeGuard] Could not back up .wslconfig: %s", exc)
+
+    # Parse existing file line-by-line, replacing managed keys in [wsl2].
+    # Parse generated content to extract the values to inject.
+    new_vals: dict[str, str] = {}
+    for line in generated.splitlines():
+        if "=" in line and not line.strip().startswith("#"):
+            k, _, v = line.partition("=")
+            new_vals[k.strip().lower()] = line.rstrip()
+
+    in_wsl2 = False
+    output_lines: list[str] = []
+    replaced: set[str] = set()
+
+    for line in existing.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("["):
+            in_wsl2 = stripped.lower() == "[wsl2]"
+            output_lines.append(line)
+            continue
+        if in_wsl2 and "=" in stripped and not stripped.startswith("#"):
+            key = stripped.split("=", 1)[0].strip().lower()
+            if key in _MANAGED_KEYS and key in new_vals:
+                output_lines.append(new_vals[key])
+                replaced.add(key)
+                continue
+        output_lines.append(line)
+
+    # Append any managed keys that were absent in the existing file.
+    missing = set(new_vals) - replaced
+    if missing:
+        # Ensure we're inside [wsl2]
+        if "[wsl2]" not in "\n".join(output_lines).lower():
+            output_lines.append("[wsl2]")
+        for key in sorted(missing):
+            output_lines.append(new_vals[key])
+
+    merged = "\n".join(output_lines) + "\n"
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(merged)
+    logger.info("[RuntimeGuard] Merged .wslconfig at %s", path)
 
 
 def recommend_kernel_params(
@@ -1409,7 +1576,7 @@ def make_conftest_content(
         "",
         "try:",
         "    from runtime_guard import make_pytest_guard",
-        f"    _GUARD = make_pytest_guard(",
+        "    _GUARD = make_pytest_guard(",
         f"        repo_name={repo_name!r},",
         f"        hints={hints_repr},",
         "    )",
@@ -1475,18 +1642,145 @@ def make_conftest_content(
 
 
 def _cli() -> None:  # pragma: no cover
-    logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stderr)
-    snap = _read_snapshot()
-    print(
-        f"[RuntimeGuard] MemTotal={snap.mem_total_mb} MB  "
-        f"MemAvailable={snap.mem_available_mb} MB  "
-        f"SwapUsed={snap.swap_used_pct}%  "
-        f"RSS={snap.rss_mb} MB  pid={os.getpid()}"
+    """CLI entry point for ``runtime-guard`` and ``python -m runtime_guard``.
+
+    Modes
+    -----
+    (no flags)         Print a one-line snapshot; exit 1 if pressure detected.
+    --snapshot         Print a detailed human-readable memory snapshot and exit 0.
+    --check            Exit 0 (no pressure) or 1 (pressure detected); always prints cause.
+    --report           Full WSL2 system health report (same as wsl_system_report()).
+    --generate-wslconfig [MEM_GB]
+                       Print a recommended .wslconfig; optionally write it with
+                       --write (respects existing file — merges, does not overwrite).
+    --posture POSTURE  Override threshold preset for this invocation (tight|relaxed|ci).
+    --stage STAGE      Label for the check (shown in log output).
+    --version          Print the package version and exit.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="runtime-guard",
+        description="Attribution-aware resource-pressure monitor.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    guard = RuntimeGuard()
-    report = guard.check()
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--snapshot",
+        action="store_true",
+        help="Print a detailed memory snapshot and exit 0.",
+    )
+    group.add_argument(
+        "--check",
+        action="store_true",
+        help="Check for pressure; exit 1 if detected.",
+    )
+    group.add_argument(
+        "--report",
+        action="store_true",
+        help="Print a full WSL2 / system health report.",
+    )
+    group.add_argument(
+        "--generate-wslconfig",
+        metavar="MEM_GB",
+        type=int,
+        nargs="?",
+        const=0,  # sentinel: auto-detect from current RAM
+        help="Print a recommended .wslconfig (optionally with --write to save it).",
+    )
+    parser.add_argument(
+        "--write",
+        metavar="PATH",
+        help="Write output to PATH instead of stdout (used with --generate-wslconfig).",
+    )
+    parser.add_argument(
+        "--posture",
+        choices=list(_PRESETS),
+        help="Override threshold preset for this check.",
+    )
+    parser.add_argument(
+        "--stage",
+        default="",
+        help="Label to attach to the check (shown in log output).",
+    )
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Print the package version and exit.",
+    )
+
+    args = parser.parse_args()
+
+    logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stderr)
+
+    if args.version:
+        try:
+            from importlib.metadata import version as _pkg_version
+            print(_pkg_version("runtime-guard"))
+        except Exception:
+            print("unknown")
+        return
+
+    if args.report:
+        print(wsl_system_report())
+        return
+
+    if args.generate_wslconfig is not None:
+        snap = _read_snapshot()
+        mem_gb = args.generate_wslconfig if args.generate_wslconfig > 0 else max(4, snap.mem_total_mb // 1024)
+        write_path = args.write
+        content = generate_wslconfig(
+            memory_gb=mem_gb,
+            output_path=write_path,
+            dry_run=(write_path is None),
+        )
+        if write_path is None:
+            print(content)
+        else:
+            print(f"[RuntimeGuard] .wslconfig written (merged) to {write_path}", file=sys.stderr)
+        return
+
+    if args.snapshot:
+        snap = _read_snapshot()
+        print(
+            f"Platform      : {sys.platform}\n"
+            f"MemTotal      : {snap.mem_total_mb:,} MB\n"
+            f"MemAvailable  : {snap.mem_available_mb:,} MB\n"
+            f"SwapTotal     : {snap.swap_total_mb:,} MB\n"
+            f"SwapFree      : {snap.swap_free_mb:,} MB\n"
+            f"SwapUsed      : {snap.swap_used_pct}%\n"
+            f"RSS (this pid): {snap.rss_mb:,} MB\n"
+            f"VmSwap        : {snap.vm_swap_mb:,} MB\n"
+            f"PID           : {os.getpid()}"
+        )
+        return
+
+    # Default and --check share the same logic; --check is explicit, default is compact.
+    env_overrides: dict[str, str] = {}
+    if args.posture:
+        env_overrides["RUNTIME_GUARD_POSTURE"] = args.posture
+
+    old_env = {k: os.environ.get(k) for k in env_overrides}
+    for k, v in env_overrides.items():
+        os.environ[k] = v
+    try:
+        guard = RuntimeGuard()
+        report = guard.check(stage=args.stage)
+    finally:
+        for k, original in old_env.items():
+            if original is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = original
+
     if report is None:
-        print("[RuntimeGuard] No pressure detected.")
+        snap = _read_snapshot()
+        print(
+            f"[RuntimeGuard] OK — MemAvail={snap.mem_available_mb} MB  "
+            f"SwapUsed={snap.swap_used_pct}%  "
+            f"RSS={snap.rss_mb} MB  pid={os.getpid()}"
+        )
+        sys.exit(0)
     else:
         guard.log(report)
         sys.exit(1)

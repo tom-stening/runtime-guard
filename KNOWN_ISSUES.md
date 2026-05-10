@@ -12,38 +12,7 @@
 
 ## Open Issues
 
-### KI-001 — macOS `vm_stat` page-size parsing is not locale-aware
-- **Severity:** S2
-- **Affects:** macOS with non-English locale or non-standard page size
-- **Version introduced:** 0.1.0
-- **Description:** `vm_stat` output is parsed with a hard-coded page size of 4096 bytes and an English text pattern (`"Pages free:"`) for the field label. Systems configured with a different locale may fail to parse the output, returning a zero-filled snapshot instead of raising an error.
-- **Workaround:** Set `LANG=en_US.UTF-8` before invoking the process, or force Linux mode on the host if running in a VM.
-- **Fix target:** v0.3.0 — Refactor macOS snapshot reader to use `sysctl hw.pagesize` for the page size and regex with locale-insensitive flags.
-- **Linked PR:** (pending)
-
----
-
-### KI-002 — Windows `wmic` deprecated on Windows 11 23H2+
-- **Severity:** S1
-- **Affects:** Windows 11 builds ≥ 23H2, Windows Server 2025
-- **Version introduced:** 0.1.0
-- **Description:** Microsoft deprecated `wmic` in Windows 11 22H2 and removed it from Windows 11 23H2 in some editions. `_read_snapshot()` calls `wmic OS get FreePhysicalMemory` which silently returns an empty string on affected builds, producing a zero-filled snapshot. No warning is surfaced to the caller.
-- **Workaround:** Use Linux or macOS, or run inside WSL 2 where `/proc/meminfo` is available.
-- **Fix target:** v0.3.0 — Replace `wmic` with PowerShell `Get-CimInstance Win32_OperatingSystem` with a `wmic` fallback for older builds.
-- **Linked PR:** (pending)
-
----
-
-### KI-003 — Background check daemon thread is not restarted after fork
-- **Severity:** S1
-- **Affects:** Any code using `multiprocessing` with `fork` start method + `start_background_check()`
-- **Version introduced:** 0.2.0
-- **Description:** Python `multiprocessing` with `fork` copies the daemon thread handle but does not restart the thread in the child process. The child process has no active background check, but `_bg_thread` is truthy, so `start_background_check()` silently no-ops in the child. Pressure events in forked child processes are missed.
-- **Workaround:** Do not call `start_background_check()` before forking. Call it explicitly inside each child process after the fork, or use `spawn` as the multiprocessing start method.
-- **Fix target:** v0.3.0 — Register an `os.register_at_fork` `after_in_child` callback to clear `_bg_thread` so child processes can restart the check.
-- **Linked PR:** (pending)
-
----
+*(KI-001 through KI-003, KI-005, KI-006 resolved in v0.3.0 — see Closed Issues below.)*
 
 ### KI-004 — `cooldown_s` timer is not per-stage, it is global
 - **Severity:** S2
@@ -56,35 +25,15 @@
 
 ---
 
-### KI-005 — Zero-filled snapshot on non-Linux/macOS/Windows platforms raises no warning
-- **Severity:** S3
-- **Affects:** Any platform that is not Linux, macOS, or Windows (e.g., FreeBSD, Haiku, WASM)
-- **Version introduced:** 0.1.0
-- **Description:** On unsupported platforms, `_read_snapshot()` returns a `MemSnapshot` with all fields set to 0. `check()` interprets 0 MB available as "no pressure detected" (because the comparison is `available < floor` and 0 is not negative). This means pressure is *silently never reported* rather than raising `RuntimeError` or emitting a log warning.
-- **Workaround:** Check `platform.system()` before relying on runtime-guard in production on non-standard platforms.
-- **Fix target:** v0.3.0 — Emit a `logging.WARNING` once (using a module-level flag) when a zero-filled fallback is returned.
-- **Linked PR:** (pending)
-
----
-
-### KI-006 — `generate_wslconfig` overwrites existing `.wslconfig` without backup
-- **Severity:** S1
-- **Affects:** Any user with a hand-crafted `.wslconfig` who calls `generate_wslconfig()`
-- **Version introduced:** 0.2.0
-- **Description:** `generate_wslconfig()` writes the generated content to `~/.wslconfig` directly. If the file already exists with custom settings (e.g., custom `processors`, `kernelCommandLine`, proxy config), those settings are silently overwritten.
-- **Workaround:** Back up `~/.wslconfig` manually before calling `generate_wslconfig()`.
-- **Fix target:** v0.3.0 — Read existing file, merge only the `[wsl2]` keys managed by runtime-guard, and write back. Never remove unrecognised keys.
-- **Linked PR:** (pending)
-
----
-
 ## Closed Issues
 
 | ID | Summary | Resolution | Fixed in |
 |---|---|---|---|
-| — | — | — | — |
-
-*(No closed issues yet — this registry was opened at v0.2.0.)*
+| KI-001 | macOS `vm_stat` page-size parsing not locale-aware | Use `sysctl hw.pagesize` subprocess call; locale-insensitive regex for page counts | v0.3.0 |
+| KI-002 | Windows `wmic` deprecated on Win11 23H2+ | Replaced with PowerShell `Get-CimInstance Win32_OperatingSystem`; `wmic` retained as fallback | v0.3.0 |
+| KI-003 | Background check daemon thread not restarted after fork | `os.register_at_fork(after_in_child=…)` clears `_bg_thread` / `_bg_stop` in child | v0.3.0 |
+| KI-005 | Zero-filled snapshot on unsupported platforms raises no warning | `logging.WARNING` emitted once via module-level sentinel `_unsupported_platform_warned` | v0.3.0 |
+| KI-006 | `generate_wslconfig` overwrites existing `.wslconfig` without backup | New `_merge_wslconfig()` helper: backs up existing file, merges only managed `[wsl2]` keys, preserves all other keys and sections | v0.3.0 |
 
 ---
 

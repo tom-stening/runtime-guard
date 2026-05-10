@@ -273,6 +273,8 @@ Raw memory values from the OS at a point in time.
 | `make_pytest_guard(**kwargs) → RuntimeGuard` | Return a `RuntimeGuard` configured for pytest environments. |
 | `make_conftest_content(**kwargs) → str` | Generate a ready-to-use `conftest.py` string for pytest projects. |
 | `attach_polars_guard(guard, stage="polars-collect", module=None) → Callable[[], None]` | Monkeypatch `polars.LazyFrame.collect` (and `fetch` when present) to run `guard.check_and_log()` before each call. Returns a restore function. |
+| `validate_polars_integration(guard, stage="polars-collect", module=None) → dict[str, Any]` | Validate that Polars integration is correctly installed and functional. Used for M1-I01 adoption evidence collection. |
+| `collect_polars_integration_evidence(guard, stage="polars-collect", module=None, version_info=None) → dict[str, Any]` | Collect integration readiness evidence compatible with ADOPTION_TRACKER.md. Records validation status, versions, and available hooks. |
 | `attach_dask_guard(guard, stage="dask-compute", module=None) → Callable[[], None]` | Monkeypatch `dask.compute`/`dask.persist` plus `dask.base.compute`/`dask.base.persist` when present to run `guard.check_and_log()` before each call. Returns a restore function. |
 | `attach_ray_guard(guard, stage="ray-get", module=None) → Callable[[], None]` | Monkeypatch `ray.get` plus `ray.wait`/`ray.put` when present to run `guard.check_and_log()` before each call. Returns a restore function. |
 | `pressure_report_attributes(report) → dict[str, Any]` | Convert a `PressureReport` into OpenTelemetry-friendly flat attributes. |

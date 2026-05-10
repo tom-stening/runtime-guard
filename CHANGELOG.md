@@ -69,6 +69,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Adoption execution automation: `build_adoption_scorecard()` API for multi-team
   rollout progress tracking plus `scripts/adoption_scorecard.py` CLI for
   stage aggregation and missing-evidence reporting.
+- Polars integration validation: `validate_polars_integration()` and
+  `collect_polars_integration_evidence()` for adoption evidence collection
+  and M1-I01 rollout verification.
 - SOC2 readiness enhancements: `soc2_evidence_requirements()` and
   `soc2_readiness_report()` now track evidence completeness alongside control
   coverage for audit-readiness evaluation.

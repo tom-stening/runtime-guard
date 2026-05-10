@@ -95,6 +95,8 @@ __all__ = [
     "soc2_evidence_requirements",
     "soc2_readiness_report",
     "build_adoption_scorecard",
+    "validate_polars_integration",
+    "collect_polars_integration_evidence",
     "make_worker_report",
     "aggregate_worker_reports",
 ]
@@ -1649,6 +1651,129 @@ def attach_ray_guard(
             setattr(module, "put", original_put)
 
     return _restore
+
+
+def validate_polars_integration(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "polars-collect",
+    module: Any | None = None,
+) -> dict[str, Any]:
+    """Validate that Polars integration is correctly installed and functional.
+
+    Returns a verification report showing:
+    - Polars availability
+    - LazyFrame.collect/fetch method status
+    - Guard hook status
+    - Any errors encountered
+
+    Useful for M1-I01 adoption evidence collection.
+    """
+    errors: list[str] = []
+    polars_available = False
+    methods_wrapped = False
+
+    try:
+        polars_mod = module
+        if polars_mod is None:
+            try:
+                import polars as polars_mod  # type: ignore
+            except Exception as exc:  # pragma: no cover
+                errors.append(f"Polars import failed: {exc}")
+                return {
+                    "ok": False,
+                    "polars_available": False,
+                    "methods_wrapped": False,
+                    "errors": errors,
+                }
+        polars_available = True
+
+        lazyframe_cls = getattr(polars_mod, "LazyFrame", None)
+        if lazyframe_cls is None:
+            errors.append("LazyFrame class not found")
+            return {
+                "ok": False,
+                "polars_available": True,
+                "methods_wrapped": False,
+                "errors": errors,
+            }
+
+        collect_method = getattr(lazyframe_cls, "collect", None)
+        fetch_method = getattr(lazyframe_cls, "fetch", None)
+
+        methods_wrapped = bool(getattr(collect_method, "_runtime_guard_wrapped", False))
+
+        return {
+            "ok": True,
+            "polars_available": True,
+            "methods_wrapped": methods_wrapped,
+            "collect_present": collect_method is not None,
+            "fetch_present": fetch_method is not None,
+            "errors": errors,
+        }
+    except Exception as exc:  # pragma: no cover
+        errors.append(f"Validation error: {exc}")
+        return {
+            "ok": False,
+            "polars_available": polars_available,
+            "methods_wrapped": methods_wrapped,
+            "errors": errors,
+        }
+
+
+def collect_polars_integration_evidence(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "polars-collect",
+    module: Any | None = None,
+    version_info: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Collect evidence of Polars integration readiness for adoption tracking.
+
+    Returns a report compatible with ADOPTION_TRACKER.md evidence arrays.
+    Useful for M1-I01 rollout validation and audit.
+    """
+    validation = validate_polars_integration(guard, stage=stage, module=module)
+
+    evidence_items: list[str] = []
+
+    if validation.get("ok"):
+        evidence_items.append("polars_integration_validated")
+
+    if validation.get("methods_wrapped"):
+        evidence_items.append("polars_hooks_installed")
+
+    if validation.get("collect_present"):
+        evidence_items.append("polars_collect_available")
+
+    if validation.get("fetch_present"):
+        evidence_items.append("polars_fetch_available")
+
+    runtime_guard_version = "0.3.0"
+    try:
+        from importlib.metadata import version as _pkg_version
+
+        runtime_guard_version = _pkg_version("runtime-guard")
+    except Exception:
+        pass
+
+    polars_version = "unknown"
+    try:
+        polars_mod = module
+        if polars_mod is None:
+            import polars as polars_mod  # type: ignore
+        polars_version = str(getattr(polars_mod, "__version__", "unknown"))
+    except Exception:
+        pass
+
+    return {
+        "evidence_items": evidence_items,
+        "validation_ok": validation.get("ok", False),
+        "runtime_guard_version": runtime_guard_version,
+        "polars_version": polars_version,
+        "errors": validation.get("errors", []),
+        **(version_info or {}),
+    }
 
 
 def pressure_report_attributes(report: "PressureReport") -> dict[str, Any]:

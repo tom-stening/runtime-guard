@@ -73,7 +73,7 @@ This principle shapes all roadmap decisions:
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M1-I01 | Polars adopts as default memory monitor | P1 | 🔄 IN PROGRESS | Added `INTEGRATION_POLARS.md` with hook strategy, rollout phases, validation steps, and evidence checklist. |
+| M1-I01 | Polars adopts as default memory monitor | P1 | 🔄 IN PROGRESS | Added `INTEGRATION_POLARS.md` with hook strategy, rollout phases, validation steps, and evidence checklist plus `validate_polars_integration()` and `collect_polars_integration_evidence()` for adoption evidence collection. |
 | M1-I02 | Dask issue template integration | P2 | 🔄 IN PROGRESS | Added `.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml` to pre-fill runtime-guard memory context in Dask bug reports. |
 | M1-I03 | Ray tutorial & cookbook examples | P2 | 🔄 IN PROGRESS | Added `INTEGRATION_RAY.md` with driver hook, staged orchestration, and audit-trail cookbook patterns. |
 | M1-I04 | Community monitoring dashboard (optional OSS) | P3 | 📅 PLANNED | Grafana dashboard template + sample data. |

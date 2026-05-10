@@ -45,6 +45,8 @@ from runtime_guard import (
     render_prometheus_metrics,
     trace_context_attributes,
     validate_runtime_guard_config,
+    validate_polars_integration,
+    collect_polars_integration_evidence,
     attach_ray_guard,
     _read_snapshot,
     attach_polars_guard,
@@ -649,6 +651,69 @@ class TestPolarsIntegration:
 
         with pytest.raises(RuntimeError, match="LazyFrame"):
             attach_polars_guard(RuntimeGuard(), module=NoLazyFrame)
+
+    def test_validate_polars_integration_ok_when_wrapped(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_polars_guard(guard, module=self._DummyPolars)
+        try:
+            result = validate_polars_integration(guard, module=self._DummyPolars)
+            assert result["ok"] is True
+            assert result["polars_available"] is True
+            assert result["methods_wrapped"] is True
+            assert result["collect_present"] is True
+            assert result["fetch_present"] is True
+        finally:
+            restore()
+
+    def test_validate_polars_integration_detects_missing_polars(self):
+        class NotPolars:
+            pass
+
+        guard = RuntimeGuard()
+        result = validate_polars_integration(guard, module=NotPolars)
+        assert result["ok"] is False
+        # polars_available is True because the module is provided, but LazyFrame is missing
+        assert result["polars_available"] is True
+
+    def test_collect_polars_integration_evidence_with_hooks_installed(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_polars_guard(guard, module=self._DummyPolars)
+        try:
+            evidence = collect_polars_integration_evidence(guard, module=self._DummyPolars)
+            assert evidence["validation_ok"] is True
+            assert "polars_integration_validated" in evidence["evidence_items"]
+            assert "polars_hooks_installed" in evidence["evidence_items"]
+            # Dummy polars doesn't have __version__, so it will be 'unknown'
+            assert evidence["polars_version"] == "unknown"
+        finally:
+            restore()
+
+    def test_collect_polars_integration_evidence_with_version_metadata(self, monkeypatch):
+        class VersionedPolars:
+            __version__ = "0.19.0"
+
+            class LazyFrame:
+                def collect(self, multiplier: int = 1) -> int:
+                    return 21 * multiplier
+
+                def fetch(self, rows: int = 1) -> int:
+                    return rows
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_polars_guard(guard, module=VersionedPolars)
+        try:
+            evidence = collect_polars_integration_evidence(
+                guard,
+                module=VersionedPolars,
+                version_info={"custom_field": "custom_value"},
+            )
+            assert evidence["polars_version"] == "0.19.0"
+            assert evidence.get("custom_field") == "custom_value"
+        finally:
+            restore()
 
 
 # ---------------------------------------------------------------------------

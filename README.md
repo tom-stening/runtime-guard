@@ -129,6 +129,8 @@ With no options, prints a compact status line and exits 1 if pressure is detecte
 | `--report` | Print full WSL 2 system report (kernel params, memory, recommendations). |
 | `--generate-wslconfig [MEM_GB]` | Generate `.wslconfig` content. Defaults to half of detected total RAM. |
 | `--write PATH` | Write generated `.wslconfig` to PATH instead of printing. Backs up existing file. |
+| `--policy-file PATH` | Load threshold/posture overrides from a JSON policy file. |
+| `--policy-auto-reload` | Re-read `--policy-file` when it changes (for repeated/default check workflows). |
 | `--posture {tight,relaxed,ci}` | Override threshold preset for this invocation. |
 | `--stage STAGE` | Label for the check output (e.g. `--stage "data-load"`). |
 | `--version` | Print package version and exit. |

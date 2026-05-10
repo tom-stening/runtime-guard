@@ -2768,6 +2768,37 @@ class TestCLI:
         code, _ = self._run_cli("--verify-audit-log", "audit.log")
         assert code == 1
 
+    def test_check_uses_policy_file_overrides(self, monkeypatch, tmp_path):
+        policy = tmp_path / "policy.json"
+        policy.write_text(
+            json.dumps({"min_mem_available_mb": 1500, "critical_mem_mb": 1300}),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(
+            "runtime_guard._read_snapshot",
+            lambda: MemSnapshot(
+                mem_total_mb=8192,
+                mem_available_mb=1200,
+                swap_total_mb=2048,
+                swap_free_mb=2048,
+                swap_used_pct=0,
+                rss_mb=100,
+                vm_swap_mb=0,
+            ),
+        )
+
+        code, _ = self._run_cli("--check", "--policy-file", str(policy))
+        assert code == 1
+
+    def test_check_exits_2_on_invalid_policy_file(self, tmp_path):
+        policy = tmp_path / "policy.json"
+        policy.write_text(json.dumps({"bad_key": 1}), encoding="utf-8")
+
+        code, stderr = self._run_cli("--check", "--policy-file", str(policy))
+        assert code == 2
+        assert "Failed to load policy file" in stderr
+
     def test_audit_policy_taxonomy_prints_json(self, capsys):
         from runtime_guard import _cli
 

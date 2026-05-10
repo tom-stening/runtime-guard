@@ -4340,6 +4340,9 @@ def _cli() -> None:  # pragma: no cover
     --generate-wslconfig [MEM_GB]
                        Print a recommended .wslconfig; optionally write it with
                        --write (respects existing file — merges, does not overwrite).
+    --policy-file PATH Load threshold overrides from a JSON policy file.
+    --policy-auto-reload
+                       Re-read policy file when its mtime changes (effective with --check/default mode).
     --posture POSTURE  Override threshold preset for this invocation (tight|relaxed|ci).
     --stage STAGE      Label for the check (shown in log output).
     --version          Print the package version and exit.
@@ -4389,6 +4392,16 @@ def _cli() -> None:  # pragma: no cover
         "--write",
         metavar="PATH",
         help="Write output to PATH instead of stdout (used with --generate-wslconfig).",
+    )
+    parser.add_argument(
+        "--policy-file",
+        metavar="PATH",
+        help="Load threshold policy overrides from JSON file.",
+    )
+    parser.add_argument(
+        "--policy-auto-reload",
+        action="store_true",
+        help="Auto-reload --policy-file when modified (check/default mode).",
     )
     parser.add_argument(
         "--posture",
@@ -4487,6 +4500,15 @@ def _cli() -> None:  # pragma: no cover
         os.environ[k] = v
     try:
         guard = RuntimeGuard()
+        if args.policy_file:
+            try:
+                guard.load_policy_file(
+                    args.policy_file,
+                    auto_reload=bool(args.policy_auto_reload),
+                )
+            except (OSError, ValueError) as exc:
+                print(f"[RuntimeGuard] Failed to load policy file: {exc}", file=sys.stderr)
+                sys.exit(2)
         report = guard.check(stage=args.stage)
     finally:
         for k, original in old_env.items():

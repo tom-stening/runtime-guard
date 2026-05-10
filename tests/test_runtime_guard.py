@@ -600,6 +600,15 @@ class TestPolarsIntegration:
             def fetch(self, rows: int = 1) -> int:
                 return rows
 
+            def collect_async(self, multiplier: int = 1) -> int:
+                return 84 * multiplier
+
+            def sink_parquet(self, path: str) -> str:
+                return f"parquet:{path}"
+
+            def sink_csv(self, path: str) -> str:
+                return f"csv:{path}"
+
     def test_attach_calls_check_before_collect(self, monkeypatch):
         guard = RuntimeGuard()
         calls: list[str] = []
@@ -639,6 +648,32 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_calls_check_before_collect_async(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-async", module=self._DummyPolars)
+        try:
+            result = self._DummyPolars.LazyFrame().collect_async(multiplier=2)
+            assert result == 168
+            assert calls == ["polars-async"]
+        finally:
+            restore()
+
+    def test_attach_calls_check_before_sink_parquet(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-sink", module=self._DummyPolars)
+        try:
+            result = self._DummyPolars.LazyFrame().sink_parquet("out.parquet")
+            assert result == "parquet:out.parquet"
+            assert calls == ["polars-sink"]
+        finally:
+            restore()
+
     def test_attach_is_idempotent(self, monkeypatch):
         guard = RuntimeGuard()
         calls: list[str] = []
@@ -671,6 +706,13 @@ class TestPolarsIntegration:
             assert result["methods_wrapped"] is True
             assert result["collect_present"] is True
             assert result["fetch_present"] is True
+            assert result["collect_async_present"] is True
+            assert result["sink_parquet_present"] is True
+            assert result["sink_csv_present"] is True
+            assert "collect" in result["wrapped_methods"]
+            assert "fetch" in result["wrapped_methods"]
+            assert "collect_async" in result["wrapped_methods"]
+            assert "sink_parquet" in result["wrapped_methods"]
         finally:
             restore()
 
@@ -693,6 +735,9 @@ class TestPolarsIntegration:
             assert evidence["validation_ok"] is True
             assert "polars_integration_validated" in evidence["evidence_items"]
             assert "polars_hooks_installed" in evidence["evidence_items"]
+            assert "polars_collect_async_available" in evidence["evidence_items"]
+            assert "polars_sink_parquet_available" in evidence["evidence_items"]
+            assert "polars_sink_csv_available" in evidence["evidence_items"]
             # Dummy polars doesn't have __version__, so it will be 'unknown'
             assert evidence["polars_version"] == "unknown"
         finally:

@@ -1536,7 +1536,7 @@ def attach_polars_guard(
     stage: str = "polars-collect",
     module: Any | None = None,
 ) -> Callable[[], None]:
-    """Attach RuntimeGuard checks to ``polars.LazyFrame.collect``/``fetch``.
+    """Attach RuntimeGuard checks to Polars LazyFrame execution entry points.
 
     This helper provides M1-C01 integration scaffolding without introducing
     a hard runtime dependency on Polars. If ``module`` is not supplied, the
@@ -1563,48 +1563,53 @@ def attach_polars_guard(
     if original_collect is None or not callable(original_collect):
         raise RuntimeError("polars.LazyFrame.collect is missing or not callable.")
 
-    original_fetch = getattr(lazyframe_cls, "fetch", None)
+    candidate_methods = (
+        "collect",
+        "fetch",
+        "collect_async",
+        "sink_parquet",
+        "sink_csv",
+        "sink_ipc",
+        "sink_ndjson",
+    )
+    original_methods: dict[str, Any] = {
+        name: getattr(lazyframe_cls, name, None) for name in candidate_methods
+    }
 
     # Idempotent attach to avoid nested wrappers and duplicated checks.
     if getattr(original_collect, "_runtime_guard_wrapped", False):
-        original_collect_unwrapped = getattr(
-            original_collect, "_runtime_guard_original", original_collect
-        )
-        original_fetch_unwrapped = original_fetch
-        if callable(original_fetch) and getattr(original_fetch, "_runtime_guard_wrapped", False):
-            original_fetch_unwrapped = getattr(
-                original_fetch, "_runtime_guard_original", original_fetch
-            )
+        original_unwrapped: dict[str, Any] = {}
+        for name, fn in original_methods.items():
+            if callable(fn) and getattr(fn, "_runtime_guard_wrapped", False):
+                original_unwrapped[name] = getattr(fn, "_runtime_guard_original", fn)
+            else:
+                original_unwrapped[name] = fn
 
         def _restore() -> None:
-            setattr(lazyframe_cls, "collect", original_collect_unwrapped)
-            if callable(original_fetch_unwrapped):
-                setattr(lazyframe_cls, "fetch", original_fetch_unwrapped)
+            for name, fn in original_unwrapped.items():
+                if callable(fn):
+                    setattr(lazyframe_cls, name, fn)
 
         return _restore
 
-    def _guarded_collect(self: Any, *args: Any, **kwargs: Any) -> Any:
-        guard.check_and_log(stage=stage)
-        return original_collect(self, *args, **kwargs)
-
-    setattr(_guarded_collect, "_runtime_guard_wrapped", True)
-    setattr(_guarded_collect, "_runtime_guard_original", original_collect)
-    setattr(lazyframe_cls, "collect", _guarded_collect)
-
-    if callable(original_fetch):
-
-        def _guarded_fetch(self: Any, *args: Any, **kwargs: Any) -> Any:
+    def _wrap_lazyframe_method(name: str, fn: Any) -> Any:
+        def _guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
-            return original_fetch(self, *args, **kwargs)
+            return fn(self, *args, **kwargs)
 
-        setattr(_guarded_fetch, "_runtime_guard_wrapped", True)
-        setattr(_guarded_fetch, "_runtime_guard_original", original_fetch)
-        setattr(lazyframe_cls, "fetch", _guarded_fetch)
+        setattr(_guarded, "_runtime_guard_wrapped", True)
+        setattr(_guarded, "_runtime_guard_original", fn)
+        setattr(_guarded, "_runtime_guard_method", name)
+        return _guarded
+
+    for name, fn in original_methods.items():
+        if callable(fn):
+            setattr(lazyframe_cls, name, _wrap_lazyframe_method(name, fn))
 
     def _restore() -> None:
-        setattr(lazyframe_cls, "collect", original_collect)
-        if callable(original_fetch):
-            setattr(lazyframe_cls, "fetch", original_fetch)
+        for name, fn in original_methods.items():
+            if callable(fn):
+                setattr(lazyframe_cls, name, fn)
 
     return _restore
 
@@ -2325,7 +2330,7 @@ def validate_polars_integration(
 
     Returns a verification report showing:
     - Polars availability
-    - LazyFrame.collect/fetch method status
+    - LazyFrame execution entry point status (collect/fetch/collect_async/sink_*)
     - Guard hook status
     - Any errors encountered
 
@@ -2362,8 +2367,26 @@ def validate_polars_integration(
 
         collect_method = getattr(lazyframe_cls, "collect", None)
         fetch_method = getattr(lazyframe_cls, "fetch", None)
+        collect_async_method = getattr(lazyframe_cls, "collect_async", None)
+        sink_parquet_method = getattr(lazyframe_cls, "sink_parquet", None)
+        sink_csv_method = getattr(lazyframe_cls, "sink_csv", None)
+        sink_ipc_method = getattr(lazyframe_cls, "sink_ipc", None)
+        sink_ndjson_method = getattr(lazyframe_cls, "sink_ndjson", None)
 
         methods_wrapped = bool(getattr(collect_method, "_runtime_guard_wrapped", False))
+
+        wrapped_methods: list[str] = []
+        for name, fn in {
+            "collect": collect_method,
+            "fetch": fetch_method,
+            "collect_async": collect_async_method,
+            "sink_parquet": sink_parquet_method,
+            "sink_csv": sink_csv_method,
+            "sink_ipc": sink_ipc_method,
+            "sink_ndjson": sink_ndjson_method,
+        }.items():
+            if bool(getattr(fn, "_runtime_guard_wrapped", False)):
+                wrapped_methods.append(name)
 
         return {
             "ok": True,
@@ -2371,6 +2394,12 @@ def validate_polars_integration(
             "methods_wrapped": methods_wrapped,
             "collect_present": collect_method is not None,
             "fetch_present": fetch_method is not None,
+            "collect_async_present": collect_async_method is not None,
+            "sink_parquet_present": sink_parquet_method is not None,
+            "sink_csv_present": sink_csv_method is not None,
+            "sink_ipc_present": sink_ipc_method is not None,
+            "sink_ndjson_present": sink_ndjson_method is not None,
+            "wrapped_methods": wrapped_methods,
             "errors": errors,
         }
     except Exception as exc:  # pragma: no cover
@@ -2410,6 +2439,21 @@ def collect_polars_integration_evidence(
 
     if validation.get("fetch_present"):
         evidence_items.append("polars_fetch_available")
+
+    if validation.get("collect_async_present"):
+        evidence_items.append("polars_collect_async_available")
+
+    if validation.get("sink_parquet_present"):
+        evidence_items.append("polars_sink_parquet_available")
+
+    if validation.get("sink_csv_present"):
+        evidence_items.append("polars_sink_csv_available")
+
+    if validation.get("sink_ipc_present"):
+        evidence_items.append("polars_sink_ipc_available")
+
+    if validation.get("sink_ndjson_present"):
+        evidence_items.append("polars_sink_ndjson_available")
 
     runtime_guard_version = "0.3.0"
     try:

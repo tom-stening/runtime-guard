@@ -586,7 +586,14 @@ SOC2 readiness can be generated from control/evidence JSON inputs with:
 ```bash
 python scripts/soc2_readiness_report.py \
     --controls examples/soc2_controls_example.json \
-    --evidence examples/soc2_evidence_example.json
+    --evidence examples/soc2_evidence_example.json \
+    --fail-on-gaps
+
+# Optional: scope readiness to a specific required-controls file
+python scripts/soc2_readiness_report.py \
+    --controls controls.json \
+    --evidence evidence.json \
+    --required-controls required_controls.json
 ```
 
 ---

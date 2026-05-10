@@ -17,12 +17,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `ray.get`/`ray.wait` without introducing a hard runtime dependency.
 - OpenTelemetry exporter scaffolding: `pressure_report_attributes()` and
   `emit_otel_event()` for optional span event emission.
+- Prometheus scaffolding: `render_prometheus_metrics()` for dependency-free
+  exposition text rendering suitable for `/metrics` endpoints.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
 - Roadmap M1-C02 moved to IN PROGRESS based on implemented integration scaffold.
 - Roadmap M1-C03 moved to IN PROGRESS based on implemented integration scaffold.
 - Roadmap M1-C04 moved to IN PROGRESS based on implemented exporter scaffold.
+- Roadmap M1-C05 moved to IN PROGRESS based on implemented metrics scaffold.
 
 ## [0.3.0] - 2026-05-10
 

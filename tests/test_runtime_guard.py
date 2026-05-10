@@ -25,6 +25,7 @@ from runtime_guard import (
     attach_dask_guard,
     emit_otel_event,
     pressure_report_attributes,
+    render_prometheus_metrics,
     attach_ray_guard,
     _read_snapshot,
     attach_polars_guard,
@@ -825,6 +826,31 @@ class TestOpenTelemetryExport:
         report = _make_report()
         ok = emit_otel_event(report, module=object())
         assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# M1-C05 — Prometheus renderer scaffold
+# ---------------------------------------------------------------------------
+
+
+class TestPrometheusRenderer:
+    def test_render_contains_core_metrics(self):
+        report = _make_report(stage="metrics")
+        text = render_prometheus_metrics(report)
+        assert "runtime_guard_is_critical" in text
+        assert "runtime_guard_mem_available_mb" in text
+        assert 'stage="metrics"' in text
+
+    def test_render_supports_custom_prefix(self):
+        report = _make_report(stage="custom")
+        text = render_prometheus_metrics(report, prefix="rg")
+        assert "rg_is_critical" in text
+        assert "runtime_guard_is_critical" not in text
+
+    def test_render_escapes_stage_quotes(self):
+        report = _make_report(stage='train "A"')
+        text = render_prometheus_metrics(report)
+        assert 'stage="train \\"A\\""' in text
 
 
 class TestUnsupportedPlatformWarning:

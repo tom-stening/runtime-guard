@@ -77,6 +77,7 @@ __all__ = [
     "attach_ray_guard",
     "pressure_report_attributes",
     "emit_otel_event",
+    "render_prometheus_metrics",
 ]
 
 logger = logging.getLogger(__name__)
@@ -1359,6 +1360,33 @@ def emit_otel_event(
 
     add_event(event_name, attributes=pressure_report_attributes(report))
     return True
+
+
+def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtime_guard") -> str:
+    """Render a PressureReport as Prometheus exposition text.
+
+    This helper provides M1-C05 scaffolding without requiring
+    ``prometheus_client``. It can be served by any HTTP endpoint.
+    """
+    snap = report.snapshot
+    stage = report.stage.replace('"', '\\"')
+    lines = [
+        f"{prefix}_is_critical {1 if report.is_critical else 0}",
+        f"{prefix}_self_inflicted {1 if report.self_inflicted else 0}",
+        f'{prefix}_self_pct{{stage="{stage}"}} {report.self_pct}',
+        f'{prefix}_min_mem_mb{{stage="{stage}"}} {report.min_mem_mb}',
+        f'{prefix}_max_swap_pct{{stage="{stage}"}} {report.max_swap_pct}',
+        f'{prefix}_missing_mem_mb{{stage="{stage}"}} {report.missing_mem_mb}',
+        f'{prefix}_swap_excess_pct{{stage="{stage}"}} {report.swap_excess_pct}',
+        f'{prefix}_mem_total_mb{{stage="{stage}"}} {snap.mem_total_mb}',
+        f'{prefix}_mem_available_mb{{stage="{stage}"}} {snap.mem_available_mb}',
+        f'{prefix}_swap_total_mb{{stage="{stage}"}} {snap.swap_total_mb}',
+        f'{prefix}_swap_free_mb{{stage="{stage}"}} {snap.swap_free_mb}',
+        f'{prefix}_swap_used_pct{{stage="{stage}"}} {snap.swap_used_pct}',
+        f'{prefix}_rss_mb{{stage="{stage}"}} {snap.rss_mb}',
+        f'{prefix}_vm_swap_mb{{stage="{stage}"}} {snap.vm_swap_mb}',
+    ]
+    return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------------------

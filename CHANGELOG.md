@@ -55,6 +55,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Linux background service automation: `scripts/runtime_guard_repo_watcher.py`
   plus user-service templates in `scripts/systemd/` for repo-activity-aware
   monitoring.
+- Ray integration cookbook in `INTEGRATION_RAY.md` with staged hook,
+  orchestration, and audit logging examples.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -76,6 +78,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M1-I01 moved to IN PROGRESS based on Polars integration playbook kickoff.
 - Roadmap M1-I02 moved to IN PROGRESS based on Dask issue template kickoff.
 - Roadmap M2-I01 note expanded with repo background-service automation artifacts.
+- Roadmap M1-I03 moved to IN PROGRESS based on Ray cookbook kickoff.
 
 ## [0.3.0] - 2026-05-10
 

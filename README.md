@@ -452,6 +452,7 @@ incident runbook entry points are documented in
 
 - Polars: [INTEGRATION_POLARS.md](INTEGRATION_POLARS.md)
 - Dask triage template: [.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml](.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml)
+- Ray cookbook: [INTEGRATION_RAY.md](INTEGRATION_RAY.md)
 
 ---
 

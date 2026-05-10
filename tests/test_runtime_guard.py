@@ -49,6 +49,8 @@ from runtime_guard import (
     collect_polars_integration_evidence,
     validate_dask_integration,
     collect_dask_integration_evidence,
+    validate_ray_integration,
+    collect_ray_integration_evidence,
     attach_ray_guard,
     _read_snapshot,
     attach_polars_guard,
@@ -982,6 +984,73 @@ class TestRayIntegration:
 
         with pytest.raises(RuntimeError, match=r"ray\.get"):
             attach_ray_guard(RuntimeGuard(), module=NoGet)
+
+    def test_validate_ray_integration_ok_when_wrapped(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_ray_guard(guard, module=self._DummyRay)
+        try:
+            result = validate_ray_integration(guard, module=self._DummyRay)
+            assert result["ok"] is True
+            assert result["ray_available"] is True
+            assert result["methods_wrapped"] is True
+            assert result["get_present"] is True
+            assert result["wait_present"] is True
+            assert result["put_present"] is True
+        finally:
+            restore()
+
+    def test_validate_ray_integration_detects_missing_ray(self):
+        class NotRay:
+            pass
+
+        guard = RuntimeGuard()
+        result = validate_ray_integration(guard, module=NotRay)
+        assert result["ok"] is False
+        assert result["ray_available"] is True
+
+    def test_collect_ray_integration_evidence_with_hooks_installed(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_ray_guard(guard, module=self._DummyRay)
+        try:
+            evidence = collect_ray_integration_evidence(guard, module=self._DummyRay)
+            assert evidence["validation_ok"] is True
+            assert "ray_integration_validated" in evidence["evidence_items"]
+            assert "ray_hooks_installed" in evidence["evidence_items"]
+            assert evidence["ray_version"] == "unknown"
+        finally:
+            restore()
+
+    def test_collect_ray_integration_evidence_with_version_metadata(self, monkeypatch):
+        class VersionedRay:
+            __version__ = "2.8.0"
+
+            @staticmethod
+            def get(value: int, add: int = 0) -> int:
+                return value + add
+
+            @staticmethod
+            def wait(items: list[int], *, num_returns: int = 1) -> tuple[list[int], list[int]]:
+                return items[:num_returns], items[num_returns:]
+
+            @staticmethod
+            def put(value: object) -> str:
+                return f"obj:{value}"
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_ray_guard(guard, module=VersionedRay)
+        try:
+            evidence = collect_ray_integration_evidence(
+                guard,
+                module=VersionedRay,
+                version_info={"cluster_size": "3-nodes"},
+            )
+            assert evidence["ray_version"] == "2.8.0"
+            assert evidence.get("cluster_size") == "3-nodes"
+        finally:
+            restore()
 
 
 # ---------------------------------------------------------------------------

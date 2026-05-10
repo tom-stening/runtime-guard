@@ -62,7 +62,7 @@ This principle shapes all roadmap decisions:
 |---|---|---|---|---|
 | M1-C01 | Polars integration plugin | P1 | 🔄 IN PROGRESS | `attach_polars_guard()` hooks `LazyFrame.collect` and `LazyFrame.fetch`; full native Polars callback integration remains. |
 | M1-C02 | Dask integration | P1 | 🔄 IN PROGRESS | `attach_dask_guard()` hooks top-level and `dask.base` `compute`/`persist`; added `validate_dask_integration()` and `collect_dask_integration_evidence()` for adoption tracking; deeper scheduler callback integration remains. |
-| M1-C03 | Ray cluster resource monitor | P1 | 🔄 IN PROGRESS | `attach_ray_guard()` hooks `get` plus optional `wait`/`put`; actor-based per-node monitoring remains. |
+| M1-C03 | Ray cluster resource monitor | P1 | 🔄 IN PROGRESS | `attach_ray_guard()` hooks `get` plus optional `wait`/`put`; added `validate_ray_integration()` and `collect_ray_integration_evidence()` for adoption tracking; actor-based per-node monitoring remains. |
 | M1-C04 | OpenTelemetry exporter | P2 | 🔄 IN PROGRESS | Added optional span-event exporter helpers; full metrics pipeline/exporter packaging remains. |
 | M1-C05 | Prometheus metrics endpoint | P2 | 🔄 IN PROGRESS | Added metrics renderer helper; endpoint wiring (FastAPI/ASGI examples) remains. |
 | M1-C06 | Distributed tracing context | P2 | 🔄 IN PROGRESS | Added trace-context attribute extraction and OTEL event trace-ID linkage; broader tracing propagation patterns remain. |

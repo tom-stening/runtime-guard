@@ -279,6 +279,8 @@ Raw memory values from the OS at a point in time.
 | `validate_dask_integration(guard, stage="dask-compute", module=None) → dict[str, Any]` | Validate that Dask integration is correctly installed and functional. Used for M1-C02 adoption evidence collection. |
 | `collect_dask_integration_evidence(guard, stage="dask-compute", module=None, version_info=None) → dict[str, Any]` | Collect integration readiness evidence compatible with ADOPTION_TRACKER.md. Records validation status, versions, and available hooks. |
 | `attach_ray_guard(guard, stage="ray-get", module=None) → Callable[[], None]` | Monkeypatch `ray.get` plus `ray.wait`/`ray.put` when present to run `guard.check_and_log()` before each call. Returns a restore function. |
+| `validate_ray_integration(guard, stage="ray-get", module=None) → dict[str, Any]` | Validate that Ray integration is correctly installed and functional. Used for M1-C03 adoption evidence collection. |
+| `collect_ray_integration_evidence(guard, stage="ray-get", module=None, version_info=None) → dict[str, Any]` | Collect integration readiness evidence compatible with ADOPTION_TRACKER.md. Records validation status, versions, and available hooks. |
 | `pressure_report_attributes(report) → dict[str, Any]` | Convert a `PressureReport` into OpenTelemetry-friendly flat attributes. |
 | `trace_context_attributes(span=None, module=None, prefix="runtime_guard.trace") → dict[str, Any]` | Extract trace/span IDs from current/provided OTEL span for linking RuntimeGuard events with distributed traces. |
 | `emit_otel_event(report, event_name="runtime_guard.pressure", span=None, module=None) → bool` | Emit a pressure event on the current OpenTelemetry span (or provided span). Returns `True` when emitted. |

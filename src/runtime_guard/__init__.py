@@ -99,6 +99,8 @@ __all__ = [
     "collect_polars_integration_evidence",
     "validate_dask_integration",
     "collect_dask_integration_evidence",
+    "validate_ray_integration",
+    "collect_ray_integration_evidence",
     "make_worker_report",
     "aggregate_worker_reports",
 ]
@@ -1784,6 +1786,133 @@ def attach_ray_guard(
             setattr(module, "put", original_put)
 
     return _restore
+
+
+def validate_ray_integration(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "ray-get",
+    module: Any | None = None,
+) -> dict[str, Any]:
+    """Validate that Ray integration is correctly installed and functional.
+
+    Returns a verification report showing:
+    - Ray availability
+    - get/wait/put method status
+    - Guard hook status
+    - Any errors encountered
+
+    Useful for M1-C03 adoption evidence collection.
+    """
+    errors: list[str] = []
+    ray_available = False
+    methods_wrapped = False
+
+    try:
+        ray_mod = module
+        if ray_mod is None:
+            try:
+                import ray as ray_mod  # type: ignore
+            except Exception as exc:  # pragma: no cover
+                errors.append(f"Ray import failed: {exc}")
+                return {
+                    "ok": False,
+                    "ray_available": False,
+                    "methods_wrapped": False,
+                    "errors": errors,
+                }
+        ray_available = True
+
+        get_fn = getattr(ray_mod, "get", None)
+        if get_fn is None or not callable(get_fn):
+            errors.append("ray.get not found or not callable")
+            return {
+                "ok": False,
+                "ray_available": True,
+                "methods_wrapped": False,
+                "errors": errors,
+            }
+
+        wait_fn = getattr(ray_mod, "wait", None)
+        put_fn = getattr(ray_mod, "put", None)
+
+        methods_wrapped = bool(getattr(get_fn, "_runtime_guard_wrapped", False))
+
+        return {
+            "ok": True,
+            "ray_available": True,
+            "methods_wrapped": methods_wrapped,
+            "get_present": get_fn is not None,
+            "wait_present": wait_fn is not None,
+            "put_present": put_fn is not None,
+            "errors": errors,
+        }
+    except Exception as exc:  # pragma: no cover
+        errors.append(f"Validation error: {exc}")
+        return {
+            "ok": False,
+            "ray_available": ray_available,
+            "methods_wrapped": methods_wrapped,
+            "errors": errors,
+        }
+
+
+def collect_ray_integration_evidence(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "ray-get",
+    module: Any | None = None,
+    version_info: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Collect evidence of Ray integration readiness for adoption tracking.
+
+    Returns a report compatible with ADOPTION_TRACKER.md evidence arrays.
+    Useful for M1-C03 rollout validation and audit.
+    """
+    validation = validate_ray_integration(guard, stage=stage, module=module)
+
+    evidence_items: list[str] = []
+
+    if validation.get("ok"):
+        evidence_items.append("ray_integration_validated")
+
+    if validation.get("methods_wrapped"):
+        evidence_items.append("ray_hooks_installed")
+
+    if validation.get("get_present"):
+        evidence_items.append("ray_get_available")
+
+    if validation.get("wait_present"):
+        evidence_items.append("ray_wait_available")
+
+    if validation.get("put_present"):
+        evidence_items.append("ray_put_available")
+
+    runtime_guard_version = "0.3.0"
+    try:
+        from importlib.metadata import version as _pkg_version
+
+        runtime_guard_version = _pkg_version("runtime-guard")
+    except Exception:
+        pass
+
+    ray_version = "unknown"
+    try:
+        ray_mod = module
+        if ray_mod is None:
+            import ray as ray_mod  # type: ignore
+        ray_version = str(getattr(ray_mod, "__version__", "unknown"))
+    except Exception:
+        pass
+
+    return {
+        "evidence_items": evidence_items,
+        "validation_ok": validation.get("ok", False),
+        "runtime_guard_version": runtime_guard_version,
+        "ray_version": ray_version,
+        "errors": validation.get("errors", []),
+        **(version_info or {}),
+    }
 
 
 def validate_polars_integration(

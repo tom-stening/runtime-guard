@@ -88,7 +88,7 @@ This principle shapes all roadmap decisions:
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M2-C01 | Memory snap auto-recovery (signal handler) | P1 | 🔄 IN PROGRESS | Added signal handler scaffold plus environment-driven rollout policy helpers (`resolve_signal_recovery_policy`, `install_signal_recovery_from_policy`); rollout parsing now sanitizes invalid kill thresholds, blank stage prefixes, and duplicate/unknown signals, while broader incident policy tuning remains. |
+| M2-C01 | Memory snap auto-recovery (signal handler) | P1 | 🔄 IN PROGRESS | Added signal handler scaffold plus environment-driven rollout policy helpers (`resolve_signal_recovery_policy`, `install_signal_recovery_from_policy`); rollout parsing sanitizes invalid kill thresholds, blank stage prefixes, and duplicate/unknown signals, and intervention policy now defaults to `critical` with explicit `any` override (`SIGNAL_RECOVERY_INTERVENE_ON`) to reduce warning-level overreaction. |
 | M2-C02 | Audit log for all policy violations | P1 | 🔄 IN PROGRESS | Added hash-chained audit records + CLI verification, expanded taxonomy coverage for incident/access/integrity-style events, and canonical normalization helpers (`audit_policy_taxonomy`, `normalize_policy_violation_event`) including action-triggered normalization when `event_type` is omitted; broader policy catalog rollout remains. |
 | M2-C03 | Dynamic policy reloading | P2 | 🔄 IN PROGRESS | Added file-backed policy overrides with auto-reload on mtime changes and env>policy>preset precedence. |
 | M2-C04 | Multi-process orchestration (optional) | P2 | 🔄 IN PROGRESS | Added worker report + parent aggregation scaffolding for process pools/job queues; transport/adapters remain. |

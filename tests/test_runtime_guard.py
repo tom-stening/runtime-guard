@@ -1631,6 +1631,38 @@ class TestSignalRecovery:
 
         assert any(s.startswith("check:signal:sigterm") for s in calls)
         assert any(s.startswith("log:signal:sigterm") for s in calls)
+        assert not any(s.startswith("intervene:signal:sigterm") for s in calls)
+
+    def test_handler_intervenes_on_warning_when_intervene_on_any(self, monkeypatch):
+        guard = RuntimeGuard()
+        sigmod = self._DummySignalModule()
+        calls: list[str] = []
+        monkeypatch.setattr(
+            guard,
+            "check",
+            lambda stage="": calls.append(f"check:{stage}") or _make_report(stage=stage),
+        )
+        monkeypatch.setattr(guard, "log", lambda report: calls.append(f"log:{report.stage}"))
+        monkeypatch.setattr(
+            guard,
+            "intervene",
+            lambda report, **kwargs: calls.append(f"intervene:{report.stage}"),
+        )
+
+        restore = attach_signal_recovery(
+            guard,
+            module=sigmod,
+            signals_to_handle=[sigmod.SIGTERM],
+            auto_intervene=True,
+            intervene_on="any",
+        )
+        try:
+            handler = sigmod.handlers[sigmod.SIGTERM]
+            assert callable(handler)
+            handler(sigmod.SIGTERM, None)
+        finally:
+            restore()
+
         assert any(s.startswith("intervene:signal:sigterm") for s in calls)
 
     def test_chain_previous_handler(self):
@@ -1661,6 +1693,7 @@ class TestSignalRecovery:
         sigmod = self._DummySignalModule()
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_ENABLE", "true")
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_AUTO_INTERVENE", "1")
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_INTERVENE_ON", "any")
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_CHAIN_PREVIOUS", "yes")
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_STAGE_PREFIX", "ops")
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_KILL_HOGS_MB", "2048")
@@ -1669,6 +1702,7 @@ class TestSignalRecovery:
         out = resolve_signal_recovery_policy(module=sigmod)
         assert out["enabled"] is True
         assert out["auto_intervene"] is True
+        assert out["intervene_on"] == "any"
         assert out["chain_previous"] is True
         assert out["stage_prefix"] == "ops"
         assert out["kill_hogs_above_mb"] == 2048
@@ -1676,6 +1710,7 @@ class TestSignalRecovery:
 
     def test_resolve_policy_sanitizes_invalid_rollout_values(self, monkeypatch):
         sigmod = self._DummySignalModule()
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_INTERVENE_ON", "warn")
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_STAGE_PREFIX", "   ")
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_KILL_HOGS_MB", "not-a-number")
         monkeypatch.setenv(
@@ -1685,6 +1720,7 @@ class TestSignalRecovery:
 
         out = resolve_signal_recovery_policy(module=sigmod)
 
+        assert out["intervene_on"] == "critical"
         assert out["stage_prefix"] == "signal"
         assert out["kill_hogs_above_mb"] is None
         assert out["signals_to_handle"] == [sigmod.SIGTERM, sigmod.SIGINT]

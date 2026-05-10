@@ -634,6 +634,7 @@ class RuntimeGuard:
         signals_to_handle: list[int] | None = None,
         stage_prefix: str = "signal",
         auto_intervene: bool = False,
+        intervene_on: str = "critical",
         kill_hogs_above_mb: int | None = None,
         chain_previous: bool = False,
     ) -> Callable[[], None]:
@@ -646,6 +647,7 @@ class RuntimeGuard:
             signals_to_handle=signals_to_handle,
             stage_prefix=stage_prefix,
             auto_intervene=auto_intervene,
+            intervene_on=intervene_on,
             kill_hogs_above_mb=kill_hogs_above_mb,
             chain_previous=chain_previous,
         )
@@ -2557,6 +2559,7 @@ def attach_signal_recovery(
     signals_to_handle: list[int] | None = None,
     stage_prefix: str = "signal",
     auto_intervene: bool = False,
+    intervene_on: str = "critical",
     kill_hogs_above_mb: int | None = None,
     chain_previous: bool = False,
     module: Any | None = None,
@@ -2583,6 +2586,9 @@ def attach_signal_recovery(
         signals_to_handle = default_signals
 
     previous_handlers: dict[int, Any] = {}
+    intervene_on_key = str(intervene_on).strip().lower()
+    if intervene_on_key not in {"critical", "any"}:
+        intervene_on_key = "critical"
 
     def _stage_name(signum: int) -> str:
         signals_enum = getattr(signal_mod, "Signals", None)
@@ -2597,7 +2603,8 @@ def attach_signal_recovery(
         report = guard.check(stage=f"{stage_prefix}:{_stage_name(signum)}")
         if report is not None:
             guard.log(report)
-            if auto_intervene:
+            should_intervene = report.is_critical or intervene_on_key == "any"
+            if auto_intervene and should_intervene:
                 guard.intervene(report, kill_hogs_above_mb=kill_hogs_above_mb)
 
         if chain_previous:
@@ -2625,6 +2632,7 @@ def resolve_signal_recovery_policy(
     Variables:
     - ``<PREFIX>_SIGNAL_RECOVERY_ENABLE`` (bool, default: true)
     - ``<PREFIX>_SIGNAL_RECOVERY_AUTO_INTERVENE`` (bool, default: false)
+    - ``<PREFIX>_SIGNAL_RECOVERY_INTERVENE_ON`` ("critical" or "any", default: "critical")
     - ``<PREFIX>_SIGNAL_RECOVERY_CHAIN_PREVIOUS`` (bool, default: false)
     - ``<PREFIX>_SIGNAL_RECOVERY_STAGE_PREFIX`` (str, default: signal)
     - ``<PREFIX>_SIGNAL_RECOVERY_KILL_HOGS_MB`` (int or unset)
@@ -2664,6 +2672,9 @@ def resolve_signal_recovery_policy(
 
     enabled = _as_bool(_env("SIGNAL_RECOVERY_ENABLE"), True)
     auto_intervene = _as_bool(_env("SIGNAL_RECOVERY_AUTO_INTERVENE"), False)
+    intervene_on = str(_env("SIGNAL_RECOVERY_INTERVENE_ON", "critical") or "critical").strip().lower()
+    if intervene_on not in {"critical", "any"}:
+        intervene_on = "critical"
     chain_previous = _as_bool(_env("SIGNAL_RECOVERY_CHAIN_PREVIOUS"), False)
     stage_prefix = str(_env("SIGNAL_RECOVERY_STAGE_PREFIX", "signal") or "signal").strip()
     if stage_prefix == "":
@@ -2695,6 +2706,7 @@ def resolve_signal_recovery_policy(
         "signals_to_handle": signals_to_handle,
         "stage_prefix": stage_prefix,
         "auto_intervene": auto_intervene,
+        "intervene_on": intervene_on,
         "kill_hogs_above_mb": kill_hogs_above_mb,
         "chain_previous": chain_previous,
     }
@@ -2716,6 +2728,7 @@ def install_signal_recovery_from_policy(
         signals_to_handle=list(policy.get("signals_to_handle", [])),
         stage_prefix=str(policy.get("stage_prefix", "signal")),
         auto_intervene=bool(policy.get("auto_intervene", False)),
+        intervene_on=str(policy.get("intervene_on", "critical")),
         kill_hogs_above_mb=policy.get("kill_hogs_above_mb"),
         chain_previous=bool(policy.get("chain_previous", False)),
         module=module,

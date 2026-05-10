@@ -61,7 +61,7 @@ This principle shapes all roadmap decisions:
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
 | M1-C01 | Polars integration plugin | P1 | 🔄 IN PROGRESS | `attach_polars_guard()` hooks `LazyFrame.collect`; full native Polars callback integration remains. |
-| M1-C02 | Dask integration | P1 | 📅 PLANNED | Integrate with Dask scheduler callbacks. |
+| M1-C02 | Dask integration | P1 | 🔄 IN PROGRESS | `attach_dask_guard()` hooks `compute`/`persist`; deeper scheduler callback integration remains. |
 | M1-C03 | Ray cluster resource monitor | P1 | 📅 PLANNED | Ray actor for per-node pressure detection. |
 | M1-C04 | OpenTelemetry exporter | P2 | 📅 PLANNED | Emit memory/pressure metrics via OTEL SDK. |
 | M1-C05 | Prometheus metrics endpoint | P2 | 📅 PLANNED | Optional FastAPI `/metrics` integration. |

@@ -73,6 +73,7 @@ __all__ = [
     "wsl_system_report",
     "make_conftest_content",
     "attach_polars_guard",
+    "attach_dask_guard",
 ]
 
 logger = logging.getLogger(__name__)
@@ -1143,6 +1144,79 @@ def attach_polars_guard(
 
     def _restore() -> None:
         setattr(lazyframe_cls, "collect", original_collect)
+
+    return _restore
+
+
+def attach_dask_guard(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "dask-compute",
+    module: Any | None = None,
+) -> Callable[[], None]:
+    """Attach RuntimeGuard checks to Dask compute/persist entry points.
+
+    This helper provides M1-C02 integration scaffolding without introducing
+    a hard runtime dependency on Dask. If ``module`` is not supplied, the
+    function attempts to import ``dask`` lazily at call time.
+
+    Returns
+    -------
+    Callable[[], None]
+        Restore function that undoes the monkeypatch.
+    """
+    if module is None:
+        try:
+            import dask as module  # type: ignore
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeError(
+                "Dask is not installed. Install dask or pass module=<dask module>."
+            ) from exc
+
+    compute_fn = getattr(module, "compute", None)
+    if compute_fn is None or not callable(compute_fn):
+        raise RuntimeError("The provided module does not expose callable dask.compute.")
+
+    # Idempotent attach to avoid nested wrappers and duplicated checks.
+    if getattr(compute_fn, "_runtime_guard_wrapped", False):
+        original_compute = getattr(compute_fn, "_runtime_guard_original", compute_fn)
+        persist_fn = getattr(module, "persist", None)
+        original_persist = persist_fn
+        if callable(persist_fn) and getattr(persist_fn, "_runtime_guard_wrapped", False):
+            original_persist = getattr(persist_fn, "_runtime_guard_original", persist_fn)
+
+        def _restore() -> None:
+            setattr(module, "compute", original_compute)
+            if callable(original_persist):
+                setattr(module, "persist", original_persist)
+
+        return _restore
+
+    original_compute = compute_fn
+    original_persist = getattr(module, "persist", None)
+
+    def _guarded_compute(*args: Any, **kwargs: Any) -> Any:
+        guard.check_and_log(stage=stage)
+        return original_compute(*args, **kwargs)
+
+    setattr(_guarded_compute, "_runtime_guard_wrapped", True)
+    setattr(_guarded_compute, "_runtime_guard_original", original_compute)
+    setattr(module, "compute", _guarded_compute)
+
+    if callable(original_persist):
+
+        def _guarded_persist(*args: Any, **kwargs: Any) -> Any:
+            guard.check_and_log(stage=stage)
+            return original_persist(*args, **kwargs)
+
+        setattr(_guarded_persist, "_runtime_guard_wrapped", True)
+        setattr(_guarded_persist, "_runtime_guard_original", original_persist)
+        setattr(module, "persist", _guarded_persist)
+
+    def _restore() -> None:
+        setattr(module, "compute", original_compute)
+        if callable(original_persist):
+            setattr(module, "persist", original_persist)
 
     return _restore
 

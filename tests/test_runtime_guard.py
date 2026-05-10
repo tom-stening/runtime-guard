@@ -22,6 +22,7 @@ from runtime_guard import (
     MemSnapshot,
     PressureReport,
     RuntimeGuard,
+    attach_dask_guard,
     _read_snapshot,
     attach_polars_guard,
 )
@@ -607,6 +608,80 @@ class TestPolarsIntegration:
 
         with pytest.raises(RuntimeError, match="LazyFrame"):
             attach_polars_guard(RuntimeGuard(), module=NoLazyFrame)
+
+
+# ---------------------------------------------------------------------------
+# M1-C02 — Dask integration hook
+# ---------------------------------------------------------------------------
+
+
+class TestDaskIntegration:
+    class _DummyDask:
+        @staticmethod
+        def compute(value: int, add: int = 0) -> int:
+            return value + add
+
+        @staticmethod
+        def persist(value: int) -> str:
+            return f"persist:{value}"
+
+    def test_attach_calls_check_before_compute(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+
+        def fake_check_and_log(stage: str = "") -> None:
+            calls.append(stage)
+
+        monkeypatch.setattr(guard, "check_and_log", fake_check_and_log)
+        restore = attach_dask_guard(guard, stage="dask-pipeline", module=self._DummyDask)
+        try:
+            result = self._DummyDask.compute(40, add=2)
+            assert result == 42
+            assert calls == ["dask-pipeline"]
+        finally:
+            restore()
+
+    def test_attach_calls_check_before_persist(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+        restore = attach_dask_guard(guard, stage="persist-stage", module=self._DummyDask)
+        try:
+            result = self._DummyDask.persist(7)
+            assert result == "persist:7"
+            assert calls == ["persist-stage"]
+        finally:
+            restore()
+
+    def test_restore_restores_original_functions(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        original_compute = self._DummyDask.compute
+        original_persist = self._DummyDask.persist
+        restore = attach_dask_guard(guard, module=self._DummyDask)
+        restore()
+        assert self._DummyDask.compute is original_compute
+        assert self._DummyDask.persist is original_persist
+
+    def test_attach_is_idempotent(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+        restore_a = attach_dask_guard(guard, stage="s1", module=self._DummyDask)
+        restore_b = attach_dask_guard(guard, stage="s2", module=self._DummyDask)
+        try:
+            self._DummyDask.compute(1)
+            assert len(calls) == 1
+        finally:
+            restore_b()
+            restore_a()
+
+    def test_attach_raises_when_no_compute(self):
+        class NoCompute:
+            pass
+
+        with pytest.raises(RuntimeError, match=r"dask\.compute"):
+            attach_dask_guard(RuntimeGuard(), module=NoCompute)
 
 
 class TestUnsupportedPlatformWarning:

@@ -41,6 +41,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   with missing required controls and unknown control detection.
 - Enterprise support package draft in `ENTERPRISE_SUPPORT.md` with incident
   severities, response targets, and runbook entry points.
+- Enterprise adoption execution tracker in `ADOPTION_TRACKER.md` with stage
+  definitions, per-team evidence checklist, and milestone success criteria.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -58,6 +60,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M2-C05 moved to IN PROGRESS based on implemented integrity scaffold.
 - Roadmap M2-C06 moved to IN PROGRESS based on implemented compliance scaffold.
 - Roadmap M2-I01 moved to IN PROGRESS based on enterprise support package draft.
+- Roadmap M2-I02 moved to IN PROGRESS based on adoption tracker kickoff.
 
 ## [0.3.0] - 2026-05-10
 

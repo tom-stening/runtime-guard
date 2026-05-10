@@ -100,7 +100,7 @@ This principle shapes all roadmap decisions:
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
 | M2-I01 | Enterprise support package (SLA, runbooks) | P1 | 🔄 IN PROGRESS | Initial enterprise package published in `ENTERPRISE_SUPPORT.md` with severity matrix and incident runbook entry points. |
-| M2-I02 | Adoption by 5+ enterprise data teams | P1 | 📅 PLANNED | Reference customers & case studies. |
+| M2-I02 | Adoption by 5+ enterprise data teams | P1 | 🔄 IN PROGRESS | Added `ADOPTION_TRACKER.md` with stage model, evidence checklist, and success metrics to drive 5-team target. |
 | M2-I03 | Training & certification curriculum | P2 | 📅 PLANNED | "Mastering Memory Diagnostics" 1-day workshop. |
 
 ---

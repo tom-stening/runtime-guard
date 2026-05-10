@@ -301,6 +301,11 @@ class RuntimeGuard:
         # Background-check state
         self._bg_stop: threading.Event | None = None
         self._bg_thread: threading.Thread | None = None
+        # Dynamic policy-reload state (M2-C03)
+        self._policy_overrides: dict[str, Any] = {}
+        self._policy_path: str | None = None
+        self._policy_mtime_ns: int | None = None
+        self._policy_auto_reload: bool = False
 
     # ------------------------------------------------------------------
     # Public API — synchronous
@@ -578,6 +583,62 @@ class RuntimeGuard:
             event["metadata"] = metadata
         return append_audit_log(path, event)
 
+    def set_policy_overrides(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Set validated in-memory policy overrides for thresholds/posture."""
+        validated = validate_runtime_guard_config(config)
+        self._policy_overrides = dict(validated)
+        return dict(self._policy_overrides)
+
+    def clear_policy_overrides(self) -> None:
+        """Clear all in-memory policy overrides."""
+        self._policy_overrides = {}
+
+    def load_policy_file(
+        self,
+        path: str,
+        *,
+        auto_reload: bool = True,
+    ) -> dict[str, Any]:
+        """Load validated policy overrides from a JSON file.
+
+        When *auto_reload* is True, ``check()`` will automatically refresh
+        policy values when the file's modification timestamp changes.
+        """
+        expanded = os.path.expanduser(path)
+        with open(expanded, encoding="utf-8") as fh:
+            raw = json.load(fh)
+        if not isinstance(raw, dict):
+            raise ValueError("Policy file must contain a JSON object")
+        validated = validate_runtime_guard_config(raw)
+        self._policy_path = expanded
+        self._policy_overrides = dict(validated)
+        self._policy_auto_reload = auto_reload
+        self._policy_mtime_ns = os.stat(expanded).st_mtime_ns
+        return dict(self._policy_overrides)
+
+    def reload_policy_if_changed(self) -> bool:
+        """Reload policy file if changed on disk.
+
+        Returns True when the policy was reloaded, False otherwise.
+        """
+        if not self._policy_path or not self._policy_auto_reload:
+            return False
+        try:
+            stat = os.stat(self._policy_path)
+        except OSError:
+            return False
+        if self._policy_mtime_ns is not None and stat.st_mtime_ns == self._policy_mtime_ns:
+            return False
+
+        with open(self._policy_path, encoding="utf-8") as fh:
+            raw = json.load(fh)
+        if not isinstance(raw, dict):
+            raise ValueError("Policy file must contain a JSON object")
+        validated = validate_runtime_guard_config(raw)
+        self._policy_overrides = dict(validated)
+        self._policy_mtime_ns = stat.st_mtime_ns
+        return True
+
     # ------------------------------------------------------------------
     # Background check
     # ------------------------------------------------------------------
@@ -761,14 +822,34 @@ class RuntimeGuard:
     def _resolve_thresholds(self) -> tuple[int, int, int, int, int]:
         """Return (min_mem_mb, max_swap_pct, critical_mem_mb, critical_swap_pct,
         self_inflicted_pct) honouring the optional POSTURE preset."""
-        posture_key = os.environ.get(f"{self._prefix}_POSTURE", "").strip().lower()
+        # M2-C03: optionally hot-reload policy file on every threshold resolve.
+        self.reload_policy_if_changed()
+
+        env_posture_key = os.environ.get(f"{self._prefix}_POSTURE", "").strip().lower()
+        policy_posture_key = str(self._policy_overrides.get("posture", "")).strip().lower()
+        posture_key = env_posture_key or policy_posture_key
         preset = _PRESETS.get(posture_key, (2048, 85, 1024, 95, 20))
 
-        min_mem_mb = self._int_env("MIN_MEM_AVAILABLE_MB", preset[0])
-        max_swap_pct = self._int_env("MAX_SWAP_USED_PCT", preset[1])
-        critical_mem_mb = self._int_env("CRITICAL_MEM_MB", preset[2])
-        critical_swap_pct = self._int_env("CRITICAL_SWAP_PCT", preset[3])
-        self_inflicted_pct = self._int_env("SELF_INFLICTED_PCT", preset[4])
+        min_mem_mb = self._int_env(
+            "MIN_MEM_AVAILABLE_MB",
+            int(self._policy_overrides.get("min_mem_available_mb", preset[0])),
+        )
+        max_swap_pct = self._int_env(
+            "MAX_SWAP_USED_PCT",
+            int(self._policy_overrides.get("max_swap_used_pct", preset[1])),
+        )
+        critical_mem_mb = self._int_env(
+            "CRITICAL_MEM_MB",
+            int(self._policy_overrides.get("critical_mem_mb", preset[2])),
+        )
+        critical_swap_pct = self._int_env(
+            "CRITICAL_SWAP_PCT",
+            int(self._policy_overrides.get("critical_swap_pct", preset[3])),
+        )
+        self_inflicted_pct = self._int_env(
+            "SELF_INFLICTED_PCT",
+            int(self._policy_overrides.get("self_inflicted_pct", preset[4])),
+        )
         return min_mem_mb, max_swap_pct, critical_mem_mb, critical_swap_pct, self_inflicted_pct
 
     def _int_env(self, suffix: str, default: int) -> int:

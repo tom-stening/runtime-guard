@@ -941,6 +941,50 @@ class TestConfigValidation:
             validate_runtime_guard_config({"max_swap_used_pct": 101}, use_pydantic=False)
 
 
+class TestDynamicPolicyReload:
+    def test_set_and_clear_policy_overrides(self):
+        guard = RuntimeGuard()
+        out = guard.set_policy_overrides({"posture": "ci", "min_mem_available_mb": 1234})
+        assert out["posture"] == "ci"
+        assert out["min_mem_available_mb"] == 1234
+        guard.clear_policy_overrides()
+        assert guard._policy_overrides == {}
+
+    def test_load_policy_file_applies_thresholds(self, tmp_path):
+        guard = RuntimeGuard()
+        policy = tmp_path / "policy.json"
+        policy.write_text('{"min_mem_available_mb": 3333}', encoding="utf-8")
+        guard.load_policy_file(str(policy), auto_reload=False)
+        min_mem_mb, *_ = guard._resolve_thresholds()
+        assert min_mem_mb == 3333
+
+    def test_reload_policy_if_changed(self, tmp_path):
+        guard = RuntimeGuard()
+        policy = tmp_path / "policy.json"
+        policy.write_text('{"min_mem_available_mb": 1111}', encoding="utf-8")
+        guard.load_policy_file(str(policy), auto_reload=True)
+
+        first, *_ = guard._resolve_thresholds()
+        assert first == 1111
+
+        # Ensure mtime changes on fast filesystems.
+        time.sleep(0.02)
+        policy.write_text('{"min_mem_available_mb": 2222}', encoding="utf-8")
+
+        second, *_ = guard._resolve_thresholds()
+        assert second == 2222
+
+    def test_env_overrides_policy(self, tmp_path, monkeypatch):
+        guard = RuntimeGuard()
+        policy = tmp_path / "policy.json"
+        policy.write_text('{"min_mem_available_mb": 4444}', encoding="utf-8")
+        guard.load_policy_file(str(policy), auto_reload=False)
+
+        monkeypatch.setenv("RUNTIME_GUARD_MIN_MEM_AVAILABLE_MB", "5555")
+        min_mem_mb, *_ = guard._resolve_thresholds()
+        assert min_mem_mb == 5555
+
+
 # ---------------------------------------------------------------------------
 # M1-C08 — Async phase context manager scaffold
 # ---------------------------------------------------------------------------

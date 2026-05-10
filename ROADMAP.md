@@ -90,7 +90,7 @@ This principle shapes all roadmap decisions:
 |---|---|---|---|---|
 | M2-C01 | Memory snap auto-recovery (signal handler) | P1 | 🔄 IN PROGRESS | Added signal-recovery handler scaffold with final check/log and optional intervention; production rollout defaults/policies remain. |
 | M2-C02 | Audit log for all policy violations | P1 | 🔄 IN PROGRESS | Added append-only hash-chained audit record helper and RuntimeGuard audit writer; policy taxonomy/verification tooling remains. |
-| M2-C03 | Dynamic policy reloading | P2 | 📅 PLANNED | Update thresholds without restarting. |
+| M2-C03 | Dynamic policy reloading | P2 | 🔄 IN PROGRESS | Added file-backed policy overrides with auto-reload on mtime changes and env>policy>preset precedence. |
 | M2-C04 | Multi-process orchestration (optional) | P2 | 📅 PLANNED | Aggregate pressure across process pool / job queue. |
 | M2-C05 | FIPS-certified hash for event dedup | P2 | 📅 PLANNED | Cryptographic guarantee of event chain integrity. |
 | M2-C06 | SOC 2 audit preparation | P1 | 📅 PLANNED | Compliance gap assessment against CC6.1, CC7.1-7.2. |

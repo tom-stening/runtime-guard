@@ -29,6 +29,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `RuntimeGuard.install_signal_recovery()` for final signal-triggered checks.
 - Audit scaffolding: `append_audit_log()` and `RuntimeGuard.audit()` for
   append-only hash-chained policy event records.
+- Dynamic policy reloading scaffolding: `set_policy_overrides()`,
+  `load_policy_file()`, and `reload_policy_if_changed()`.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -41,6 +43,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M1-C08 moved to IN PROGRESS based on implemented phase scaffold.
 - Roadmap M2-C01 moved to IN PROGRESS based on implemented signal scaffold.
 - Roadmap M2-C02 moved to IN PROGRESS based on implemented audit scaffold.
+- Roadmap M2-C03 moved to IN PROGRESS based on implemented policy scaffold.
 
 ## [0.3.0] - 2026-05-10
 

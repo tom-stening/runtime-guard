@@ -449,6 +449,9 @@ A: The macOS and Windows snapshot readers are best-effort approximations. If sub
 **Q: How do I suppress the "top processes" table in log output?**  
 A: Pass `show_top_procs=False` to the constructor: `RuntimeGuard(show_top_procs=False)`.
 
+**Q: Can thresholds be reloaded without restarting the process?**  
+A: Yes. Use `guard.load_policy_file("/path/policy.json", auto_reload=True)` and RuntimeGuard will refresh policy values when file mtime changes. Precedence is `environment variables > policy file > posture preset`.
+
 **Q: What is the performance overhead?**  
 A: On Linux, `_read_snapshot()` reads two `/proc` files and does a small `ps -o rss=` call — typically under 5 ms. The `ps` call is the only subprocess invocation on Linux and can be eliminated with `show_top_procs=False` for latency-sensitive code paths.
 

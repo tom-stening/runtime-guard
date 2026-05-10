@@ -18,6 +18,7 @@ import sys
 import time
 import unittest.mock as mock
 from pathlib import Path
+from typing import Any
 
 import pytest
 from runtime_guard import (
@@ -1132,6 +1133,154 @@ class TestRayIntegration:
             assert evidence.get("cluster_size") == "3-nodes"
         finally:
             restore()
+
+
+# ---------------------------------------------------------------------------
+# M1-C03 — Ray actor-based memory monitoring (deeper integration)
+# ---------------------------------------------------------------------------
+
+
+class TestRayActorMemoryMonitoring:
+    """Tests for Ray actor-level memory monitoring decorators."""
+
+    def test_enable_ray_actor_memory_monitoring_returns_config(self):
+        """enable_ray_actor_memory_monitoring returns configuration dict."""
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        assert isinstance(config, dict)
+        assert config["ok"] is True
+        assert "method_decorator" in config
+        assert "remote_wrapper" in config
+        assert callable(config["method_decorator"])
+        assert callable(config["remote_wrapper"])
+
+    def test_actor_method_decorator_calls_check_on_entry(self, monkeypatch):
+        """Actor method decorator calls check_and_log on entry."""
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+
+        def fake_check_and_log(stage: str = "") -> None:
+            calls.append(stage)
+
+        monkeypatch.setattr(guard, "check_and_log", fake_check_and_log)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        @config["method_decorator"]
+        def sample_method(self: Any, value: int) -> int:
+            return value * 2
+
+        class DummyActor:
+            pass
+
+        actor = DummyActor()
+        result = sample_method(actor, 21)
+
+        assert result == 42
+        assert len(calls) == 1
+        assert "sample_method:entry" in calls[0]
+
+    def test_actor_method_decorator_calls_check_on_exit(self, monkeypatch):
+        """Actor method decorator calls check_and_log on exit."""
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+
+        def fake_check_and_log(stage: str = "") -> None:
+            calls.append(stage)
+
+        monkeypatch.setattr(guard, "check_and_log", fake_check_and_log)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=False, check_on_exit=True)
+
+        @config["method_decorator"]
+        def sample_method(self: Any, value: int) -> int:
+            return value * 2
+
+        class DummyActor:
+            pass
+
+        actor = DummyActor()
+        result = sample_method(actor, 21)
+
+        assert result == 42
+        assert len(calls) == 1
+        assert "sample_method:exit" in calls[0]
+
+    def test_actor_method_decorator_both_entry_and_exit(self, monkeypatch):
+        """Actor method decorator can check on both entry and exit."""
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+
+        def fake_check_and_log(stage: str = "") -> None:
+            calls.append(stage)
+
+        monkeypatch.setattr(guard, "check_and_log", fake_check_and_log)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=True)
+
+        @config["method_decorator"]
+        def sample_method(self: Any, value: int) -> int:
+            return value * 2
+
+        class DummyActor:
+            pass
+
+        actor = DummyActor()
+        result = sample_method(actor, 21)
+
+        assert result == 42
+        assert len(calls) == 2
+        assert any("entry" in c for c in calls)
+        assert any("exit" in c for c in calls)
+
+    def test_remote_wrapper_calls_check_on_entry(self, monkeypatch):
+        """Remote wrapper calls check_and_log on entry."""
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+
+        def fake_check_and_log(stage: str = "") -> None:
+            calls.append(stage)
+
+        monkeypatch.setattr(guard, "check_and_log", fake_check_and_log)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int, y: int) -> int:
+            return x + y
+
+        wrapped = config["remote_wrapper"](compute)
+        result = wrapped(10, 32)
+
+        assert result == 42
+        assert len(calls) == 1
+        assert "compute:entry" in calls[0]
+
+    def test_actor_monitoring_respects_stage_prefix(self):
+        """Actor monitoring uses configured stage prefix."""
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        config = enable_ray_actor_memory_monitoring(guard, stage_prefix="custom-ray-actor")
+
+        assert config["stage_prefix"] == "custom-ray-actor"
+
+    def test_actor_monitoring_provides_instructions(self):
+        """Actor monitoring config includes usage instructions."""
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        assert "instructions" in config
+        assert isinstance(config["instructions"], list)
+        assert len(config["instructions"]) > 0
 
 
 # ---------------------------------------------------------------------------

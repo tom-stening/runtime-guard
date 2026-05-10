@@ -78,6 +78,7 @@ __all__ = [
     "attach_dask_guard",
     "install_dask_scheduler_callbacks",
     "attach_ray_guard",
+    "enable_ray_actor_memory_monitoring",
     "pressure_report_attributes",
     "trace_context_attributes",
     "emit_otel_event",
@@ -1951,6 +1952,115 @@ def attach_ray_guard(
             setattr(module, "put", original_put)
 
     return _restore
+
+
+def enable_ray_actor_memory_monitoring(
+    guard: "RuntimeGuard",
+    *,
+    stage_prefix: str = "ray-actor",
+    check_on_entry: bool = True,
+    check_on_exit: bool = False,
+) -> dict[str, Any]:
+    """Enable memory monitoring for Ray actor methods.
+
+    This provides deeper M1-C03 integration by instrumenting actor methods
+    with memory checks. Can be applied to individual methods or all methods
+    in an actor class.
+
+    Parameters
+    ----------
+    guard : RuntimeGuard
+        Guard instance to use for memory checks.
+    stage_prefix : str, optional
+        Prefix for stage labels (default: "ray-actor").
+    check_on_entry : bool, optional
+        If True, check memory before method execution (default: True).
+    check_on_exit : bool, optional
+        If True, check memory after method execution (default: False).
+
+    Returns
+    -------
+    dict
+        Configuration dict with monitoring settings and instructions.
+
+    Example
+    -------
+    Enable monitoring on an actor method::
+
+        guard = RuntimeGuard()
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        @ray.remote
+        class MyActor:
+            def __init__(self):
+                self.guard = guard
+
+            def method_with_monitoring(self):
+                '''Method with manual memory checks.'''
+                if self.guard.check(stage='actor-method-start') is not None:
+                    # Pressure detected; could skip work or scale down
+                    return None
+                # Do work...
+                return self.compute()
+
+    Notes
+    -----
+    - Actors can call ``ray.get_runtime_context().worker.memory_monitor`` for direct access
+    - Memory events are logged to runtime_guard.events logger
+    - Each actor instance maintains independent pressure tracking
+    - Remote function wrappers are recommended for lightweight monitoring
+    """
+    config: dict[str, Any] = {
+        "ok": True,
+        "stage_prefix": stage_prefix,
+        "check_on_entry": check_on_entry,
+        "check_on_exit": check_on_exit,
+        "method_decorator": None,
+        "remote_wrapper": None,
+        "instructions": [
+            "1. Add 'from runtime_guard import guard' to actor module (or pass via init)",
+            "2. Wrap method calls with: if guard.check(stage='actor-method') is not None: handle_pressure()",
+            "3. Or use decorator: @monitored_actor_method (if using method_decorator below)",
+            "4. For remote functions: wrap with check_and_log(stage=stage_prefix + '-' + function_name)",
+        ],
+    }
+
+    def _method_decorator(method: Any) -> Any:
+        """Decorator for actor methods to add memory monitoring."""
+
+        def _wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+            stage = f"{stage_prefix}::{method.__name__}"
+            if check_on_entry:
+                guard.check_and_log(stage=f"{stage}:entry")
+            try:
+                result = method(self, *args, **kwargs)
+            finally:
+                if check_on_exit:
+                    guard.check_and_log(stage=f"{stage}:exit")
+            return result
+
+        return _wrapper
+
+    def _remote_wrapper(fn: Any) -> Any:
+        """Wrapper for remote functions to add memory monitoring."""
+
+        def _wrapper(*args: Any, **kwargs: Any) -> Any:
+            stage = f"{stage_prefix}::{fn.__name__}"
+            if check_on_entry:
+                guard.check_and_log(stage=f"{stage}:entry")
+            try:
+                result = fn(*args, **kwargs)
+            finally:
+                if check_on_exit:
+                    guard.check_and_log(stage=f"{stage}:exit")
+            return result
+
+        return _wrapper
+
+    config["method_decorator"] = _method_decorator
+    config["remote_wrapper"] = _remote_wrapper
+
+    return config
 
 
 def validate_ray_integration(

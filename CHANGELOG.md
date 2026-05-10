@@ -33,6 +33,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `load_policy_file()`, and `reload_policy_if_changed()`.
 - Multi-process orchestration scaffolding: `make_worker_report()` and
   `aggregate_worker_reports()` plus RuntimeGuard wrappers.
+- Integrity hardening: FIPS SHA-2 hash selection (`sha256|sha384|sha512`) and
+  audit-chain verification via `verify_audit_log_chain()`.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -47,6 +49,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M2-C02 moved to IN PROGRESS based on implemented audit scaffold.
 - Roadmap M2-C03 moved to IN PROGRESS based on implemented policy scaffold.
 - Roadmap M2-C04 moved to IN PROGRESS based on implemented orchestration scaffold.
+- Roadmap M2-C05 moved to IN PROGRESS based on implemented integrity scaffold.
 
 ## [0.3.0] - 2026-05-10
 

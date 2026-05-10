@@ -83,6 +83,8 @@ __all__ = [
     "validate_runtime_guard_config",
     "attach_signal_recovery",
     "append_audit_log",
+    "fips_event_hash",
+    "verify_audit_log_chain",
     "make_worker_report",
     "aggregate_worker_reports",
 ]
@@ -96,6 +98,7 @@ _json_logger = logging.getLogger("runtime_guard.events")
 
 _active_guards: list[weakref.ref] = []
 _atfork_registered: bool = False
+_FIPS_HASH_ALGOS: set[str] = {"sha256", "sha384", "sha512"}
 
 
 def _atfork_child_reset() -> None:  # pragma: no cover
@@ -568,6 +571,7 @@ class RuntimeGuard:
         path: str,
         action: str = "pressure-detected",
         metadata: dict[str, Any] | None = None,
+        hash_algo: str = "sha256",
     ) -> dict[str, Any]:
         """Append a pressure event to an audit log file."""
         event: dict[str, Any] = {
@@ -583,7 +587,7 @@ class RuntimeGuard:
         }
         if metadata:
             event["metadata"] = metadata
-        return append_audit_log(path, event)
+        return append_audit_log(path, event, hash_algo=hash_algo)
 
     def worker_report(
         self,
@@ -1799,7 +1803,24 @@ def attach_signal_recovery(
     return _restore
 
 
-def append_audit_log(path: str, event: dict[str, Any]) -> dict[str, Any]:
+def fips_event_hash(payload: str, *, hash_algo: str = "sha256") -> str:
+    """Hash event payload with a FIPS-approved SHA algorithm."""
+    algo = hash_algo.strip().lower()
+    if algo not in _FIPS_HASH_ALGOS:
+        raise ValueError(
+            f"Unsupported hash algorithm {hash_algo!r}; use one of {sorted(_FIPS_HASH_ALGOS)}"
+        )
+    h = hashlib.new(algo)
+    h.update(payload.encode("utf-8"))
+    return h.hexdigest()
+
+
+def append_audit_log(
+    path: str,
+    event: dict[str, Any],
+    *,
+    hash_algo: str = "sha256",
+) -> dict[str, Any]:
     """Append an event to a newline-delimited JSON audit log.
 
     Records are chained by hash (`prev_hash` -> `hash`) to make tampering
@@ -1807,6 +1828,12 @@ def append_audit_log(path: str, event: dict[str, Any]) -> dict[str, Any]:
     """
     expanded = os.path.expanduser(path)
     os.makedirs(os.path.dirname(expanded) or ".", exist_ok=True)
+
+    algo = hash_algo.strip().lower()
+    if algo not in _FIPS_HASH_ALGOS:
+        raise ValueError(
+            f"Unsupported hash algorithm {hash_algo!r}; use one of {sorted(_FIPS_HASH_ALGOS)}"
+        )
 
     prev_hash = ""
     if os.path.exists(expanded):
@@ -1817,7 +1844,18 @@ def append_audit_log(path: str, event: dict[str, Any]) -> dict[str, Any]:
                     if not line:
                         continue
                     try:
-                        prev_hash = str(json.loads(line).get("hash", ""))
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+
+                    if str(row.get("hash_algo", algo)).strip().lower() != algo:
+                        raise ValueError(
+                            "Audit log contains mixed hash algorithms; "
+                            f"found {row.get('hash_algo')} expected {algo}"
+                        )
+
+                    try:
+                        prev_hash = str(row.get("hash", ""))
                     except Exception:
                         continue
         except OSError:
@@ -1825,12 +1863,15 @@ def append_audit_log(path: str, event: dict[str, Any]) -> dict[str, Any]:
 
     ts = int(time.time())
     event_payload = json.dumps(event, sort_keys=True, separators=(",", ":"))
+    event_hash = fips_event_hash(event_payload, hash_algo=algo)
     chain_input = f"{prev_hash}\n{ts}\n{event_payload}".encode("utf-8")
-    digest = hashlib.sha256(chain_input).hexdigest()
+    digest = hashlib.new(algo, chain_input).hexdigest()
 
     record: dict[str, Any] = {
         "ts": ts,
+        "hash_algo": algo,
         "event": event,
+        "event_hash": event_hash,
         "prev_hash": prev_hash,
         "hash": digest,
     }
@@ -1839,6 +1880,56 @@ def append_audit_log(path: str, event: dict[str, Any]) -> dict[str, Any]:
         fh.write(json.dumps(record, separators=(",", ":")) + "\n")
 
     return record
+
+
+def verify_audit_log_chain(path: str) -> dict[str, Any]:
+    """Verify hash-chain integrity for an audit log file.
+
+    Returns verification metadata including status and first failing line.
+    """
+    expanded = os.path.expanduser(path)
+    prev_hash = ""
+    line_no = 0
+
+    if not os.path.exists(expanded):
+        return {"ok": False, "reason": "missing", "line": 0}
+
+    with open(expanded, encoding="utf-8") as fh:
+        for raw in fh:
+            line_no += 1
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except Exception:
+                return {"ok": False, "reason": "invalid-json", "line": line_no}
+
+            algo = str(row.get("hash_algo", "sha256")).strip().lower()
+            if algo not in _FIPS_HASH_ALGOS:
+                return {"ok": False, "reason": "unsupported-algo", "line": line_no}
+
+            row_prev = str(row.get("prev_hash", ""))
+            if row_prev != prev_hash:
+                return {"ok": False, "reason": "prev-hash-mismatch", "line": line_no}
+
+            ts = int(row.get("ts", 0) or 0)
+            event = row.get("event", {})
+            event_payload = json.dumps(event, sort_keys=True, separators=(",", ":"))
+
+            expected_event_hash = fips_event_hash(event_payload, hash_algo=algo)
+            if str(row.get("event_hash", "")) != expected_event_hash:
+                return {"ok": False, "reason": "event-hash-mismatch", "line": line_no}
+
+            expected_chain = hashlib.new(
+                algo, f"{prev_hash}\n{ts}\n{event_payload}".encode("utf-8")
+            ).hexdigest()
+            if str(row.get("hash", "")) != expected_chain:
+                return {"ok": False, "reason": "chain-hash-mismatch", "line": line_no}
+
+            prev_hash = expected_chain
+
+    return {"ok": True, "line": line_no, "records": line_no, "last_hash": prev_hash}
 
 
 def make_worker_report(

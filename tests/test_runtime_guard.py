@@ -28,7 +28,9 @@ from runtime_guard import (
     append_audit_log,
     aggregate_worker_reports,
     emit_otel_event,
+    fips_event_hash,
     make_worker_report,
+    verify_audit_log_chain,
     pressure_report_attributes,
     render_prometheus_metrics,
     trace_context_attributes,
@@ -1156,6 +1158,46 @@ class TestAuditLog:
         assert out["event"]["action"] == "policy-violation"
         assert out["event"]["stage"] == "train"
         assert out["event"]["metadata"]["run_id"] == "abc123"
+
+    def test_fips_hash_algorithm_selection(self, tmp_path):
+        path = tmp_path / "audit.log"
+        rec = append_audit_log(str(path), {"action": "x"}, hash_algo="sha512")
+        assert rec["hash_algo"] == "sha512"
+        assert len(rec["hash"]) == 128
+        assert len(rec["event_hash"]) == 128
+
+    def test_unsupported_hash_algorithm_rejected(self, tmp_path):
+        path = tmp_path / "audit.log"
+        with pytest.raises(ValueError, match="Unsupported hash algorithm"):
+            append_audit_log(str(path), {"x": 1}, hash_algo="md5")
+
+    def test_fips_event_hash_lengths(self):
+        assert len(fips_event_hash("hello", hash_algo="sha256")) == 64
+        assert len(fips_event_hash("hello", hash_algo="sha384")) == 96
+        assert len(fips_event_hash("hello", hash_algo="sha512")) == 128
+
+    def test_verify_audit_log_chain_ok_and_tamper(self, tmp_path):
+        path = tmp_path / "audit.log"
+        append_audit_log(str(path), {"n": 1})
+        append_audit_log(str(path), {"n": 2})
+        ok = verify_audit_log_chain(str(path))
+        assert ok["ok"] is True
+
+        lines = path.read_text(encoding="utf-8").splitlines()
+        row = json.loads(lines[1])
+        row["event"]["n"] = 99
+        lines[1] = json.dumps(row, separators=(",", ":"))
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        bad = verify_audit_log_chain(str(path))
+        assert bad["ok"] is False
+        assert bad["reason"] in {"event-hash-mismatch", "chain-hash-mismatch"}
+
+    def test_runtime_guard_audit_hash_algo_passthrough(self, tmp_path):
+        guard = RuntimeGuard(log_tag="audit-test")
+        out = guard.audit(_make_report(), path=str(tmp_path / "a.log"), hash_algo="sha384")
+        assert out["hash_algo"] == "sha384"
+        assert len(out["hash"]) == 96
 
 
 # ---------------------------------------------------------------------------

@@ -279,6 +279,8 @@ Raw memory values from the OS at a point in time.
 | `validate_runtime_guard_config(config, use_pydantic=True) → dict[str, Any]` | Validate RuntimeGuard threshold/posture config with optional pydantic schema support and strict fallback validation. |
 | `attach_signal_recovery(guard, ...) → Callable[[], None]` | Install signal handlers that run a final pressure check/log (and optional intervention), returning a restore function. |
 | `append_audit_log(path, event) → dict[str, Any]` | Append a tamper-evident (hash-chained) JSON record to an audit log file. |
+| `fips_event_hash(payload, hash_algo="sha256") → str` | Hash payloads with FIPS-approved SHA-2 algorithms (`sha256`, `sha384`, `sha512`). |
+| `verify_audit_log_chain(path) → dict[str, Any]` | Verify hash-chain integrity for audit logs and report first failing line/reason. |
 | `make_worker_report(guard, ...) → dict[str, Any]` | Build a process-local worker pressure report for parent-process orchestration. |
 | `aggregate_worker_reports(reports) → dict[str, Any]` | Aggregate worker reports into pool/job-queue summary metrics and worst severity. |
 | `generate_wslconfig(memory_gb, ...) → str` | Generate `.wslconfig` content (or write/merge to file). |

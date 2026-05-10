@@ -1691,12 +1691,14 @@ class TestMultiProcessOrchestration:
 class TestSoc2GapAssessment:
     def test_required_controls_baseline_contains_core_ids(self):
         required = soc2_required_controls()
-        assert set(required) == {"CC6.1", "CC7.1", "CC7.2"}
+        assert set(required) == {"CC6.1", "CC7.1", "CC7.2", "CC7.3", "CC8.1"}
 
     def test_reports_ready_when_all_controls_present(self):
-        out = soc2_gap_assessment({"CC6.1": True, "CC7.1": True, "CC7.2": True})
-        assert out["total_controls"] == 3
-        assert out["covered_controls"] == 3
+        out = soc2_gap_assessment(
+            {"CC6.1": True, "CC7.1": True, "CC7.2": True, "CC7.3": True, "CC8.1": True}
+        )
+        assert out["total_controls"] == 5
+        assert out["covered_controls"] == 5
         assert out["missing_controls"] == []
         assert out["missing_required_controls"] == []
         assert out["unknown_controls"] == []
@@ -1708,8 +1710,8 @@ class TestSoc2GapAssessment:
         assert out["total_controls"] == 3
         assert out["covered_controls"] == 1
         assert out["missing_controls"] == ["CC7.1", "CC8.1"]
-        assert out["missing_required_controls"] == ["CC7.1", "CC7.2"]
-        assert out["unknown_controls"] == ["CC8.1"]
+        assert out["missing_required_controls"] == ["CC7.1", "CC7.2", "CC7.3", "CC8.1"]
+        assert out["unknown_controls"] == []
         assert out["coverage_ratio"] == pytest.approx(1 / 3)
         assert out["status"] == "gaps-found"
 
@@ -1718,23 +1720,26 @@ class TestSoc2GapAssessment:
         assert out["total_controls"] == 0
         assert out["covered_controls"] == 0
         assert out["missing_controls"] == []
-        assert out["missing_required_controls"] == ["CC6.1", "CC7.1", "CC7.2"]
+        assert out["missing_required_controls"] == ["CC6.1", "CC7.1", "CC7.2", "CC7.3", "CC8.1"]
         assert out["unknown_controls"] == []
         assert out["coverage_ratio"] == 0.0
         assert out["status"] == "gaps-found"
 
     def test_evidence_requirements_scoped_to_required_controls(self):
         req = soc2_evidence_requirements(required_controls={"CC6.1": "x", "CC8.1": "y"})
-        assert sorted(req.keys()) == ["CC6.1"]
+        assert sorted(req.keys()) == ["CC6.1", "CC8.1"]
         assert "access-review-log" in req["CC6.1"]
+        assert "change-approval-record" in req["CC8.1"]
 
     def test_readiness_report_ready_with_evidence(self):
         out = soc2_readiness_report(
-            {"CC6.1": True, "CC7.1": True, "CC7.2": True},
+            {"CC6.1": True, "CC7.1": True, "CC7.2": True, "CC7.3": True, "CC8.1": True},
             evidence_state={
                 "CC6.1": ["access-review-log", "privileged-action-audit-trail"],
                 "CC7.1": ["monitoring-alert-history", "on-call-acknowledgement-record"],
                 "CC7.2": ["incident-timeline", "post-incident-corrective-actions"],
+                "CC7.3": ["alert-triage-record", "incident-retrospective"],
+                "CC8.1": ["change-approval-record", "rollback-validation-log"],
             },
         )
         assert out["status"] == "ready"
@@ -1744,16 +1749,18 @@ class TestSoc2GapAssessment:
 
     def test_readiness_report_detects_missing_evidence(self):
         out = soc2_readiness_report(
-            {"CC6.1": True, "CC7.1": True, "CC7.2": True},
+            {"CC6.1": True, "CC7.1": True, "CC7.2": True, "CC7.3": True, "CC8.1": True},
             evidence_state={
                 "CC6.1": ["access-review-log"],
                 "CC7.1": ["monitoring-alert-history"],
                 "CC7.2": ["incident-timeline"],
+                "CC7.3": ["alert-triage-record"],
+                "CC8.1": ["change-approval-record"],
             },
         )
         assert out["status"] == "evidence-missing"
         assert out["maturity"] == "controls-implemented-evidence-pending"
-        assert out["missing_evidence_controls"] == ["CC6.1", "CC7.1", "CC7.2"]
+        assert out["missing_evidence_controls"] == ["CC6.1", "CC7.1", "CC7.2", "CC7.3", "CC8.1"]
         assert out["evidence_ratio"] == pytest.approx(0.5)
 
 

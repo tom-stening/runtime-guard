@@ -41,6 +41,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   common enterprise aliases such as incident-response, access-review, and
   corrective-action records instead of collapsing them to generic unknown/custom
   values.
+- SOC2 baseline expansion: default control/evidence catalogs now include CC7.3
+  anomaly triage/remediation and CC8.1 change-management requirements, improving
+  readiness scoring coverage for operational response and approved policy updates.
 - Dynamic policy reloading scaffolding: `set_policy_overrides()`,
   `load_policy_file()`, and `reload_policy_if_changed()`.
 - Multi-process orchestration scaffolding: `make_worker_report()` and

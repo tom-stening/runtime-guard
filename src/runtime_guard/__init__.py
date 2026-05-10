@@ -148,6 +148,8 @@ _SOC2_RUNTIME_GUARD_CONTROLS: dict[str, str] = {
     "CC6.1": "Logical access controls and role-bound privileged actions.",
     "CC7.1": "Monitoring for anomalies and operational events.",
     "CC7.2": "Incident response workflow and escalation evidence.",
+    "CC7.3": "Detected anomalies are investigated, triaged, and remediated.",
+    "CC8.1": "Changes to monitoring and recovery policy are authorized, tested, and approved.",
 }
 _SOC2_CONTROL_EVIDENCE_REQUIREMENTS: dict[str, list[str]] = {
     "CC6.1": [
@@ -161,6 +163,14 @@ _SOC2_CONTROL_EVIDENCE_REQUIREMENTS: dict[str, list[str]] = {
     "CC7.2": [
         "incident-timeline",
         "post-incident-corrective-actions",
+    ],
+    "CC7.3": [
+        "alert-triage-record",
+        "incident-retrospective",
+    ],
+    "CC8.1": [
+        "change-approval-record",
+        "rollback-validation-log",
     ],
 }
 

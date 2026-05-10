@@ -99,7 +99,7 @@ This principle shapes all roadmap decisions:
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M2-I01 | Enterprise support package (SLA, runbooks) | P1 | 🔄 IN PROGRESS | Added incident/runbook package in `ENTERPRISE_SUPPORT.md` plus Linux user-service automation templates for repo-level background monitoring. |
+| M2-I01 | Enterprise support package (SLA, runbooks) | P1 | 🔄 IN PROGRESS | Added incident/runbook package plus both Linux user-service watcher templates and repo seeding utility (`scripts/seed_repo_autorun.py`) for self-starting monitoring. |
 | M2-I02 | Adoption by 5+ enterprise data teams | P1 | 🔄 IN PROGRESS | Added `ADOPTION_TRACKER.md` with stage model, evidence checklist, and success metrics to drive 5-team target. |
 | M2-I03 | Training & certification curriculum | P2 | 🔄 IN PROGRESS | Added `TRAINING_CURRICULUM.md` with 1-day agenda, labs, and certification rubric. |
 

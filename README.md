@@ -394,6 +394,32 @@ Notes:
 - Checks are skipped while repo is idle to reduce overhead.
 - For highest attribution fidelity, keep in-process checks in app/test entrypoints as well.
 
+### Seed Repo Autostart (sitecustomize)
+
+For repo-local Python startup autowiring (without editing application code),
+seed a `sitecustomize.py` file:
+
+```bash
+python scripts/seed_repo_autorun.py --repo-path /path/to/target-repo
+```
+
+What this does:
+- Writes `/path/to/target-repo/sitecustomize.py`
+- Auto-starts `RuntimeGuard.start_background_check(...)` in Python processes
+    launched from that repo
+- Allows runtime disable via `RUNTIME_GUARD_AUTOSTART=0`
+
+Override defaults:
+
+```bash
+python scripts/seed_repo_autorun.py \
+    --repo-path /path/to/target-repo \
+    --stage repo-autostart \
+    --interval-s 20 \
+    --cooldown-s 15 \
+    --env-prefix RUNTIME_GUARD
+```
+
 ---
 
 ## WSL 2 Utilities

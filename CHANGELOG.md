@@ -55,6 +55,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Linux background service automation: `scripts/runtime_guard_repo_watcher.py`
   plus user-service templates in `scripts/systemd/` for repo-activity-aware
   monitoring.
+- Repo autostart seeding utility: `scripts/seed_repo_autorun.py` and
+  `make_sitecustomize_content()` for generating `sitecustomize.py` bootstrap
+  files that self-start RuntimeGuard background checks.
 - Ray integration cookbook in `INTEGRATION_RAY.md` with staged hook,
   orchestration, and audit logging examples.
 - Training/certification program draft in `TRAINING_CURRICULUM.md` with

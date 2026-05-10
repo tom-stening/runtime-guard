@@ -30,6 +30,7 @@ from runtime_guard import (
     emit_otel_event,
     fips_event_hash,
     make_worker_report,
+    make_sitecustomize_content,
     soc2_required_controls,
     soc2_gap_assessment,
     verify_audit_log_chain,
@@ -1052,6 +1053,27 @@ class TestDynamicPolicyReload:
         monkeypatch.setenv("RUNTIME_GUARD_MIN_MEM_AVAILABLE_MB", "5555")
         min_mem_mb, *_ = guard._resolve_thresholds()
         assert min_mem_mb == 5555
+
+
+class TestSitecustomizeContent:
+    def test_contains_autostart_toggle_and_background_start(self):
+        text = make_sitecustomize_content(repo_name="demo")
+        assert "RUNTIME_GUARD_AUTOSTART" in text
+        assert "start_background_check" in text
+        assert "stop_background_check" in text
+
+    def test_respects_custom_values(self):
+        text = make_sitecustomize_content(
+            repo_name="myrepo",
+            stage="seed-stage",
+            interval_s=12.5,
+            cooldown_s=7.0,
+            env_prefix="MYAPP",
+        )
+        assert "MYAPP_AUTOSTART" in text
+        assert "seed-stage" in text
+        assert "12.5" in text
+        assert "7.0" in text
 
 
 # ---------------------------------------------------------------------------

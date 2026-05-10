@@ -29,6 +29,10 @@ def _normalize_records(
     *,
     strict: bool,
 ) -> tuple[list[dict[str, Any]], list[str]]:
+    stage_aliases = {
+        "discovery": "discover",
+        "prod": "production",
+    }
     normalized: list[dict[str, Any]] = []
     warnings: list[str] = []
 
@@ -47,6 +51,7 @@ def _normalize_records(
         stage = str(out.get("stage") or "discover").strip().lower()
         if stage == "":
             stage = "discover"
+        stage = stage_aliases.get(stage, stage)
         out["stage"] = stage
 
         evidence_raw = out.get("evidence", [])

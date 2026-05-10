@@ -3107,12 +3107,18 @@ def build_adoption_scorecard(
         "trial",
         "staging",
         "production",
+        "expanded",
     ]
     stage_index = {name: idx for idx, name in enumerate(stage_order)}
-    success_norm = str(success_stage).strip().lower()
+    stage_aliases = {
+        "discovery": "discover",
+        "prod": "production",
+    }
+    success_norm = stage_aliases.get(str(success_stage).strip().lower(), str(success_stage).strip().lower())
 
     def _stage(value: Any) -> str:
-        return str(value or "discover").strip().lower()
+        raw = str(value or "discover").strip().lower()
+        return stage_aliases.get(raw, raw)
 
     team_count = len(team_records)
     stage_counts: dict[str, int] = {name: 0 for name in stage_order}

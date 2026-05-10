@@ -100,7 +100,7 @@ This principle shapes all roadmap decisions:
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
 | M2-I01 | Enterprise support package (SLA, runbooks) | P1 | 🔄 IN PROGRESS | Added incident/runbook package, `OPERATIONS_GUIDE.md` deployment runbook, Linux user-service watcher templates, and repo seeding utility (`scripts/seed_repo_autorun.py`) for self-starting monitoring. |
-| M2-I02 | Adoption by 5+ enterprise data teams | P1 | 🔄 IN PROGRESS | Added `ADOPTION_TRACKER.md` stage model + execution automation: `build_adoption_scorecard()` API and `scripts/adoption_scorecard.py` CLI for rollout metrics; CLI now supports strict input validation and warning/coercion paths for audit-quality team records; 5-team procurement/evidence execution remains. |
+| M2-I02 | Adoption by 5+ enterprise data teams | P1 | 🔄 IN PROGRESS | Added `ADOPTION_TRACKER.md` stage model + execution automation: `build_adoption_scorecard()` API and `scripts/adoption_scorecard.py` CLI for rollout metrics; input handling now canonicalizes stage aliases (e.g., `Discovery` -> `discover`, `prod` -> `production`) and tracks `expanded` stage consistently; 5-team procurement/evidence execution remains. |
 | M2-I03 | Training & certification curriculum | P2 | 🔄 IN PROGRESS | Added `TRAINING_CURRICULUM.md` with 1-day agenda, labs, and certification rubric. |
 
 ---

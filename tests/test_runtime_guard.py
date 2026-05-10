@@ -2093,6 +2093,19 @@ class TestAdoptionScorecard:
         assert out["reached_success_stage"] == 5
         assert out["status"] == "on-track"
 
+    def test_stage_aliases_and_expanded_stage_are_counted(self):
+        out = build_adoption_scorecard(
+            [
+                {"team": "alpha", "stage": "Discovery", "evidence": []},
+                {"team": "beta", "stage": "prod", "evidence": ["e1"]},
+                {"team": "gamma", "stage": "expanded", "evidence": ["e2"]},
+            ]
+        )
+        assert out["stage_counts"]["discover"] == 1
+        assert out["stage_counts"]["production"] == 1
+        assert out["stage_counts"]["expanded"] == 1
+        assert out["reached_success_stage"] == 2
+
 
 class TestUnsupportedPlatformWarning:
     def test_warns_on_unknown_platform(self, monkeypatch, caplog):

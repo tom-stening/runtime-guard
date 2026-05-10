@@ -123,43 +123,74 @@ _FIPS_HASH_ALGOS: set[str] = {"sha256", "sha384", "sha512"}
 _AUDIT_POLICY_SEVERITIES: set[str] = {"info", "warning", "critical"}
 _AUDIT_POLICY_CATEGORIES: set[str] = {
     "access",
+    "auth",
     "availability",
+    "compliance",
+    "config",
+    "data_quality",
     "incident",
     "integrity",
     "memory",
-    "swap",
+    "network",
+    "pipeline",
     "process",
+    "resource",
+    "scheduler",
+    "storage",
+    "swap",
     "system",
-    "config",
-    "compliance",
     "unknown",
 }
 _AUDIT_POLICY_ACTIONS: set[str] = {
+    "abort",
     "acknowledge",
-    "observe",
+    "alert",
+    "checkpoint",
+    "custom",
+    "drain",
+    "escalate",
+    "evict",
+    "kill_hogs",
     "notify",
+    "observe",
+    "policy_violation",
+    "pressure_detected",
+    "quarantine",
+    "rebalance",
     "recover",
     "remediate",
-    "throttle",
-    "kill_hogs",
+    "rollback",
     "snapshot",
-    "pressure_detected",
-    "policy_violation",
-    "abort",
-    "escalate",
-    "custom",
+    "suspend",
+    "throttle",
+    "validate",
 }
 _SOC2_RUNTIME_GUARD_CONTROLS: dict[str, str] = {
     "CC6.1": "Logical access controls and role-bound privileged actions.",
+    "CC6.2": "Restrict logical access to protected resources using least-privilege principles.",
+    "CC6.6": "Detect and protect against threats from external sources.",
     "CC7.1": "Monitoring for anomalies and operational events.",
     "CC7.2": "Incident response workflow and escalation evidence.",
     "CC7.3": "Detected anomalies are investigated, triaged, and remediated.",
     "CC8.1": "Changes to monitoring and recovery policy are authorized, tested, and approved.",
+    "A1.1": "Capacity planning and performance monitoring against availability commitments.",
+    "A1.2": "Recovery and continuity procedures maintain availability during disruptions.",
+    "PI1.2": "Inputs to processing are complete, accurate, and authorized.",
 }
 _SOC2_CONTROL_EVIDENCE_REQUIREMENTS: dict[str, list[str]] = {
     "CC6.1": [
         "access-review-log",
         "privileged-action-audit-trail",
+    ],
+    "CC6.2": [
+        "least-privilege-policy-doc",
+        "resource-access-role-matrix",
+        "privileged-access-review-log",
+    ],
+    "CC6.6": [
+        "external-threat-detection-log",
+        "anomaly-alert-configuration",
+        "threat-response-runbook",
     ],
     "CC7.1": [
         "monitoring-alert-history",
@@ -176,6 +207,21 @@ _SOC2_CONTROL_EVIDENCE_REQUIREMENTS: dict[str, list[str]] = {
     "CC8.1": [
         "change-approval-record",
         "rollback-validation-log",
+    ],
+    "A1.1": [
+        "capacity-baseline-report",
+        "memory-pressure-trend-log",
+        "availability-sla-evidence",
+    ],
+    "A1.2": [
+        "recovery-procedure-doc",
+        "signal-recovery-test-log",
+        "business-continuity-plan",
+    ],
+    "PI1.2": [
+        "input-validation-policy",
+        "authorized-pipeline-run-log",
+        "data-integrity-audit-record",
     ],
 }
 
@@ -2837,35 +2883,118 @@ def normalize_policy_violation_event(event: dict[str, Any]) -> dict[str, Any]:
         return raw.replace("-", "_").replace(" ", "_")
 
     category_aliases = {
+        # memory
         "mem": "memory",
         "memory_pressure": "memory",
         "oom": "memory",
+        # system
         "host": "system",
         "host_pressure": "system",
+        # config
         "configuration": "config",
         "cfg": "config",
+        # compliance
         "policy": "compliance",
         "governance": "compliance",
         "soc2": "compliance",
+        "hipaa": "compliance",
+        "gdpr": "compliance",
+        "regulatory": "compliance",
+        # incident
         "incident_response": "incident",
         "response": "incident",
+        # access
         "access_control": "access",
         "access_review": "access",
         "privileged_access": "access",
+        "authorization": "access",
+        "authz": "access",
+        # auth
+        "authentication": "auth",
+        "authn": "auth",
+        "login": "auth",
+        "credential": "auth",
+        # integrity
         "hash_integrity": "integrity",
         "tamper": "integrity",
+        "checksum": "integrity",
+        # availability
         "uptime": "availability",
         "capacity": "availability",
+        "sla": "availability",
+        # network
+        "networking": "network",
+        "net": "network",
+        "connection": "network",
+        # storage
+        "disk": "storage",
+        "file": "storage",
+        "filesystem": "storage",
+        # pipeline
+        "pipeline_lifecycle": "pipeline",
+        "etl": "pipeline",
+        "workflow": "pipeline",
+        # scheduler
+        "queue": "scheduler",
+        "cron": "scheduler",
+        "task": "scheduler",
+        "job": "scheduler",
+        # data_quality
+        "data": "data_quality",
+        "data_integrity": "data_quality",
+        "validation": "data_quality",
+        # resource
+        "resources": "resource",
+        "quota": "resource",
+        "limit": "resource",
     }
     action_aliases = {
+        # acknowledge
         "ack": "acknowledge",
         "acknowledged": "acknowledge",
+        # recover
         "auto_recovery": "recover",
         "incident_response": "recover",
         "restart": "recover",
+        # remediate
         "remediation": "remediate",
         "corrective_action": "remediate",
         "corrective_actions": "remediate",
+        "fix": "remediate",
+        # evict
+        "evict_worker": "evict",
+        "evict_cache": "evict",
+        "cache_evict": "evict",
+        # drain
+        "drain_queue": "drain",
+        "drain_workers": "drain",
+        "flush": "drain",
+        # suspend
+        "suspend_process": "suspend",
+        "pause": "suspend",
+        "freeze": "suspend",
+        # checkpoint
+        "checkpoint_state": "checkpoint",
+        "save_checkpoint": "checkpoint",
+        "save_state": "checkpoint",
+        # rollback
+        "rollback_change": "rollback",
+        "revert": "rollback",
+        "undo": "rollback",
+        # validate
+        "validate_policy": "validate",
+        "validate_config": "validate",
+        "verify": "validate",
+        # quarantine
+        "quarantine_worker": "quarantine",
+        "isolate": "quarantine",
+        # alert
+        "alert_oncall": "alert",
+        "send_alert": "alert",
+        "page": "alert",
+        # rebalance
+        "rebalance_load": "rebalance",
+        "rebalance_workers": "rebalance",
     }
 
     out = dict(event)

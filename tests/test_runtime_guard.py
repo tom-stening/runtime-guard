@@ -47,6 +47,8 @@ from runtime_guard import (
     validate_runtime_guard_config,
     validate_polars_integration,
     collect_polars_integration_evidence,
+    validate_dask_integration,
+    collect_dask_integration_evidence,
     attach_ray_guard,
     _read_snapshot,
     attach_polars_guard,
@@ -815,6 +817,78 @@ class TestDaskIntegration:
 
         with pytest.raises(RuntimeError, match=r"dask\.compute"):
             attach_dask_guard(RuntimeGuard(), module=NoCompute)
+
+    def test_validate_dask_integration_ok_when_wrapped(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_dask_guard(guard, module=self._DummyDask)
+        try:
+            result = validate_dask_integration(guard, module=self._DummyDask)
+            assert result["ok"] is True
+            assert result["dask_available"] is True
+            assert result["methods_wrapped"] is True
+            assert result["compute_present"] is True
+            assert result["persist_present"] is True
+            assert result["base_module_present"] is True
+        finally:
+            restore()
+
+    def test_validate_dask_integration_detects_missing_dask(self):
+        class NotDask:
+            pass
+
+        guard = RuntimeGuard()
+        result = validate_dask_integration(guard, module=NotDask)
+        assert result["ok"] is False
+        assert result["dask_available"] is True
+
+    def test_collect_dask_integration_evidence_with_hooks_installed(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_dask_guard(guard, module=self._DummyDask)
+        try:
+            evidence = collect_dask_integration_evidence(guard, module=self._DummyDask)
+            assert evidence["validation_ok"] is True
+            assert "dask_integration_validated" in evidence["evidence_items"]
+            assert "dask_hooks_installed" in evidence["evidence_items"]
+            assert evidence["dask_version"] == "unknown"
+        finally:
+            restore()
+
+    def test_collect_dask_integration_evidence_with_version_metadata(self, monkeypatch):
+        class VersionedDask:
+            __version__ = "2024.1.0"
+
+            @staticmethod
+            def compute(value: int, add: int = 0) -> int:
+                return value + add
+
+            @staticmethod
+            def persist(value: int) -> str:
+                return f"persist:{value}"
+
+            class base:
+                @staticmethod
+                def compute(value: int, add: int = 0) -> int:
+                    return value + add
+
+                @staticmethod
+                def persist(value: int) -> str:
+                    return f"base-persist:{value}"
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_dask_guard(guard, module=VersionedDask)
+        try:
+            evidence = collect_dask_integration_evidence(
+                guard,
+                module=VersionedDask,
+                version_info={"environment": "staging"},
+            )
+            assert evidence["dask_version"] == "2024.1.0"
+            assert evidence.get("environment") == "staging"
+        finally:
+            restore()
 
 
 # ---------------------------------------------------------------------------

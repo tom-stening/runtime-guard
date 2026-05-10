@@ -97,6 +97,8 @@ __all__ = [
     "build_adoption_scorecard",
     "validate_polars_integration",
     "collect_polars_integration_evidence",
+    "validate_dask_integration",
+    "collect_dask_integration_evidence",
     "make_worker_report",
     "aggregate_worker_reports",
 ]
@@ -1559,6 +1561,137 @@ def attach_dask_guard(
             setattr(base_mod, "persist", original_base_persist)
 
     return _restore
+
+
+def validate_dask_integration(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "dask-compute",
+    module: Any | None = None,
+) -> dict[str, Any]:
+    """Validate that Dask integration is correctly installed and functional.
+
+    Returns a verification report showing:
+    - Dask availability
+    - compute/persist method status
+    - Guard hook status
+    - Any errors encountered
+
+    Useful for M1-C02 adoption evidence collection.
+    """
+    errors: list[str] = []
+    dask_available = False
+    methods_wrapped = False
+
+    try:
+        dask_mod = module
+        if dask_mod is None:
+            try:
+                import dask as dask_mod  # type: ignore
+            except Exception as exc:  # pragma: no cover
+                errors.append(f"Dask import failed: {exc}")
+                return {
+                    "ok": False,
+                    "dask_available": False,
+                    "methods_wrapped": False,
+                    "errors": errors,
+                }
+        dask_available = True
+
+        compute_fn = getattr(dask_mod, "compute", None)
+        if compute_fn is None or not callable(compute_fn):
+            errors.append("dask.compute not found or not callable")
+            return {
+                "ok": False,
+                "dask_available": True,
+                "methods_wrapped": False,
+                "errors": errors,
+            }
+
+        persist_fn = getattr(dask_mod, "persist", None)
+        base_mod = getattr(dask_mod, "base", None)
+        base_compute = getattr(base_mod, "compute", None) if base_mod else None
+        base_persist = getattr(base_mod, "persist", None) if base_mod else None
+
+        methods_wrapped = bool(getattr(compute_fn, "_runtime_guard_wrapped", False))
+
+        return {
+            "ok": True,
+            "dask_available": True,
+            "methods_wrapped": methods_wrapped,
+            "compute_present": compute_fn is not None,
+            "persist_present": persist_fn is not None,
+            "base_module_present": base_mod is not None,
+            "base_compute_present": base_compute is not None,
+            "base_persist_present": base_persist is not None,
+            "errors": errors,
+        }
+    except Exception as exc:  # pragma: no cover
+        errors.append(f"Validation error: {exc}")
+        return {
+            "ok": False,
+            "dask_available": dask_available,
+            "methods_wrapped": methods_wrapped,
+            "errors": errors,
+        }
+
+
+def collect_dask_integration_evidence(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "dask-compute",
+    module: Any | None = None,
+    version_info: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Collect evidence of Dask integration readiness for adoption tracking.
+
+    Returns a report compatible with ADOPTION_TRACKER.md evidence arrays.
+    Useful for M1-C02 rollout validation and audit.
+    """
+    validation = validate_dask_integration(guard, stage=stage, module=module)
+
+    evidence_items: list[str] = []
+
+    if validation.get("ok"):
+        evidence_items.append("dask_integration_validated")
+
+    if validation.get("methods_wrapped"):
+        evidence_items.append("dask_hooks_installed")
+
+    if validation.get("compute_present"):
+        evidence_items.append("dask_compute_available")
+
+    if validation.get("persist_present"):
+        evidence_items.append("dask_persist_available")
+
+    if validation.get("base_module_present"):
+        evidence_items.append("dask_base_module_available")
+
+    runtime_guard_version = "0.3.0"
+    try:
+        from importlib.metadata import version as _pkg_version
+
+        runtime_guard_version = _pkg_version("runtime-guard")
+    except Exception:
+        pass
+
+    dask_version = "unknown"
+    try:
+        dask_mod = module
+        if dask_mod is None:
+            import dask as dask_mod  # type: ignore
+        dask_version = str(getattr(dask_mod, "__version__", "unknown"))
+    except Exception:
+        pass
+
+    return {
+        "evidence_items": evidence_items,
+        "validation_ok": validation.get("ok", False),
+        "runtime_guard_version": runtime_guard_version,
+        "dask_version": dask_version,
+        "errors": validation.get("errors", []),
+        **(version_info or {}),
+    }
 
 
 def attach_ray_guard(

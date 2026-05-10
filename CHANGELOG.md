@@ -72,6 +72,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Polars integration validation: `validate_polars_integration()` and
   `collect_polars_integration_evidence()` for adoption evidence collection
   and M1-I01 rollout verification.
+- Dask integration validation: `validate_dask_integration()` and
+  `collect_dask_integration_evidence()` for adoption evidence collection
+  and M1-C02 integration verification.
 - SOC2 readiness enhancements: `soc2_evidence_requirements()` and
   `soc2_readiness_report()` now track evidence completeness alongside control
   coverage for audit-readiness evaluation.

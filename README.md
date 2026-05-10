@@ -134,6 +134,7 @@ With no options, prints a compact status line and exits 1 if pressure is detecte
 |---|---|
 | `--snapshot` | Print a full memory snapshot with all fields. Exit 0. |
 | `--check` | Check for pressure. Print report if found. **Exit 1 if pressure, 0 if healthy.** |
+| `--verify-audit-log PATH` | Verify audit hash-chain integrity at PATH. **Exit 0 if valid, 1 if invalid.** |
 | `--report` | Print full WSL 2 system report (kernel params, memory, recommendations). |
 | `--generate-wslconfig [MEM_GB]` | Generate `.wslconfig` content. Defaults to half of detected total RAM. |
 | `--write PATH` | Write generated `.wslconfig` to PATH instead of printing. Backs up existing file. |

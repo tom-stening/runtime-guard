@@ -1742,3 +1742,19 @@ class TestCLI:
         out = capsys.readouterr().out
         assert "[wsl2]" in out
         assert "memory=" in out
+
+    def test_verify_audit_log_exits_0_when_valid(self, monkeypatch):
+        monkeypatch.setattr(
+            "runtime_guard.verify_audit_log_chain",
+            lambda path: {"ok": True, "records": 2},
+        )
+        code, _ = self._run_cli("--verify-audit-log", "audit.log")
+        assert code == 0
+
+    def test_verify_audit_log_exits_1_when_invalid(self, monkeypatch):
+        monkeypatch.setattr(
+            "runtime_guard.verify_audit_log_chain",
+            lambda path: {"ok": False, "reason": "chain-hash-mismatch", "line": 4},
+        )
+        code, _ = self._run_cli("--verify-audit-log", "audit.log")
+        assert code == 1

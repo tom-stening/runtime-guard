@@ -58,6 +58,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Repo autostart seeding utility: `scripts/seed_repo_autorun.py` and
   `make_sitecustomize_content()` for generating `sitecustomize.py` bootstrap
   files that self-start RuntimeGuard background checks.
+- CLI audit verification mode: `--verify-audit-log PATH` to validate
+  hash-chained audit logs with exit-code semantics for CI/ops workflows.
 - Ray integration cookbook in `INTEGRATION_RAY.md` with staged hook,
   orchestration, and audit logging examples.
 - Training/certification program draft in `TRAINING_CURRICULUM.md` with

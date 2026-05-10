@@ -2820,6 +2820,7 @@ def _cli() -> None:  # pragma: no cover
     (no flags)         Print a one-line snapshot; exit 1 if pressure detected.
     --snapshot         Print a detailed human-readable memory snapshot and exit 0.
     --check            Exit 0 (no pressure) or 1 (pressure detected); always prints cause.
+    --verify-audit-log Verify an audit log hash chain; exit 0 on success, 1 on failure.
     --report           Full WSL2 system health report (same as wsl_system_report()).
     --generate-wslconfig [MEM_GB]
                        Print a recommended .wslconfig; optionally write it with
@@ -2845,6 +2846,11 @@ def _cli() -> None:  # pragma: no cover
         "--check",
         action="store_true",
         help="Check for pressure; exit 1 if detected.",
+    )
+    group.add_argument(
+        "--verify-audit-log",
+        metavar="PATH",
+        help="Verify audit log chain integrity; exit 0 when valid, 1 when invalid.",
     )
     group.add_argument(
         "--report",
@@ -2896,6 +2902,21 @@ def _cli() -> None:  # pragma: no cover
     if args.report:
         print(wsl_system_report())
         return
+
+    if args.verify_audit_log:
+        result = verify_audit_log_chain(args.verify_audit_log)
+        if bool(result.get("ok")):
+            records = int(result.get("records", 0) or 0)
+            print(f"[RuntimeGuard] Audit chain OK ({records} record(s))")
+            sys.exit(0)
+
+        reason = str(result.get("reason", "unknown"))
+        line = int(result.get("line", 0) or 0)
+        print(
+            f"[RuntimeGuard] Audit chain FAILED at line {line}: {reason}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if args.generate_wslconfig is not None:
         snap = _read_snapshot()

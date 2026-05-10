@@ -103,6 +103,9 @@ __all__ = [
     "collect_ray_integration_evidence",
     "make_worker_report",
     "aggregate_worker_reports",
+    "append_worker_report_jsonl",
+    "load_worker_reports_jsonl",
+    "aggregate_worker_reports_jsonl",
 ]
 
 logger = logging.getLogger(__name__)
@@ -681,6 +684,22 @@ class RuntimeGuard:
     def aggregate_workers(self, reports: list[dict[str, Any]]) -> dict[str, Any]:
         """Aggregate worker reports into a single orchestration summary."""
         return aggregate_worker_reports(reports)
+
+    def append_worker_report(
+        self,
+        path: str,
+        *,
+        stage: str = "worker",
+        worker_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build and append a worker report to a JSONL transport file."""
+        report = self.worker_report(stage=stage, worker_id=worker_id, metadata=metadata)
+        return append_worker_report_jsonl(path, report)
+
+    def aggregate_workers_from_jsonl(self, path: str) -> dict[str, Any]:
+        """Load worker reports from JSONL and aggregate into a summary."""
+        return aggregate_worker_reports_jsonl(path)
 
     def set_policy_overrides(self, config: dict[str, Any]) -> dict[str, Any]:
         """Set validated in-memory policy overrides for thresholds/posture."""
@@ -2938,6 +2957,54 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "max_swap_used_pct": max_swap,
         "workers": reports,
     }
+
+
+def append_worker_report_jsonl(path: str, report: dict[str, Any]) -> dict[str, Any]:
+    """Append a single worker report to a JSONL transport file.
+
+    Creates parent directories when needed and writes one compact JSON object
+    per line. Returns the written report dict.
+    """
+    expanded = os.path.expanduser(path)
+    parent = os.path.dirname(expanded)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+    row = dict(report)
+    with open(expanded, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row, separators=(",", ":")) + "\n")
+    return row
+
+
+def load_worker_reports_jsonl(path: str) -> list[dict[str, Any]]:
+    """Load worker reports from a JSONL transport file.
+
+    Invalid JSON lines are skipped so one bad producer write does not block
+    whole-pool aggregation.
+    """
+    expanded = os.path.expanduser(path)
+    if not os.path.exists(expanded):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    with open(expanded, encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if line == "":
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                rows.append(dict(row))
+    return rows
+
+
+def aggregate_worker_reports_jsonl(path: str) -> dict[str, Any]:
+    """Aggregate worker reports directly from a JSONL transport file."""
+    rows = load_worker_reports_jsonl(path)
+    return aggregate_worker_reports(rows)
 
 
 # ---------------------------------------------------------------------------

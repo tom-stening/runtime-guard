@@ -17,6 +17,7 @@ import asyncio
 import sys
 import time
 import unittest.mock as mock
+from pathlib import Path
 
 import pytest
 from runtime_guard import (
@@ -2189,3 +2190,229 @@ class TestCLI:
         )
         code, _ = self._run_cli("--verify-audit-log", "audit.log")
         assert code == 1
+
+
+# ---------------------------------------------------------------------------
+# M2-C04 — JSONL worker-report transport adapters for process-pool coordination
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerTransport:
+    """Tests for file-based JSONL worker-report transport (process coordination)."""
+
+    def test_append_worker_report_jsonl_creates_new_file(self, tmp_path):
+        """append_worker_report_jsonl creates new JSONL file if it doesn't exist."""
+        from runtime_guard import append_worker_report_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        report = {"worker_id": "w1", "mem_mb": 512, "timestamp": 1234567890}
+        result = append_worker_report_jsonl(path, report)
+
+        assert result == report  # Returns the written report dict
+        assert Path(path).exists()
+        with open(path) as f:
+            first_line = f.readline()
+            loaded = json.loads(first_line)
+            assert loaded == report
+
+    def test_append_worker_report_jsonl_appends_to_existing(self, tmp_path):
+        """append_worker_report_jsonl appends to existing JSONL file."""
+        from runtime_guard import append_worker_report_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        report1 = {"worker_id": "w1", "mem_mb": 512}
+        report2 = {"worker_id": "w2", "mem_mb": 768}
+
+        append_worker_report_jsonl(path, report1)
+        result = append_worker_report_jsonl(path, report2)
+
+        assert result == report2  # Returns the written report dict
+        with open(path) as f:
+            lines = [json.loads(line) for line in f]
+            assert len(lines) == 2
+            assert lines[0] == report1
+            assert lines[1] == report2
+
+    def test_append_worker_report_jsonl_handles_complex_data(self, tmp_path):
+        """append_worker_report_jsonl handles nested dict/list in report."""
+        from runtime_guard import append_worker_report_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        report = {
+            "worker_id": "w1",
+            "metrics": {"cpu_percent": 45.5, "mem_mb": 512},
+            "top_processes": [
+                {"pid": 101, "name": "python", "rss_mb": 256},
+                {"pid": 102, "name": "node", "rss_mb": 128},
+            ],
+        }
+        result = append_worker_report_jsonl(path, report)
+
+        assert result == report  # Returns the written report dict
+        with open(path) as f:
+            loaded = json.loads(f.readline())
+            assert loaded["metrics"]["mem_mb"] == 512
+            assert len(loaded["top_processes"]) == 2
+
+    def test_load_worker_reports_jsonl_reads_empty_file(self, tmp_path):
+        """load_worker_reports_jsonl returns empty list if file doesn't exist."""
+        from runtime_guard import load_worker_reports_jsonl
+
+        path = str(tmp_path / "nonexistent.jsonl")
+        reports = load_worker_reports_jsonl(path)
+
+        assert reports == []
+
+    def test_load_worker_reports_jsonl_reads_all_lines(self, tmp_path):
+        """load_worker_reports_jsonl reads all lines from JSONL file."""
+        from runtime_guard import append_worker_report_jsonl, load_worker_reports_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        reports_to_write = [
+            {"worker_id": "w1", "mem_mb": 512},
+            {"worker_id": "w2", "mem_mb": 768},
+            {"worker_id": "w3", "mem_mb": 256},
+        ]
+
+        for report in reports_to_write:
+            append_worker_report_jsonl(path, report)
+
+        loaded = load_worker_reports_jsonl(path)
+        assert len(loaded) == 3
+        assert loaded[0]["worker_id"] == "w1"
+        assert loaded[1]["worker_id"] == "w2"
+        assert loaded[2]["worker_id"] == "w3"
+
+    def test_load_worker_reports_jsonl_skips_invalid_json_lines(self, tmp_path):
+        """load_worker_reports_jsonl tolerates and skips malformed JSON lines."""
+        from runtime_guard import load_worker_reports_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        with open(path, "w") as f:
+            f.write('{"worker_id": "w1", "mem_mb": 512}\n')
+            f.write("invalid json line\n")
+            f.write('{"worker_id": "w2", "mem_mb": 768}\n')
+
+        loaded = load_worker_reports_jsonl(path)
+        # Should load valid lines and skip the invalid one
+        assert len(loaded) >= 2
+
+    def test_aggregate_worker_reports_jsonl_single_file(self, tmp_path):
+        """aggregate_worker_reports_jsonl aggregates single JSONL file."""
+        from runtime_guard import append_worker_report_jsonl, aggregate_worker_reports_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        for i in range(1, 4):
+            append_worker_report_jsonl(
+                path,
+                {
+                    "worker_id": f"w{i}",
+                    "mem_mb": 256 * i,
+                    "cpu_percent": 20.0 + i,
+                    "pressure": False,
+                },
+            )
+
+        result = aggregate_worker_reports_jsonl(path)
+        assert result["total_workers"] == 3
+        assert "pressured_workers" in result
+        assert "critical_workers" in result
+
+    def test_aggregate_worker_reports_jsonl_nonexistent_file(self, tmp_path):
+        """aggregate_worker_reports_jsonl handles missing file gracefully."""
+        from runtime_guard import aggregate_worker_reports_jsonl
+
+        path = str(tmp_path / "nonexistent.jsonl")
+        result = aggregate_worker_reports_jsonl(path)
+
+        assert result["total_workers"] == 0
+        assert result["pressured_workers"] == 0
+
+    def test_jsonl_transport_with_make_worker_report(self, tmp_path):
+        """Integration test: append JSONL worker reports and aggregate."""
+        from runtime_guard import append_worker_report_jsonl, aggregate_worker_reports_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+
+        # Create reports similar to what make_worker_report would return
+        for i in range(3):
+            report = {
+                "ts": int(time.time()),
+                "pid": 1000 + i,
+                "worker_id": f"w{i}",
+                "stage": "worker",
+                "pressure": False,
+                "severity": "none",
+                "mem_available_mb": 4096,
+                "mem_total_mb": 8192,
+            }
+            append_worker_report_jsonl(path, report)
+
+        # Aggregate and verify
+        result = aggregate_worker_reports_jsonl(path)
+        assert result["total_workers"] == 3
+        assert "pressured_workers" in result
+
+    def test_jsonl_transport_multiple_append_sessions(self, tmp_path):
+        """Test appending worker reports in multiple sessions."""
+        from runtime_guard import (
+            append_worker_report_jsonl,
+            load_worker_reports_jsonl,
+        )
+
+        path = str(tmp_path / "reports.jsonl")
+
+        # Session 1: Append 2 reports
+        for i in range(1, 3):
+            append_worker_report_jsonl(
+                path,
+                {
+                    "session": 1,
+                    "worker_id": i,
+                    "mem_mb": 512,
+                },
+            )
+
+        # Session 2: Append 2 more reports (simulates coordinator restart)
+        for i in range(1, 3):
+            append_worker_report_jsonl(
+                path,
+                {
+                    "session": 2,
+                    "worker_id": i,
+                    "mem_mb": 768,
+                },
+            )
+
+        # Verify all 4 reports were persisted
+        loaded = load_worker_reports_jsonl(path)
+        assert len(loaded) == 4
+        session1_reports = [r for r in loaded if r["session"] == 1]
+        session2_reports = [r for r in loaded if r["session"] == 2]
+        assert len(session1_reports) == 2
+        assert len(session2_reports) == 2
+
+    def test_jsonl_transport_concurrent_append_safety(self, tmp_path):
+        """Test that multiple appends maintain JSONL integrity."""
+        from runtime_guard import append_worker_report_jsonl, load_worker_reports_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+
+        # Simulate concurrent workers appending (sequential in test but tests append safety)
+        for i in range(10):
+            result = append_worker_report_jsonl(
+                path,
+                {
+                    "worker_id": i,
+                    "iteration": 1,
+                    "pressure": False,
+                },
+            )
+            assert "worker_id" in result  # Returns the report dict
+
+        # Verify all reports are readable
+        loaded = load_worker_reports_jsonl(path)
+        assert len(loaded) == 10
+        for i, report in enumerate(loaded):
+            assert report["worker_id"] == i
+            assert report["pressure"] is False

@@ -283,6 +283,8 @@ Raw memory values from the OS at a point in time.
 | `attach_signal_recovery(guard, ...) → Callable[[], None]` | Install signal handlers that run a final pressure check/log (and optional intervention), returning a restore function. |
 | `resolve_signal_recovery_policy(env_prefix="RUNTIME_GUARD") → dict[str, Any]` | Resolve signal-recovery rollout settings from environment variables. |
 | `install_signal_recovery_from_policy(guard, env_prefix="RUNTIME_GUARD") → Callable[[], None]` | Install signal recovery directly from environment-resolved policy defaults. |
+| `audit_policy_taxonomy() → dict[str, list[str]]` | Return allowed severity/category/action vocab for policy-violation audit events. |
+| `normalize_policy_violation_event(event) → dict[str, Any]` | Canonicalize policy-violation event fields to standardized taxonomy tokens. |
 | `append_audit_log(path, event) → dict[str, Any]` | Append a tamper-evident (hash-chained) JSON record to an audit log file. |
 | `fips_event_hash(payload, hash_algo="sha256") → str` | Hash payloads with FIPS-approved SHA-2 algorithms (`sha256`, `sha384`, `sha512`). |
 | `verify_audit_log_chain(path) → dict[str, Any]` | Verify hash-chain integrity for audit logs and report first failing line/reason. |

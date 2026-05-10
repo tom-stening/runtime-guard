@@ -27,11 +27,13 @@ from runtime_guard import (
     attach_signal_recovery,
     install_signal_recovery_from_policy,
     append_audit_log,
+    audit_policy_taxonomy,
     aggregate_worker_reports,
     emit_otel_event,
     fips_event_hash,
     make_worker_report,
     make_sitecustomize_content,
+    normalize_policy_violation_event,
     soc2_required_controls,
     soc2_gap_assessment,
     resolve_signal_recovery_policy,
@@ -1245,6 +1247,45 @@ class TestSignalRecovery:
 
 
 class TestAuditLog:
+    def test_audit_policy_taxonomy_contains_expected_values(self):
+        taxonomy = audit_policy_taxonomy()
+        assert "warning" in taxonomy["severity"]
+        assert "memory" in taxonomy["category"]
+        assert "policy_violation" in taxonomy["action"]
+
+    def test_normalize_policy_violation_event_canonicalizes_tokens(self):
+        out = normalize_policy_violation_event(
+            {
+                "event_type": "policy-violation",
+                "severity": "CRITICAL",
+                "category": "Memory",
+                "action": "Policy Violation",
+                "policy_id": 42,
+            }
+        )
+        assert out["event_type"] == "policy_violation"
+        assert out["severity"] == "critical"
+        assert out["category"] == "memory"
+        assert out["action"] == "policy_violation"
+        assert out["policy_id"] == "42"
+
+    def test_append_audit_log_normalizes_policy_violation_event(self, tmp_path):
+        path = tmp_path / "audit.log"
+        rec = append_audit_log(
+            str(path),
+            {
+                "event_type": "policy-violation",
+                "severity": "INVALID",
+                "category": "NotARealCategory",
+                "action": "non-standard",
+            },
+        )
+        event = rec["event"]
+        assert event["event_type"] == "policy_violation"
+        assert event["severity"] == "warning"
+        assert event["category"] == "unknown"
+        assert event["action"] == "custom"
+
     def test_append_audit_log_creates_record(self, tmp_path):
         path = tmp_path / "audit.log"
         record = append_audit_log(str(path), {"action": "test", "value": 1})

@@ -85,6 +85,8 @@ __all__ = [
     "attach_signal_recovery",
     "resolve_signal_recovery_policy",
     "install_signal_recovery_from_policy",
+    "audit_policy_taxonomy",
+    "normalize_policy_violation_event",
     "append_audit_log",
     "fips_event_hash",
     "verify_audit_log_chain",
@@ -104,6 +106,28 @@ _json_logger = logging.getLogger("runtime_guard.events")
 _active_guards: list[weakref.ref] = []
 _atfork_registered: bool = False
 _FIPS_HASH_ALGOS: set[str] = {"sha256", "sha384", "sha512"}
+_AUDIT_POLICY_SEVERITIES: set[str] = {"info", "warning", "critical"}
+_AUDIT_POLICY_CATEGORIES: set[str] = {
+    "memory",
+    "swap",
+    "process",
+    "system",
+    "config",
+    "compliance",
+    "unknown",
+}
+_AUDIT_POLICY_ACTIONS: set[str] = {
+    "observe",
+    "notify",
+    "throttle",
+    "kill_hogs",
+    "snapshot",
+    "pressure_detected",
+    "policy_violation",
+    "abort",
+    "escalate",
+    "custom",
+}
 _SOC2_RUNTIME_GUARD_CONTROLS: dict[str, str] = {
     "CC6.1": "Logical access controls and role-bound privileged actions.",
     "CC7.1": "Monitoring for anomalies and operational events.",
@@ -2049,7 +2073,8 @@ def append_audit_log(
             prev_hash = ""
 
     ts = int(time.time())
-    event_payload = json.dumps(event, sort_keys=True, separators=(",", ":"))
+    normalized_event = normalize_policy_violation_event(event)
+    event_payload = json.dumps(normalized_event, sort_keys=True, separators=(",", ":"))
     event_hash = fips_event_hash(event_payload, hash_algo=algo)
     chain_input = f"{prev_hash}\n{ts}\n{event_payload}".encode("utf-8")
     digest = hashlib.new(algo, chain_input).hexdigest()
@@ -2057,7 +2082,7 @@ def append_audit_log(
     record: dict[str, Any] = {
         "ts": ts,
         "hash_algo": algo,
-        "event": event,
+        "event": normalized_event,
         "event_hash": event_hash,
         "prev_hash": prev_hash,
         "hash": digest,
@@ -2067,6 +2092,54 @@ def append_audit_log(
         fh.write(json.dumps(record, separators=(",", ":")) + "\n")
 
     return record
+
+
+def audit_policy_taxonomy() -> dict[str, list[str]]:
+    """Return allowed taxonomy values for policy-violation audit events."""
+    return {
+        "severity": sorted(_AUDIT_POLICY_SEVERITIES),
+        "category": sorted(_AUDIT_POLICY_CATEGORIES),
+        "action": sorted(_AUDIT_POLICY_ACTIONS),
+    }
+
+
+def normalize_policy_violation_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Normalize policy-violation events to canonical taxonomy values.
+
+    Normalization is applied only when ``event_type`` resolves to
+    ``policy_violation``. Other event types are returned unchanged.
+    """
+
+    def _token(value: Any) -> str:
+        raw = str(value).strip().lower()
+        return raw.replace("-", "_").replace(" ", "_")
+
+    out = dict(event)
+    event_type = _token(out.get("event_type", ""))
+    if event_type not in {"policy_violation", "policyviolation"}:
+        return out
+
+    out["event_type"] = "policy_violation"
+
+    sev = _token(out.get("severity", "warning"))
+    if sev not in _AUDIT_POLICY_SEVERITIES:
+        sev = "warning"
+    out["severity"] = sev
+
+    category = _token(out.get("category", "memory"))
+    if category not in _AUDIT_POLICY_CATEGORIES:
+        category = "unknown"
+    out["category"] = category
+
+    action = _token(out.get("action", "observe"))
+    if action not in _AUDIT_POLICY_ACTIONS:
+        action = "custom"
+    out["action"] = action
+
+    if "policy_id" in out:
+        out["policy_id"] = str(out.get("policy_id", "")).strip()
+
+    return out
 
 
 def verify_audit_log_chain(path: str) -> dict[str, Any]:

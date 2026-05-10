@@ -63,6 +63,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Signal-recovery rollout defaults: `resolve_signal_recovery_policy()` and
   `install_signal_recovery_from_policy()` for environment-driven recovery
   behavior standardization.
+- Audit policy taxonomy helpers: `audit_policy_taxonomy()` and
+  `normalize_policy_violation_event()` with canonical token normalization for
+  `event_type=policy_violation` records.
 - Ray integration cookbook in `INTEGRATION_RAY.md` with staged hook,
   orchestration, and audit logging examples.
 - Training/certification program draft in `TRAINING_CURRICULUM.md` with

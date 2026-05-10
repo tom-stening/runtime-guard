@@ -89,7 +89,7 @@ This principle shapes all roadmap decisions:
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
 | M2-C01 | Memory snap auto-recovery (signal handler) | P1 | 🔄 IN PROGRESS | Added signal handler scaffold plus environment-driven rollout policy helpers (`resolve_signal_recovery_policy`, `install_signal_recovery_from_policy`); incident policy tuning remains. |
-| M2-C02 | Audit log for all policy violations | P1 | 🔄 IN PROGRESS | Added append-only hash-chained audit records plus CLI verification (`--verify-audit-log`); policy taxonomy standardization remains. |
+| M2-C02 | Audit log for all policy violations | P1 | 🔄 IN PROGRESS | Added hash-chained audit records + CLI verification and canonical taxonomy helpers (`audit_policy_taxonomy`, `normalize_policy_violation_event`); policy catalog completeness remains. |
 | M2-C03 | Dynamic policy reloading | P2 | 🔄 IN PROGRESS | Added file-backed policy overrides with auto-reload on mtime changes and env>policy>preset precedence. |
 | M2-C04 | Multi-process orchestration (optional) | P2 | 🔄 IN PROGRESS | Added worker report + parent aggregation scaffolding for process pools/job queues; transport/adapters remain. |
 | M2-C05 | FIPS-certified hash for event dedup | P2 | 🔄 IN PROGRESS | Added FIPS SHA-2 algorithm selection and chain verification for audit/event integrity. |

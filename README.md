@@ -22,8 +22,9 @@ Instead of a generic "memory is low" alert, runtime-guard tells you _which side_
 6. [Pytest Integration](#pytest-integration)
 7. [Background Monitoring](#background-monitoring)
 8. [WSL 2 Utilities](#wsl-2-utilities)
-9. [Architecture](#architecture)
-10. [FAQ](#faq)
+9. [Enterprise Support](#enterprise-support)
+10. [Architecture](#architecture)
+11. [FAQ](#faq)
 
 ---
 
@@ -391,6 +392,14 @@ print(content)
 # Write and merge — backs up existing file, preserves custom keys
 generate_wslconfig(memory_gb=8, output_path="~/.wslconfig", dry_run=False)
 ```
+
+---
+
+## Enterprise Support
+
+Enterprise-facing support scope, severity definitions, response targets, and
+incident runbook entry points are documented in
+[ENTERPRISE_SUPPORT.md](ENTERPRISE_SUPPORT.md).
 
 ---
 

@@ -88,7 +88,7 @@ This principle shapes all roadmap decisions:
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M2-C01 | Memory snap auto-recovery (signal handler) | P1 | 📅 PLANNED | Catch OOM signal, emit final pressure report before exit. |
+| M2-C01 | Memory snap auto-recovery (signal handler) | P1 | 🔄 IN PROGRESS | Added signal-recovery handler scaffold with final check/log and optional intervention; production rollout defaults/policies remain. |
 | M2-C02 | Audit log for all policy violations | P1 | 📅 PLANNED | Immutable log of threshold breaches + remediation actions. |
 | M2-C03 | Dynamic policy reloading | P2 | 📅 PLANNED | Update thresholds without restarting. |
 | M2-C04 | Multi-process orchestration (optional) | P2 | 📅 PLANNED | Aggregate pressure across process pool / job queue. |

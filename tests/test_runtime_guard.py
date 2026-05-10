@@ -24,6 +24,7 @@ from runtime_guard import (
     PressureReport,
     RuntimeGuard,
     attach_dask_guard,
+    attach_signal_recovery,
     emit_otel_event,
     pressure_report_attributes,
     render_prometheus_metrics,
@@ -977,6 +978,103 @@ class TestPhaseContextManager:
 
         asyncio.run(_run())
         assert calls == ["async-stage:enter", "async-stage:exit"]
+
+
+# ---------------------------------------------------------------------------
+# M2-C01 — Signal-based auto-recovery scaffold
+# ---------------------------------------------------------------------------
+
+
+class TestSignalRecovery:
+    class _DummySignalModule:
+        SIGINT = 2
+        SIGUSR1 = 10
+        SIGTERM = 15
+        SIG_DFL = object()
+
+        class Signals:
+            _map = {2: "SIGINT", 10: "SIGUSR1", 15: "SIGTERM"}
+
+            def __new__(cls, value: int):
+                obj = type("_Sig", (), {})()
+                obj.name = cls._map.get(value, f"SIG{value}")
+                return obj
+
+        def __init__(self):
+            self.handlers: dict[int, object] = {}
+
+        def signal(self, signum: int, handler: object) -> object:
+            prev = self.handlers.get(signum, self.SIG_DFL)
+            self.handlers[signum] = handler
+            return prev
+
+    def test_attach_and_restore_handlers(self):
+        guard = RuntimeGuard()
+        sigmod = self._DummySignalModule()
+        restore = attach_signal_recovery(guard, module=sigmod)
+        try:
+            assert sigmod.SIGTERM in sigmod.handlers
+            assert callable(sigmod.handlers[sigmod.SIGTERM])
+        finally:
+            restore()
+        assert sigmod.handlers[sigmod.SIGTERM] is sigmod.SIG_DFL
+
+    def test_handler_runs_check_log_and_intervene(self, monkeypatch):
+        guard = RuntimeGuard()
+        sigmod = self._DummySignalModule()
+        calls: list[str] = []
+        monkeypatch.setattr(
+            guard,
+            "check",
+            lambda stage="": calls.append(f"check:{stage}") or _make_report(stage=stage),
+        )
+        monkeypatch.setattr(guard, "log", lambda report: calls.append(f"log:{report.stage}"))
+        monkeypatch.setattr(
+            guard,
+            "intervene",
+            lambda report, **kwargs: calls.append(f"intervene:{report.stage}"),
+        )
+
+        restore = attach_signal_recovery(
+            guard,
+            module=sigmod,
+            signals_to_handle=[sigmod.SIGTERM],
+            auto_intervene=True,
+        )
+        try:
+            handler = sigmod.handlers[sigmod.SIGTERM]
+            assert callable(handler)
+            handler(sigmod.SIGTERM, None)
+        finally:
+            restore()
+
+        assert any(s.startswith("check:signal:sigterm") for s in calls)
+        assert any(s.startswith("log:signal:sigterm") for s in calls)
+        assert any(s.startswith("intervene:signal:sigterm") for s in calls)
+
+    def test_chain_previous_handler(self):
+        guard = RuntimeGuard()
+        sigmod = self._DummySignalModule()
+        chained: list[int] = []
+
+        def _previous(signum: int, frame: object) -> None:
+            chained.append(signum)
+
+        sigmod.handlers[sigmod.SIGINT] = _previous
+        restore = attach_signal_recovery(
+            guard,
+            module=sigmod,
+            signals_to_handle=[sigmod.SIGINT],
+            chain_previous=True,
+        )
+        try:
+            handler = sigmod.handlers[sigmod.SIGINT]
+            assert callable(handler)
+            handler(sigmod.SIGINT, None)
+        finally:
+            restore()
+
+        assert chained == [sigmod.SIGINT]
 
 
 class TestUnsupportedPlatformWarning:

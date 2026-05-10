@@ -80,6 +80,7 @@ __all__ = [
     "emit_otel_event",
     "render_prometheus_metrics",
     "validate_runtime_guard_config",
+    "attach_signal_recovery",
 ]
 
 logger = logging.getLogger(__name__)
@@ -527,6 +528,28 @@ class RuntimeGuard:
             stage,
             check_on_enter=check_on_enter,
             check_on_exit=check_on_exit,
+        )
+
+    def install_signal_recovery(
+        self,
+        *,
+        signals_to_handle: list[int] | None = None,
+        stage_prefix: str = "signal",
+        auto_intervene: bool = False,
+        kill_hogs_above_mb: int | None = None,
+        chain_previous: bool = False,
+    ) -> Callable[[], None]:
+        """Install signal handlers that perform a final pressure check.
+
+        Returns a restore function that reinstates original signal handlers.
+        """
+        return attach_signal_recovery(
+            self,
+            signals_to_handle=signals_to_handle,
+            stage_prefix=stage_prefix,
+            auto_intervene=auto_intervene,
+            kill_hogs_above_mb=kill_hogs_above_mb,
+            chain_previous=chain_previous,
         )
 
     # ------------------------------------------------------------------
@@ -1582,6 +1605,70 @@ def validate_runtime_guard_config(
     _coerce_int("self_inflicted_pct", minimum=0, maximum=100)
 
     return out
+
+
+def attach_signal_recovery(
+    guard: "RuntimeGuard",
+    *,
+    signals_to_handle: list[int] | None = None,
+    stage_prefix: str = "signal",
+    auto_intervene: bool = False,
+    kill_hogs_above_mb: int | None = None,
+    chain_previous: bool = False,
+    module: Any | None = None,
+) -> Callable[[], None]:
+    """Install signal handlers that emit a final pressure report.
+
+    This provides M2-C01 scaffolding for signal-driven auto-recovery while
+    keeping runtime dependencies at zero.
+    """
+    signal_mod = module
+    if signal_mod is None:
+        import signal as signal_mod
+
+    signal_func = getattr(signal_mod, "signal", None)
+    if not callable(signal_func):
+        raise RuntimeError("Signal module does not provide callable signal().")
+
+    if signals_to_handle is None:
+        default_signals: list[int] = []
+        for name in ("SIGTERM", "SIGINT", "SIGUSR1"):
+            value = getattr(signal_mod, name, None)
+            if isinstance(value, int):
+                default_signals.append(value)
+        signals_to_handle = default_signals
+
+    previous_handlers: dict[int, Any] = {}
+
+    def _stage_name(signum: int) -> str:
+        signals_enum = getattr(signal_mod, "Signals", None)
+        if signals_enum is not None:
+            try:
+                return str(signals_enum(signum).name).lower()
+            except Exception:
+                pass
+        return f"sig{signum}"
+
+    def _handler(signum: int, frame: Any) -> None:
+        report = guard.check(stage=f"{stage_prefix}:{_stage_name(signum)}")
+        if report is not None:
+            guard.log(report)
+            if auto_intervene:
+                guard.intervene(report, kill_hogs_above_mb=kill_hogs_above_mb)
+
+        if chain_previous:
+            prev = previous_handlers.get(signum)
+            if callable(prev):
+                prev(signum, frame)
+
+    for sig in signals_to_handle:
+        previous_handlers[sig] = signal_func(sig, _handler)
+
+    def _restore() -> None:
+        for sig, prev in previous_handlers.items():
+            signal_func(sig, prev)
+
+    return _restore
 
 
 # ---------------------------------------------------------------------------

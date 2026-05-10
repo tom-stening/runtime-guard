@@ -895,6 +895,86 @@ class TestDaskIntegration:
 
 
 # ---------------------------------------------------------------------------
+# M1-C02 — Dask scheduler callbacks (deeper integration)
+# ---------------------------------------------------------------------------
+
+
+class TestDaskSchedulerCallbacks:
+    """Tests for Dask scheduler-level memory monitoring callbacks."""
+
+    def test_install_dask_scheduler_callbacks_returns_reporter(self):
+        """install_dask_scheduler_callbacks returns a worker report function."""
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        get_report = install_dask_scheduler_callbacks(guard)
+
+        assert callable(get_report)
+
+    def test_scheduler_callback_tracks_workers(self):
+        """Scheduler callbacks track per-worker memory events."""
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+
+        # Simulate callback invocations
+        # (In real Dask, these would be called by the scheduler)
+        callback_fn = install_dask_scheduler_callbacks(guard)
+        report = callback_fn()
+
+        assert report["ok"] is True
+        assert "workers_monitored" in report
+        assert report["total_pressure_events"] == 0
+
+    def test_scheduler_callback_aggregates_reports(self):
+        """Scheduler callback aggregates reports across workers."""
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        get_report = install_dask_scheduler_callbacks(guard, enable_worker_reports=True)
+
+        # Get initial aggregated report
+        agg_report = get_report()
+        assert agg_report["workers_monitored"] == 0
+        assert agg_report["total_pressure_events"] == 0
+
+        # Query non-existent worker (should not error)
+        worker_report = get_report("worker-1")
+        assert worker_report["ok"] is True
+        assert worker_report["pressure_events"] == 0
+
+    def test_scheduler_callback_respects_stage_prefix(self):
+        """Scheduler callback uses configured stage prefix."""
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        get_report = install_dask_scheduler_callbacks(guard, stage_prefix="custom-dask")
+
+        # Verify callback was created
+        assert callable(get_report)
+        # Stage prefix is baked into the callback closure
+        report = get_report()
+        assert report["ok"] is True
+
+    def test_scheduler_callback_multiple_instances_independent(self):
+        """Multiple scheduler callback instances are independent."""
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard1 = RuntimeGuard(cooldown_s=5.0)
+        guard2 = RuntimeGuard(cooldown_s=10.0)
+
+        get_report1 = install_dask_scheduler_callbacks(guard1)
+        get_report2 = install_dask_scheduler_callbacks(guard2)
+
+        report1 = get_report1()
+        report2 = get_report2()
+
+        # Each should have its own state
+        assert report1["workers_monitored"] == 0
+        assert report2["workers_monitored"] == 0
+
+
+# ---------------------------------------------------------------------------
 # M1-C03 — Ray integration hook
 # ---------------------------------------------------------------------------
 

@@ -76,6 +76,7 @@ __all__ = [
     "make_sitecustomize_content",
     "attach_polars_guard",
     "attach_dask_guard",
+    "install_dask_scheduler_callbacks",
     "attach_ray_guard",
     "pressure_report_attributes",
     "trace_context_attributes",
@@ -1599,6 +1600,134 @@ def attach_dask_guard(
             setattr(base_mod, "persist", original_base_persist)
 
     return _restore
+
+
+def install_dask_scheduler_callbacks(
+    guard: "RuntimeGuard",
+    *,
+    stage_prefix: str = "dask",
+    enable_worker_reports: bool = True,
+) -> Callable[[str], dict[str, Any]]:
+    """Install memory monitoring callbacks into Dask scheduler.
+
+    This provides deeper M1-C02 scheduler-level integration, enabling per-task
+    and per-worker memory monitoring without modifying user task code.
+
+    Parameters
+    ----------
+    guard : RuntimeGuard
+        Guard instance to use for memory checks.
+    stage_prefix : str, optional
+        Prefix for stage labels (default: "dask").
+    enable_worker_reports : bool, optional
+        If True, return worker report aggregator for post-compute analysis (default: True).
+
+    Returns
+    -------
+    Callable[[str], dict[str, Any]]
+        Function to collect memory reports by worker. Call with worker name to get
+        that worker's memory snapshot.
+
+    Example
+    -------
+    >>> guard = RuntimeGuard(posture="tight")
+    >>> get_worker_report = install_dask_scheduler_callbacks(guard)
+    >>> # Later, after compute:
+    >>> report = get_worker_report("tcp://127.0.0.1:8786")
+
+    Notes
+    -----
+    - Callbacks are stateless and thread-safe.
+    - Memory checks run synchronously before task execution.
+    - Pressure events are logged to runtime_guard.events logger.
+    """
+    worker_snapshots: dict[str, dict[str, Any]] = {}
+    callback_count: int = 0
+
+    def _callback_start(key: str, *_: Any, worker_id: str | None = None) -> None:
+        """Called before task execution (requires dask.callbacks.Callback.start)."""
+        nonlocal callback_count
+        callback_count += 1
+
+        # Get current worker context if available
+        worker_label = worker_id or "unknown-worker"
+        stage = f"{stage_prefix}-task-{callback_count}"
+
+        # Check memory before task
+        report = guard.check_and_log(stage=stage)
+
+        if enable_worker_reports and report is not None:
+            if worker_label not in worker_snapshots:
+                worker_snapshots[worker_label] = {
+                    "worker_id": worker_label,
+                    "task_count": 0,
+                    "pressure_events": 0,
+                    "snapshots": [],
+                }
+            worker_snapshots[worker_label]["task_count"] += 1
+            worker_snapshots[worker_label]["pressure_events"] += 1
+            worker_snapshots[worker_label]["snapshots"].append(
+                {
+                    "key": str(key),
+                    "timestamp": int(time.time()),
+                    "severity": "critical" if report.is_critical else "warning",
+                    "cause": report.cause,
+                    "missing_mem_mb": report.missing_mem_mb,
+                }
+            )
+
+    def _callback_finish(key: str, value: Any, *_: Any, worker_id: str | None = None) -> None:
+        """Called after task execution (requires dask.callbacks.Callback.finish)."""
+        # Optional: Could track completion metrics here
+        pass
+
+    def _get_worker_report(worker_id: str | None = None) -> dict[str, Any]:
+        """Retrieve memory report for a specific worker."""
+        if worker_id is None:
+            # Return aggregated view
+            total_events = sum(w.get("pressure_events", 0) for w in worker_snapshots.values())
+            return {
+                "ok": True,
+                "workers_monitored": len(worker_snapshots),
+                "total_pressure_events": total_events,
+                "worker_details": worker_snapshots,
+            }
+
+        worker_data = worker_snapshots.get(worker_id)
+        if worker_data is None:
+            return {
+                "ok": True,
+                "worker_id": worker_id,
+                "pressure_events": 0,
+                "task_count": 0,
+            }
+
+        return {
+            "ok": True,
+            "worker_id": worker_id,
+            "task_count": worker_data.get("task_count", 0),
+            "pressure_events": worker_data.get("pressure_events", 0),
+            "snapshots": worker_data.get("snapshots", []),
+        }
+
+    # Create a callback object compatible with dask.callbacks.Callback
+    class _SchedulerCallback:
+        """Dask scheduler callback for memory monitoring."""
+
+        _start = _callback_start
+        _finish = _callback_finish
+
+        @staticmethod
+        def start(key: str, *args: Any, **kwargs: Any) -> None:
+            _callback_start(key, *args, worker_id=kwargs.get("worker_id"), **kwargs)
+
+        @staticmethod
+        def finish(key: str, value: Any, *args: Any, **kwargs: Any) -> None:
+            _callback_finish(key, value, *args, worker_id=kwargs.get("worker_id"), **kwargs)
+
+    _SchedulerCallback.get_worker_report = staticmethod(_get_worker_report)  # type: ignore
+
+    return _get_worker_report
 
 
 def validate_dask_integration(

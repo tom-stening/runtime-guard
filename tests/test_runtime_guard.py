@@ -1444,6 +1444,29 @@ class TestSignalRecovery:
         assert out["kill_hogs_above_mb"] == 2048
         assert out["signals_to_handle"] == [sigmod.SIGTERM, 2]
 
+    def test_resolve_policy_sanitizes_invalid_rollout_values(self, monkeypatch):
+        sigmod = self._DummySignalModule()
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_STAGE_PREFIX", "   ")
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_KILL_HOGS_MB", "not-a-number")
+        monkeypatch.setenv(
+            "RUNTIME_GUARD_SIGNAL_RECOVERY_SIGNALS",
+            "SIGTERM, sigterm, 15, UNKNOWN, 0, -9, , SIGINT",
+        )
+
+        out = resolve_signal_recovery_policy(module=sigmod)
+
+        assert out["stage_prefix"] == "signal"
+        assert out["kill_hogs_above_mb"] is None
+        assert out["signals_to_handle"] == [sigmod.SIGTERM, sigmod.SIGINT]
+
+    def test_resolve_policy_ignores_non_positive_kill_hogs_threshold(self, monkeypatch):
+        sigmod = self._DummySignalModule()
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_KILL_HOGS_MB", "0")
+
+        out = resolve_signal_recovery_policy(module=sigmod)
+
+        assert out["kill_hogs_above_mb"] is None
+
     def test_install_from_policy_can_be_disabled(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_ENABLE", "0")

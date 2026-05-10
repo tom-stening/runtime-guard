@@ -2369,29 +2369,47 @@ def resolve_signal_recovery_policy(
             return False
         return default
 
+    def _as_positive_int(raw: str | None) -> int | None:
+        if raw is None:
+            return None
+        value = str(raw).strip()
+        if value == "":
+            return None
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed <= 0:
+            return None
+        return parsed
+
     enabled = _as_bool(_env("SIGNAL_RECOVERY_ENABLE"), True)
     auto_intervene = _as_bool(_env("SIGNAL_RECOVERY_AUTO_INTERVENE"), False)
     chain_previous = _as_bool(_env("SIGNAL_RECOVERY_CHAIN_PREVIOUS"), False)
-    stage_prefix = str(_env("SIGNAL_RECOVERY_STAGE_PREFIX", "signal") or "signal")
+    stage_prefix = str(_env("SIGNAL_RECOVERY_STAGE_PREFIX", "signal") or "signal").strip()
+    if stage_prefix == "":
+        stage_prefix = "signal"
 
-    kill_raw = _env("SIGNAL_RECOVERY_KILL_HOGS_MB")
-    kill_hogs_above_mb: int | None = None
-    if kill_raw is not None and kill_raw.strip() != "":
-        kill_hogs_above_mb = int(kill_raw)
+    kill_hogs_above_mb = _as_positive_int(_env("SIGNAL_RECOVERY_KILL_HOGS_MB"))
 
     signals_csv = _env("SIGNAL_RECOVERY_SIGNALS", "SIGTERM,SIGINT,SIGUSR1") or ""
     signals_to_handle: list[int] = []
+    seen_signals: set[int] = set()
     for token in signals_csv.split(","):
         item = token.strip()
         if not item:
             continue
         if item.isdigit():
-            signals_to_handle.append(int(item))
+            signum = int(item)
+            if signum > 0 and signum not in seen_signals:
+                signals_to_handle.append(signum)
+                seen_signals.add(signum)
             continue
         name = item if item.startswith("SIG") else f"SIG{item}"
         signum = getattr(signal_mod, name.upper(), None)
-        if isinstance(signum, int):
+        if isinstance(signum, int) and signum > 0 and signum not in seen_signals:
             signals_to_handle.append(signum)
+            seen_signals.add(signum)
 
     return {
         "enabled": enabled,

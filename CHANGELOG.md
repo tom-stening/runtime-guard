@@ -32,6 +32,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `async with` for phase-scoped memory checks.
 - Signal recovery scaffolding: `attach_signal_recovery()` and
   `RuntimeGuard.install_signal_recovery()` for final signal-triggered checks.
+- Signal recovery rollout hardening: `resolve_signal_recovery_policy()` now
+  sanitizes invalid `KILL_HOGS_MB` values, blank stage prefixes, and
+  duplicate/unknown signal entries instead of failing rollout parsing.
 - Audit scaffolding: `append_audit_log()` and `RuntimeGuard.audit()` for
   append-only hash-chained policy event records.
 - Audit taxonomy expansion: `normalize_policy_violation_event()` now preserves

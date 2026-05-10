@@ -20,9 +20,9 @@ Instead of a generic "memory is low" alert, runtime-guard tells you _which side_
 6. [Pytest Integration](#pytest-integration)
 7. [Background Monitoring](#background-monitoring)
 8. [WSL 2 Utilities](#wsl-2-utilities)
-9. [Enterprise Support](#enterprise-support)
-10. [Team Adoption Guide](#team-adoption-guide)
-11. [Framework Integration Guides](#framework-integration-guides)
+9. [Framework Integration](#framework-integration)
+10. [Enterprise Adoption](#enterprise-adoption)
+11. [Team Adoption Guide](#team-adoption-guide)
 12. [Architecture](#architecture)
 13. [FAQ](#faq)
 
@@ -467,6 +467,106 @@ print(content)
 # Write and merge — backs up existing file, preserves custom keys
 generate_wslconfig(memory_gb=8, output_path="~/.wslconfig", dry_run=False)
 ```
+
+---
+
+## Framework Integration
+
+Runtime-guard integrates seamlessly with popular data and ML frameworks. Choose your framework for detailed integration patterns, demos, and adoption guides:
+
+### Polars
+
+**Best for:** Data loading, transformation, and interactive data science  
+**Integration:** Lazy-frame collection hooks, streaming mode  
+**Demo:** `python examples/polars_integration_demo.py`  
+**Guide:** [INTEGRATION_POLARS.md](INTEGRATION_POLARS.md)
+
+```python
+from runtime_guard import RuntimeGuard, attach_polars_guard
+import polars as pl
+
+guard = RuntimeGuard()
+attach_polars_guard(guard, stage="polars-collect")
+
+# Guard activates before .collect() materializes large frames
+df = pl.read_csv("data.csv").lazy()
+result = df.filter(pl.col("value") > 0).collect()  # guarded
+```
+
+### Dask
+
+**Best for:** Distributed data engineering, out-of-core operations  
+**Integration:** Scheduler callbacks, per-worker monitoring  
+**Demo:** `python examples/dask_integration_demo.py`
+
+```python
+from runtime_guard import RuntimeGuard, attach_dask_guard, install_dask_scheduler_callbacks
+import dask.dataframe as dd
+
+guard = RuntimeGuard()
+attach_dask_guard(guard, stage="dask-compute")
+get_worker_report = install_dask_scheduler_callbacks(guard)
+
+# Guard monitors scheduler callbacks; per-worker pressure tracked
+df = dd.read_csv("data.csv")
+result = df.groupby("category").value.sum().compute()
+report = get_worker_report()  # per-worker memory metrics
+```
+
+### Ray
+
+**Best for:** ML training, distributed computing, actor-based services  
+**Integration:** Remote function wrappers, actor method decorators  
+**Demo:** `python examples/ray_integration_demo.py`
+
+```python
+from runtime_guard import RuntimeGuard, attach_ray_guard, enable_ray_actor_memory_monitoring
+import ray
+
+guard = RuntimeGuard()
+attach_ray_guard(guard, stage="ray-get")
+actor_config = enable_ray_actor_memory_monitoring(guard)
+
+@ray.remote
+class Trainer:
+    @actor_config["method_decorator"]
+    def train_step(self, data):
+        return len(data)  # memory check before execution
+
+trainer = Trainer.remote()
+result = ray.get(trainer.train_step.remote([1, 2, 3]))
+```
+
+### Unified Framework Handbook
+
+For organizations deploying across multiple frameworks, see [FRAMEWORK_INTEGRATION_HANDBOOK.md](FRAMEWORK_INTEGRATION_HANDBOOK.md) for:
+
+- Architecture decisions (single guard vs. per-framework guards)
+- Deployment patterns (application startup, pytest integration)
+- 4-phase rollout (local dev → CI → staging → production)
+- Environment variable quick reference
+- Troubleshooting guide
+
+---
+
+## Enterprise Adoption
+
+### For enterprises scaling across teams
+
+**[ENTERPRISE_ADOPTION_GUIDE.md](ENTERPRISE_ADOPTION_GUIDE.md)** provides:
+
+- 5-phase adoption roadmap (8 weeks: assessment → pilot → CI → staging → production)
+- SOC2 compliance mapping and evidence collection
+- Team training agenda and incident response runbooks
+- KPI tracking and adoption scorecard
+- Docker/Kubernetes deployment examples
+- Escalation paths and support resources
+
+### Operations and compliance
+
+- **[OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md)** — Production deployment, systemd templates, dynamic policy reload, monitoring integration
+- **[AUDIT_POLICY_EXAMPLES.md](AUDIT_POLICY_EXAMPLES.md)** — Real-world policy templates for data engineering, ML training, and multi-tenant SaaS
+- **[ADOPTION_TRACKER.md](ADOPTION_TRACKER.md)** — Scorecard API and progress tracking
 
 ---
 

@@ -17,7 +17,7 @@ Every memory pressure event should answer: *"Is this my code or something else?"
 
 This principle shapes all roadmap decisions:
 - Eliminate opaque, generic thresholds. Always show which process owns the pressure.
-- Detect cross-platform OS interactions (Linux `/proc`, macOS `vm_stat`, Windows `wmic`).
+- Detect cross-platform OS interactions (Linux `/proc`, macOS `vm_stat`, Windows PowerShell with `wmic` fallback).
 - Provide actionable kernel tuning, swap config, and pipeline redesign advice — not just warning text.
 - Keep zero hard dependencies so every Python project can adopt it without dependency hell.
 
@@ -31,7 +31,7 @@ This principle shapes all roadmap decisions:
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M0-C01 | Cross-platform snapshot (`/proc`, `vm_stat`, `wmic`) | P0 | ✅ DONE | Linux, macOS, Windows tested. Silent fallback on unsupported OS. |
+| M0-C01 | Cross-platform snapshot (`/proc`, `vm_stat`, PowerShell/`wmic`) | P0 | ✅ DONE | Linux, macOS, Windows tested. Warn-once fallback on unsupported OS. |
 | M0-C02 | Attribution detection (self vs. external pressure) | P0 | ✅ DONE | Classifies pressure source and confidence. |
 | M0-C03 | Threshold presets (`tight`, `relaxed`, `ci`) | P1 | ✅ DONE | Bundled threshold sets for common use cases. |
 | M0-C04 | Structured JSON events on `runtime_guard.events` logger | P1 | ✅ DONE | Log aggregation pipeline ready. |
@@ -48,7 +48,7 @@ This principle shapes all roadmap decisions:
 |---|---|---|---|---|
 | M0-I01 | Adopt in 1 internal ML pipeline | P1 | 🔄 IN PROGRESS | Pilot instrumentation of model training workflow. |
 | M0-I02 | Publish proof-of-concept blog post | P2 | 📅 PLANNED | "Memory attribution without the pain: runtime-guard in production." |
-| M0-I03 | Open-source release (GitHub public) | P1 | 📅 PLANNED | README, CI, licensing, CoC ready. |
+| M0-I03 | Open-source release (GitHub public) | P1 | ✅ DONE | README, CI workflow, LICENSE, SECURITY policy, and Code of Conduct are in-repo. |
 
 ---
 

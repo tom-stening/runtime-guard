@@ -7,6 +7,7 @@ Covers:
  - Periodic background check (start / stop)
  - Cross-platform snapshot (Linux path, non-Linux zeros)
 """
+
 from __future__ import annotations
 
 import io
@@ -22,6 +23,7 @@ from runtime_guard import MemSnapshot, PressureReport, RuntimeGuard, _read_snaps
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_report(*, is_critical: bool = False, stage: str = "") -> PressureReport:
     snap = MemSnapshot(
@@ -63,6 +65,7 @@ def _capture_json_events(guard: RuntimeGuard, report: PressureReport) -> dict:
 # ---------------------------------------------------------------------------
 # Threshold presets
 # ---------------------------------------------------------------------------
+
 
 class TestThresholdPresets:
     def test_ci_preset_values(self, monkeypatch):
@@ -114,6 +117,7 @@ class TestThresholdPresets:
 # Structured JSON events
 # ---------------------------------------------------------------------------
 
+
 class TestJsonEvents:
     def test_json_event_emitted_on_log(self):
         g = RuntimeGuard()
@@ -126,9 +130,18 @@ class TestJsonEvents:
         report = _make_report(stage="data-load")
         payload = _capture_json_events(g, report)
         required = {
-            "event", "severity", "tag", "stage", "pid", "cause",
-            "self_inflicted", "self_pct", "is_critical",
-            "mem_available_mb", "mem_total_mb", "rss_mb",
+            "event",
+            "severity",
+            "tag",
+            "stage",
+            "pid",
+            "cause",
+            "self_inflicted",
+            "self_pct",
+            "is_critical",
+            "mem_available_mb",
+            "mem_total_mb",
+            "rss_mb",
         }
         assert required.issubset(payload.keys())
 
@@ -174,6 +187,7 @@ class TestJsonEvents:
 # ---------------------------------------------------------------------------
 # Cooldown / deduplication
 # ---------------------------------------------------------------------------
+
 
 class TestCooldown:
     def test_zero_cooldown_allows_repeated_emission(self):
@@ -236,6 +250,7 @@ class TestCooldown:
 # Background check
 # ---------------------------------------------------------------------------
 
+
 class TestBackgroundCheck:
     def test_start_creates_daemon_thread(self):
         g = RuntimeGuard()
@@ -290,6 +305,7 @@ class TestBackgroundCheck:
 # ---------------------------------------------------------------------------
 # _read_snapshot — platform coverage
 # ---------------------------------------------------------------------------
+
 
 class TestReadSnapshot:
     def test_returns_memsnapshot_instance(self):
@@ -348,20 +364,25 @@ class TestReadSnapshot:
 class TestIsWsl:
     def test_returns_bool(self):
         from runtime_guard import _is_wsl
+
         assert isinstance(_is_wsl(), bool)
 
     def test_detects_wsl_when_proc_version_contains_microsoft(self, tmp_path, monkeypatch):
         from runtime_guard import _is_wsl
+
         fake = tmp_path / "proc_version"
         fake.write_text("Linux version 5.15.0-microsoft-standard-WSL2")
         orig_open = open
+
         def fake_open(*a, **kw):
             return orig_open(str(fake))
+
         monkeypatch.setattr("builtins.open", fake_open)
         assert _is_wsl() is True
 
     def test_returns_false_when_oserror(self, monkeypatch):
         from runtime_guard import _is_wsl
+
         monkeypatch.setattr("builtins.open", mock.Mock(side_effect=OSError("no file")))
         assert _is_wsl() is False
 
@@ -369,11 +390,13 @@ class TestIsWsl:
 class TestTopMemoryProcesses:
     def test_returns_string(self):
         from runtime_guard import _top_memory_processes
+
         result = _top_memory_processes(n=3)
         assert isinstance(result, str)
 
     def test_returns_empty_on_subprocess_failure(self, monkeypatch):
         from runtime_guard import _top_memory_processes
+
         monkeypatch.setattr(
             "subprocess.run",
             mock.Mock(side_effect=Exception("ps not found")),
@@ -383,9 +406,11 @@ class TestTopMemoryProcesses:
     def test_output_contains_rss_info_on_linux(self):
         """On Linux, ps should succeed and return non-empty results."""
         import sys
+
         if sys.platform != "linux":
             pytest.skip("Linux only")
         from runtime_guard import _top_memory_processes
+
         result = _top_memory_processes(n=3)
         # May be empty if ps is missing; just verify it doesn't raise
         assert isinstance(result, str)
@@ -448,6 +473,7 @@ class TestPressureReportNewFields:
             vm_swap_mb=0,
         )
         import unittest.mock as _mock
+
         with _mock.patch("runtime_guard._read_snapshot", return_value=snap):
             report = guard.check()
         assert report is not None
@@ -456,6 +482,7 @@ class TestPressureReportNewFields:
     def test_json_event_includes_new_fields(self, caplog, monkeypatch):
         """JSON log event includes missing_mem_mb and swap_excess_pct."""
         import json as _json
+
         monkeypatch.setenv("RUNTIME_GUARD_MIN_MEM_AVAILABLE_MB", "4096")
         guard = RuntimeGuard(log_tag="jsontest", cooldown_s=0)
         snap = MemSnapshot(
@@ -470,10 +497,7 @@ class TestPressureReportNewFields:
         assert report is not None
         with caplog.at_level(logging.WARNING, logger="runtime_guard.events"):
             guard.log(report)
-        json_lines = [
-            r.getMessage() for r in caplog.records
-            if r.name == "runtime_guard.events"
-        ]
+        json_lines = [r.getMessage() for r in caplog.records if r.name == "runtime_guard.events"]
         assert json_lines, "No JSON event emitted on runtime_guard.events"
         event = _json.loads(json_lines[0])
         assert "missing_mem_mb" in event
@@ -487,6 +511,7 @@ class TestPressureReportNewFields:
 # ---------------------------------------------------------------------------
 # KI-004 — cooldown is now per-stage, not global
 # ---------------------------------------------------------------------------
+
 
 class TestPerStageCooldown:
     def test_different_stages_independent(self):
@@ -508,7 +533,9 @@ class TestPerStageCooldown:
         ts1 = g._last_logged["train\x00warning"]
         time.sleep(0.02)
         g.log(report)
-        assert g._last_logged["train\x00warning"] == ts1, "Timestamp advanced when it should have been suppressed"
+        assert g._last_logged["train\x00warning"] == ts1, (
+            "Timestamp advanced when it should have been suppressed"
+        )
 
     def test_empty_stage_and_named_stage_independent(self):
         """stage='' and stage='train' are distinct cooldown buckets."""
@@ -519,11 +546,11 @@ class TestPerStageCooldown:
         assert "train\x00warning" in g._last_logged
 
 
-
 class TestUnsupportedPlatformWarning:
     def test_warns_on_unknown_platform(self, monkeypatch, caplog):
         """A single WARNING is emitted when running on an unsupported platform."""
         import runtime_guard as rg
+
         monkeypatch.setattr("sys.platform", "haiku1")
         # Reset the sentinel so the warning fires fresh.
         monkeypatch.setattr(rg, "_unsupported_platform_warned", False)
@@ -536,13 +563,15 @@ class TestUnsupportedPlatformWarning:
     def test_warns_only_once(self, monkeypatch, caplog):
         """The warning is emitted at most once per interpreter session."""
         import runtime_guard as rg
+
         monkeypatch.setattr("sys.platform", "haiku1")
         monkeypatch.setattr(rg, "_unsupported_platform_warned", False)
         with caplog.at_level(logging.WARNING, logger="runtime_guard"):
             rg._read_snapshot()
             rg._read_snapshot()
         warns = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.levelno == logging.WARNING and "Unsupported platform" in r.getMessage()
         ]
         assert len(warns) == 1
@@ -551,6 +580,7 @@ class TestUnsupportedPlatformWarning:
 # ---------------------------------------------------------------------------
 # KI-001 — macOS vm_stat page size comes from sysctl, not text parsing
 # ---------------------------------------------------------------------------
+
 
 class TestMacOSPageSize:
     def test_uses_sysctl_page_size(self, monkeypatch):
@@ -564,7 +594,7 @@ class TestMacOSPageSize:
             if "hw.memsize" in cmd:
                 return b"8589934592"  # 8 GB
             if "hw.pagesize" in cmd:
-                return b"16384"       # 16 KB pages (e.g. Apple Silicon)
+                return b"16384"  # 16 KB pages (e.g. Apple Silicon)
             if cmd[0] == "vm_stat":
                 # Minimal vm_stat output with counts that are unambiguous with 16384 pages
                 return (
@@ -616,6 +646,7 @@ class TestMacOSPageSize:
 # KI-002 — Windows uses PowerShell first, falls back to wmic
 # ---------------------------------------------------------------------------
 
+
 class TestWindowsPowerShellFallback:
     def test_powershell_used_before_wmic(self, monkeypatch):
         """_read_windows calls PowerShell; wmic is not called when PS succeeds."""
@@ -632,7 +663,7 @@ class TestWindowsPowerShellFallback:
                     # Return CSV with header + data row
                     return (
                         '"FreePhysicalMemory","TotalVisibleMemorySize"\n'
-                        '"2097152","8388608"\n'   # 2 GB free, 8 GB total (in KB)
+                        '"2097152","8388608"\n'  # 2 GB free, 8 GB total (in KB)
                     )
                 # WorkingSet64 call
                 return "104857600"  # 100 MB in bytes
@@ -683,12 +714,12 @@ class TestWindowsPowerShellFallback:
 # KI-003 — fork-safety: bg thread handles cleared in child process
 # ---------------------------------------------------------------------------
 
+
 class TestForkSafety:
     @pytest.mark.skipif(sys.platform != "linux", reason="os.fork() Linux only")
     def test_child_process_bg_thread_reset(self):
         """After os.fork(), the child process should have _bg_thread=None."""
         import os as _os
-        import runtime_guard as rg
 
         # Ensure atfork handler is registered.
         g = RuntimeGuard()
@@ -718,10 +749,12 @@ class TestForkSafety:
 # KI-006 — generate_wslconfig merges, does not overwrite
 # ---------------------------------------------------------------------------
 
+
 class TestWslconfigMerge:
     def test_writes_new_file_when_absent(self, tmp_path):
         """When no .wslconfig exists, the file is written directly."""
         from runtime_guard import generate_wslconfig
+
         out = tmp_path / ".wslconfig"
         generate_wslconfig(memory_gb=8, output_path=str(out), dry_run=False)
         assert out.exists()
@@ -731,6 +764,7 @@ class TestWslconfigMerge:
     def test_creates_backup_when_file_exists(self, tmp_path):
         """Existing .wslconfig is backed up before merging."""
         from runtime_guard import generate_wslconfig
+
         out = tmp_path / ".wslconfig"
         out.write_text("[wsl2]\nmemory=4GB\ncustomKey=preserved\n")
         generate_wslconfig(memory_gb=8, output_path=str(out), dry_run=False)
@@ -741,22 +775,19 @@ class TestWslconfigMerge:
     def test_merges_managed_keys_preserves_custom_keys(self, tmp_path):
         """Custom keys in existing file are preserved; managed keys are updated."""
         from runtime_guard import generate_wslconfig
+
         out = tmp_path / ".wslconfig"
-        out.write_text(
-            "[wsl2]\n"
-            "memory=4GB\n"
-            "kernelCommandLine=my-custom-flags\n"
-            "processors=2\n"
-        )
+        out.write_text("[wsl2]\nmemory=4GB\nkernelCommandLine=my-custom-flags\nprocessors=2\n")
         generate_wslconfig(memory_gb=12, output_path=str(out), dry_run=False)
         merged = out.read_text()
-        assert "memory=12GB" in merged            # managed key updated
+        assert "memory=12GB" in merged  # managed key updated
         assert "kernelCommandLine=my-custom-flags" in merged  # custom key preserved
-        assert "memory=4GB" not in merged          # old value replaced
+        assert "memory=4GB" not in merged  # old value replaced
 
     def test_dry_run_does_not_write(self, tmp_path):
         """dry_run=True (default) must never write to disk."""
         from runtime_guard import generate_wslconfig
+
         out = tmp_path / ".wslconfig"
         content = generate_wslconfig(memory_gb=8, output_path=str(out), dry_run=True)
         assert not out.exists()
@@ -766,6 +797,7 @@ class TestWslconfigMerge:
 # ---------------------------------------------------------------------------
 # CLI — argument parsing
 # ---------------------------------------------------------------------------
+
 
 class TestCLI:
     def _run_cli(self, *args: str) -> tuple[int, str]:
@@ -792,9 +824,13 @@ class TestCLI:
         monkeypatch.setattr(
             "runtime_guard._read_snapshot",
             lambda: MemSnapshot(
-                mem_total_mb=8192, mem_available_mb=4096,
-                swap_total_mb=2048, swap_free_mb=2048,
-                swap_used_pct=0, rss_mb=100, vm_swap_mb=0,
+                mem_total_mb=8192,
+                mem_available_mb=4096,
+                swap_total_mb=2048,
+                swap_free_mb=2048,
+                swap_used_pct=0,
+                rss_mb=100,
+                vm_swap_mb=0,
             ),
         )
         code, _ = self._run_cli("--snapshot")
@@ -804,9 +840,13 @@ class TestCLI:
         monkeypatch.setattr(
             "runtime_guard._read_snapshot",
             lambda: MemSnapshot(
-                mem_total_mb=8192, mem_available_mb=6000,
-                swap_total_mb=2048, swap_free_mb=2048,
-                swap_used_pct=0, rss_mb=100, vm_swap_mb=0,
+                mem_total_mb=8192,
+                mem_available_mb=6000,
+                swap_total_mb=2048,
+                swap_free_mb=2048,
+                swap_used_pct=0,
+                rss_mb=100,
+                vm_swap_mb=0,
             ),
         )
         code, _ = self._run_cli("--check")
@@ -816,9 +856,13 @@ class TestCLI:
         monkeypatch.setattr(
             "runtime_guard._read_snapshot",
             lambda: MemSnapshot(
-                mem_total_mb=8192, mem_available_mb=100,
-                swap_total_mb=2048, swap_free_mb=0,
-                swap_used_pct=99, rss_mb=50, vm_swap_mb=0,
+                mem_total_mb=8192,
+                mem_available_mb=100,
+                swap_total_mb=2048,
+                swap_free_mb=0,
+                swap_used_pct=99,
+                rss_mb=50,
+                vm_swap_mb=0,
             ),
         )
         code, _ = self._run_cli("--check")
@@ -835,6 +879,7 @@ class TestCLI:
             lambda: MemSnapshot(mem_total_mb=16384),
         )
         from runtime_guard import _cli
+
         old_argv = sys.argv
         sys.argv = ["runtime-guard", "--generate-wslconfig"]
         try:

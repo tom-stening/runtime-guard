@@ -60,10 +60,17 @@ import weakref
 from dataclasses import dataclass, field
 
 __all__ = [
-    "RuntimeGuard", "PressureReport", "MemSnapshot", "make_pytest_guard",
-    "InterventionResult", "KernelParamRecommendation",
-    "generate_wslconfig", "recommend_kernel_params", "apply_kernel_params",
-    "wsl_system_report", "make_conftest_content",
+    "RuntimeGuard",
+    "PressureReport",
+    "MemSnapshot",
+    "make_pytest_guard",
+    "InterventionResult",
+    "KernelParamRecommendation",
+    "generate_wslconfig",
+    "recommend_kernel_params",
+    "apply_kernel_params",
+    "wsl_system_report",
+    "make_conftest_content",
 ]
 
 logger = logging.getLogger(__name__)
@@ -83,7 +90,7 @@ def _atfork_child_reset() -> None:  # pragma: no cover
     for ref in list(_active_guards):
         guard = ref()
         if guard is not None:
-            guard._bg_stop = None   # type: ignore[attr-defined]
+            guard._bg_stop = None  # type: ignore[attr-defined]
             guard._bg_thread = None  # type: ignore[attr-defined]
     _active_guards.clear()
 
@@ -102,9 +109,9 @@ _unsupported_platform_warned: bool = False
 # Each preset is (min_mem_mb, max_swap_pct, critical_mem_mb, critical_swap_pct,
 #                 self_inflicted_pct)
 _PRESETS: dict[str, tuple[int, int, int, int, int]] = {
-    "tight":   (2048, 75, 1024, 90,  15),
-    "relaxed": ( 512, 95,  256, 99,  25),
-    "ci":      (1024, 90,  512, 97,  20),
+    "tight": (2048, 75, 1024, 90, 15),
+    "relaxed": (512, 95, 256, 99, 25),
+    "ci": (1024, 90, 512, 97, 20),
 }
 
 
@@ -178,13 +185,13 @@ class PressureReport:
     snapshot: MemSnapshot
     is_critical: bool
     cause: str
-    self_inflicted: bool       # True → this process is the primary driver
-    self_pct: int              # this process's % of total system RAM
+    self_inflicted: bool  # True → this process is the primary driver
+    self_pct: int  # this process's % of total system RAM
     pid: int = field(default_factory=os.getpid)
-    stage: str = ""            # caller-supplied label, e.g. "data-load"
+    stage: str = ""  # caller-supplied label, e.g. "data-load"
     min_mem_mb: int = 2048
     max_swap_pct: int = 85
-    missing_mem_mb: int = 0   # how many MB below the min_mem_mb floor
+    missing_mem_mb: int = 0  # how many MB below the min_mem_mb floor
     swap_excess_pct: int = 0  # how many percentage points above max_swap_pct
 
 
@@ -266,30 +273,16 @@ class RuntimeGuard:
 
         causes: list[str] = []
         if not mem_ok:
-            causes.append(
-                f"MemAvailable={snap.mem_available_mb} MB "
-                f"(threshold: {min_mem_mb} MB)"
-            )
+            causes.append(f"MemAvailable={snap.mem_available_mb} MB (threshold: {min_mem_mb} MB)")
         if not swap_ok:
-            causes.append(
-                f"SwapUsed={snap.swap_used_pct}% "
-                f"(threshold: {max_swap_pct}%)"
-            )
+            causes.append(f"SwapUsed={snap.swap_used_pct}% (threshold: {max_swap_pct}%)")
 
         is_critical = (
-            snap.mem_available_mb < critical_mem_mb
-            or snap.swap_used_pct > critical_swap_pct
+            snap.mem_available_mb < critical_mem_mb or snap.swap_used_pct > critical_swap_pct
         )
 
-        self_pct = (
-            (snap.rss_mb * 100 // snap.mem_total_mb)
-            if snap.mem_total_mb > 0
-            else 0
-        )
-        self_inflicted = (
-            self_pct >= self_inflicted_pct
-            and snap.mem_available_mb < min_mem_mb
-        )
+        self_pct = (snap.rss_mb * 100 // snap.mem_total_mb) if snap.mem_total_mb > 0 else 0
+        self_inflicted = self_pct >= self_inflicted_pct and snap.mem_available_mb < min_mem_mb
 
         return PressureReport(
             snapshot=snap,
@@ -440,24 +433,27 @@ class RuntimeGuard:
         # --- Structured JSON event (runtime_guard.events logger) ---
         json_log_fn = _json_logger.critical if report.is_critical else _json_logger.warning
         json_log_fn(
-            json.dumps({
-                "event": "runtime_guard.pressure",
-                "severity": severity_key,
-                "tag": self._tag,
-                "stage": report.stage,
-                "pid": report.pid,
-                "cause": report.cause,
-                "self_inflicted": report.self_inflicted,
-                "self_pct": report.self_pct,
-                "is_critical": report.is_critical,
-                "mem_available_mb": snap.mem_available_mb,
-                "mem_total_mb": snap.mem_total_mb,
-                "swap_used_pct": snap.swap_used_pct,
-                "rss_mb": snap.rss_mb,
-                "vm_swap_mb": snap.vm_swap_mb,
-                "missing_mem_mb": report.missing_mem_mb,
-                "swap_excess_pct": report.swap_excess_pct,
-            }, separators=(",", ":"))
+            json.dumps(
+                {
+                    "event": "runtime_guard.pressure",
+                    "severity": severity_key,
+                    "tag": self._tag,
+                    "stage": report.stage,
+                    "pid": report.pid,
+                    "cause": report.cause,
+                    "self_inflicted": report.self_inflicted,
+                    "self_pct": report.self_pct,
+                    "is_critical": report.is_critical,
+                    "mem_available_mb": snap.mem_available_mb,
+                    "mem_total_mb": snap.mem_total_mb,
+                    "swap_used_pct": snap.swap_used_pct,
+                    "rss_mb": snap.rss_mb,
+                    "vm_swap_mb": snap.vm_swap_mb,
+                    "missing_mem_mb": report.missing_mem_mb,
+                    "swap_excess_pct": report.swap_excess_pct,
+                },
+                separators=(",", ":"),
+            )
         )
 
     def check_and_log(self, stage: str = "") -> PressureReport | None:
@@ -630,9 +626,7 @@ class RuntimeGuard:
         """
         success = _write_oom_score_adj(max(-1000, min(1000, score)))
         if success:
-            logger.debug(
-                "[%s] OOM score adjusted to %d for pid=%d", self._tag, score, os.getpid()
-            )
+            logger.debug("[%s] OOM score adjusted to %d for pid=%d", self._tag, score, os.getpid())
         else:
             logger.debug(
                 "[%s] Could not set OOM score (expected in unprivileged environments)",
@@ -655,10 +649,10 @@ class RuntimeGuard:
         posture_key = os.environ.get(f"{self._prefix}_POSTURE", "").strip().lower()
         preset = _PRESETS.get(posture_key, (2048, 85, 1024, 95, 20))
 
-        min_mem_mb       = self._int_env("MIN_MEM_AVAILABLE_MB", preset[0])
-        max_swap_pct     = self._int_env("MAX_SWAP_USED_PCT",    preset[1])
-        critical_mem_mb  = self._int_env("CRITICAL_MEM_MB",      preset[2])
-        critical_swap_pct = self._int_env("CRITICAL_SWAP_PCT",   preset[3])
+        min_mem_mb = self._int_env("MIN_MEM_AVAILABLE_MB", preset[0])
+        max_swap_pct = self._int_env("MAX_SWAP_USED_PCT", preset[1])
+        critical_mem_mb = self._int_env("CRITICAL_MEM_MB", preset[2])
+        critical_swap_pct = self._int_env("CRITICAL_SWAP_PCT", preset[3])
         self_inflicted_pct = self._int_env("SELF_INFLICTED_PCT", preset[4])
         return min_mem_mb, max_swap_pct, critical_mem_mb, critical_swap_pct, self_inflicted_pct
 
@@ -709,6 +703,7 @@ def _read_snapshot() -> MemSnapshot:
 
 # -- Linux -----------------------------------------------------------------
 
+
 def _read_linux(snap: MemSnapshot) -> None:
     try:
         meminfo: dict[str, int] = {}
@@ -722,20 +717,18 @@ def _read_linux(snap: MemSnapshot) -> None:
                 if raw:
                     meminfo[key] = int(raw[0])
 
-        mem_total_kb     = meminfo.get("MemTotal", 0)
+        mem_total_kb = meminfo.get("MemTotal", 0)
         mem_available_kb = meminfo.get("MemAvailable", 0)
-        swap_total_kb    = meminfo.get("SwapTotal", 0)
-        swap_free_kb     = meminfo.get("SwapFree", 0)
-        swap_used_pct    = 0
+        swap_total_kb = meminfo.get("SwapTotal", 0)
+        swap_free_kb = meminfo.get("SwapFree", 0)
+        swap_used_pct = 0
         if swap_total_kb > 0:
-            swap_used_pct = int(
-                100 * (swap_total_kb - swap_free_kb) / swap_total_kb
-            )
-        snap.mem_total_mb     = mem_total_kb // 1024
+            swap_used_pct = int(100 * (swap_total_kb - swap_free_kb) / swap_total_kb)
+        snap.mem_total_mb = mem_total_kb // 1024
         snap.mem_available_mb = mem_available_kb // 1024
-        snap.swap_total_mb    = swap_total_kb // 1024
-        snap.swap_free_mb     = swap_free_kb // 1024
-        snap.swap_used_pct    = swap_used_pct
+        snap.swap_total_mb = swap_total_kb // 1024
+        snap.swap_free_mb = swap_free_kb // 1024
+        snap.swap_used_pct = swap_used_pct
     except OSError:
         pass
 
@@ -751,13 +744,14 @@ def _read_linux(snap: MemSnapshot) -> None:
             raw = status.get(key, "0 kB").split()
             return int(raw[0]) if raw else 0
 
-        snap.rss_mb     = _kb("VmRSS")  // 1024
+        snap.rss_mb = _kb("VmRSS") // 1024
         snap.vm_swap_mb = _kb("VmSwap") // 1024
     except OSError:
         pass
 
 
 # -- macOS -----------------------------------------------------------------
+
 
 def _read_macos(snap: MemSnapshot) -> None:
     """Populate snap using ``sysctl``, ``vm_stat``, and ``ps``."""
@@ -785,17 +779,14 @@ def _read_macos(snap: MemSnapshot) -> None:
         # We match lines by their page-count field name using a locale-independent
         # regex so the parse works regardless of LANG / LC_ALL settings.
         import re as _re
-        out = subprocess.check_output(
-            ["vm_stat"], stderr=subprocess.DEVNULL, timeout=3, text=True
-        )
+
+        out = subprocess.check_output(["vm_stat"], stderr=subprocess.DEVNULL, timeout=3, text=True)
         _VM_STAT_RE = _re.compile(r"^\s*Pages\s+(free|inactive|speculative):\s+(\d+)", _re.M)
         counts: dict[str, int] = {}
         for m in _VM_STAT_RE.finditer(out):
             counts[m.group(1)] = int(m.group(2))
         pages_available = (
-            counts.get("free", 0)
-            + counts.get("inactive", 0)
-            + counts.get("speculative", 0)
+            counts.get("free", 0) + counts.get("inactive", 0) + counts.get("speculative", 0)
         )
         snap.mem_available_mb = (pages_available * page_size) // (1024 * 1024)
     except Exception:
@@ -807,7 +798,9 @@ def _read_macos(snap: MemSnapshot) -> None:
         # This process RSS
         out = subprocess.check_output(
             ["ps", "-o", "rss=", "-p", str(os.getpid())],
-            stderr=subprocess.DEVNULL, timeout=3, text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+            text=True,
         )
         snap.rss_mb = int(out.strip()) // 1024
     except Exception:
@@ -815,6 +808,7 @@ def _read_macos(snap: MemSnapshot) -> None:
 
 
 # -- Windows ---------------------------------------------------------------
+
 
 def _read_windows(snap: MemSnapshot) -> None:
     """Populate snap using PowerShell Get-CimInstance (KI-002 fix), falling
@@ -830,20 +824,25 @@ def _read_windows_powershell(snap: MemSnapshot) -> bool:
     try:
         out = subprocess.check_output(
             [
-                "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
                 "Get-CimInstance Win32_OperatingSystem "
                 "| Select-Object FreePhysicalMemory,TotalVisibleMemorySize "
                 "| ConvertTo-Csv -NoTypeInformation",
             ],
-            stderr=subprocess.DEVNULL, timeout=8, text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=8,
+            text=True,
         )
         lines = [ln.strip().strip('"') for ln in out.splitlines() if ln.strip()]
         if len(lines) >= 2:
             headers = [h.strip('"') for h in lines[0].split(",")]
-            values  = [v.strip('"') for v in lines[1].split(",")]
+            values = [v.strip('"') for v in lines[1].split(",")]
             row: dict[str, str] = dict(zip(headers, values))
-            snap.mem_total_mb     = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
-            snap.mem_available_mb = int(row.get("FreePhysicalMemory",    0) or 0) // 1024
+            snap.mem_total_mb = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
+            snap.mem_available_mb = int(row.get("FreePhysicalMemory", 0) or 0) // 1024
     except Exception:
         return False
 
@@ -852,10 +851,15 @@ def _read_windows_powershell(snap: MemSnapshot) -> bool:
         pid = os.getpid()
         out = subprocess.check_output(
             [
-                "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
                 f"(Get-Process -Id {pid}).WorkingSet64",
             ],
-            stderr=subprocess.DEVNULL, timeout=5, text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            text=True,
         )
         snap.rss_mb = int(out.strip()) // (1024 * 1024)
     except Exception:
@@ -868,10 +872,10 @@ def _read_windows_wmic(snap: MemSnapshot) -> None:
     """Legacy wmic fallback for Windows 10 and earlier."""
     try:
         out = subprocess.check_output(
-            ["wmic", "OS", "get",
-             "FreePhysicalMemory,TotalVisibleMemorySize",
-             "/value"],
-            stderr=subprocess.DEVNULL, timeout=5, text=True,
+            ["wmic", "OS", "get", "FreePhysicalMemory,TotalVisibleMemorySize", "/value"],
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            text=True,
         )
         fields: dict[str, int] = {}
         for line in out.splitlines():
@@ -882,17 +886,25 @@ def _read_windows_wmic(snap: MemSnapshot) -> None:
                     fields[k.strip()] = int(v.strip())
                 except ValueError:
                     pass
-        snap.mem_total_mb     = fields.get("TotalVisibleMemorySize", 0) // 1024
-        snap.mem_available_mb = fields.get("FreePhysicalMemory", 0)     // 1024
+        snap.mem_total_mb = fields.get("TotalVisibleMemorySize", 0) // 1024
+        snap.mem_available_mb = fields.get("FreePhysicalMemory", 0) // 1024
     except Exception:
         pass
 
     try:
         out = subprocess.check_output(
-            ["wmic", "process", "where",
-             f"processid={os.getpid()}",
-             "get", "WorkingSetSize", "/value"],
-            stderr=subprocess.DEVNULL, timeout=5, text=True,
+            [
+                "wmic",
+                "process",
+                "where",
+                f"processid={os.getpid()}",
+                "get",
+                "WorkingSetSize",
+                "/value",
+            ],
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            text=True,
         )
         for line in out.splitlines():
             line = line.strip()
@@ -1233,8 +1245,12 @@ def _merge_wslconfig(path: str, generated: str) -> None:
          ``localhostForwarding``, ``nestedVirtualization``.
     """
     _MANAGED_KEYS = {
-        "memory", "swap", "processors",
-        "pagereporting", "localhostforwarding", "nestedvirtualization",
+        "memory",
+        "swap",
+        "processors",
+        "pagereporting",
+        "localhostforwarding",
+        "nestedvirtualization",
     }
 
     if not os.path.isfile(path):
@@ -1310,79 +1326,91 @@ def recommend_kernel_params(
     recs: list[KernelParamRecommendation] = []
 
     # ── vm.swappiness ────────────────────────────────────────────────────
-    recs.append(KernelParamRecommendation(
-        param="vm.swappiness",
-        current_value=_read_sysctl("/proc/sys/vm/swappiness"),
-        recommended_value="10",
-        reason=(
-            "Default 60 causes Linux to swap aggressively under moderate load. "
-            "10 keeps active data in RAM longer, avoiding I/O-induced stalls "
-            "that can appear as WSL2 VM hangs or crashes."
-        ),
-    ))
+    recs.append(
+        KernelParamRecommendation(
+            param="vm.swappiness",
+            current_value=_read_sysctl("/proc/sys/vm/swappiness"),
+            recommended_value="10",
+            reason=(
+                "Default 60 causes Linux to swap aggressively under moderate load. "
+                "10 keeps active data in RAM longer, avoiding I/O-induced stalls "
+                "that can appear as WSL2 VM hangs or crashes."
+            ),
+        )
+    )
 
     # ── vm.min_free_kbytes ───────────────────────────────────────────────
     # Recommended: ~2% of total RAM, clamped to [128 MB, 1 GB]
     mem_total_kb = snap.mem_total_mb * 1024
     rec_min_free = max(131072, min(1048576, mem_total_kb // 50))
-    recs.append(KernelParamRecommendation(
-        param="vm.min_free_kbytes",
-        current_value=_read_sysctl("/proc/sys/vm/min_free_kbytes"),
-        recommended_value=str(rec_min_free),
-        reason=(
-            f"Reserve {rec_min_free // 1024} MB as a free-memory floor for the kernel. "
-            "The current value is too low for a large-RAM WSL2 VM: the OOM killer fires "
-            "without enough headroom to reclaim cleanly, crashing processes unexpectedly."
-        ),
-    ))
+    recs.append(
+        KernelParamRecommendation(
+            param="vm.min_free_kbytes",
+            current_value=_read_sysctl("/proc/sys/vm/min_free_kbytes"),
+            recommended_value=str(rec_min_free),
+            reason=(
+                f"Reserve {rec_min_free // 1024} MB as a free-memory floor for the kernel. "
+                "The current value is too low for a large-RAM WSL2 VM: the OOM killer fires "
+                "without enough headroom to reclaim cleanly, crashing processes unexpectedly."
+            ),
+        )
+    )
 
     # ── vm.dirty_ratio ───────────────────────────────────────────────────
-    recs.append(KernelParamRecommendation(
-        param="vm.dirty_ratio",
-        current_value=_read_sysctl("/proc/sys/vm/dirty_ratio"),
-        recommended_value="10",
-        reason=(
-            "Limit dirty (unwritten) pages to 10% of RAM. "
-            "The default 20% can accumulate ~4 GB of dirty pages on a 19 GB VM, "
-            "causing a large writeback storm that stalls all processes."
-        ),
-    ))
+    recs.append(
+        KernelParamRecommendation(
+            param="vm.dirty_ratio",
+            current_value=_read_sysctl("/proc/sys/vm/dirty_ratio"),
+            recommended_value="10",
+            reason=(
+                "Limit dirty (unwritten) pages to 10% of RAM. "
+                "The default 20% can accumulate ~4 GB of dirty pages on a 19 GB VM, "
+                "causing a large writeback storm that stalls all processes."
+            ),
+        )
+    )
 
     # ── vm.dirty_background_ratio ────────────────────────────────────────
-    recs.append(KernelParamRecommendation(
-        param="vm.dirty_background_ratio",
-        current_value=_read_sysctl("/proc/sys/vm/dirty_background_ratio"),
-        recommended_value="5",
-        reason=(
-            "Start background writeback at 5% dirty pages (default 10%). "
-            "Spreads disk I/O evenly and prevents burst write storms during test teardown."
-        ),
-    ))
+    recs.append(
+        KernelParamRecommendation(
+            param="vm.dirty_background_ratio",
+            current_value=_read_sysctl("/proc/sys/vm/dirty_background_ratio"),
+            recommended_value="5",
+            reason=(
+                "Start background writeback at 5% dirty pages (default 10%). "
+                "Spreads disk I/O evenly and prevents burst write storms during test teardown."
+            ),
+        )
+    )
 
     # ── vm.overcommit_memory ─────────────────────────────────────────────
-    recs.append(KernelParamRecommendation(
-        param="vm.overcommit_memory",
-        current_value=_read_sysctl("/proc/sys/vm/overcommit_memory"),
-        recommended_value="0",
-        reason=(
-            "Value 1 (always overcommit) allows unlimited allocation, hiding OOM "
-            "conditions until too late. Value 0 (heuristic) refuses obviously "
-            "excessive allocations early, giving controlled errors instead of "
-            "surprise OOM kills."
-        ),
-    ))
+    recs.append(
+        KernelParamRecommendation(
+            param="vm.overcommit_memory",
+            current_value=_read_sysctl("/proc/sys/vm/overcommit_memory"),
+            recommended_value="0",
+            reason=(
+                "Value 1 (always overcommit) allows unlimited allocation, hiding OOM "
+                "conditions until too late. Value 0 (heuristic) refuses obviously "
+                "excessive allocations early, giving controlled errors instead of "
+                "surprise OOM kills."
+            ),
+        )
+    )
 
     # ── vm.vfs_cache_pressure ────────────────────────────────────────────
-    recs.append(KernelParamRecommendation(
-        param="vm.vfs_cache_pressure",
-        current_value=_read_sysctl("/proc/sys/vm/vfs_cache_pressure"),
-        recommended_value="50",
-        reason=(
-            "Lower value (50 vs. default 100) keeps filesystem metadata "
-            "(dentry/inode) in cache longer, reducing repeated disk reads "
-            "during test runs that scan many Python source files."
-        ),
-    ))
+    recs.append(
+        KernelParamRecommendation(
+            param="vm.vfs_cache_pressure",
+            current_value=_read_sysctl("/proc/sys/vm/vfs_cache_pressure"),
+            recommended_value="50",
+            reason=(
+                "Lower value (50 vs. default 100) keeps filesystem metadata "
+                "(dentry/inode) in cache longer, reducing repeated disk reads "
+                "during test runs that scan many Python source files."
+            ),
+        )
+    )
 
     return recs
 
@@ -1454,6 +1482,8 @@ def wsl_system_report() -> str:
     def _fmt_status(ok: bool, warn_msg: str = "LOW \u26a0", ok_msg: str = "OK") -> str:
         return ok_msg if ok else warn_msg
 
+    swap_warn_msg = "HIGH ⚠" if snap.swap_used_pct < 90 else "CRITICAL ✖"
+
     lines: list[str] = [
         "\u2550" * 66,
         "  RuntimeGuard \u2014 WSL2 System Health Report",
@@ -1468,7 +1498,7 @@ def wsl_system_report() -> str:
         f"  Swap Total     : {snap.swap_total_mb:,} MB",
         f"  Swap Free      : {snap.swap_free_mb:,} MB",
         f"  Swap Used      : {snap.swap_used_pct}%  "
-        f"[{_fmt_status(snap.swap_used_pct < 75, warn_msg='HIGH \u26a0' if snap.swap_used_pct < 90 else 'CRITICAL \u2716')}]",
+        f"[{_fmt_status(snap.swap_used_pct < 75, warn_msg=swap_warn_msg)}]",
         "",
         "  \u2500\u2500 Kernel Parameters " + "\u2500" * 44,
     ]
@@ -1478,10 +1508,7 @@ def wsl_system_report() -> str:
         status = "OK" if not rec.changed else "CHANGE RECOMMENDED \u26a0"
         lines.append(f"  {rec.param:<35} = {rec.current_value:<10} [{status}]")
         if rec.changed:
-            lines.append(
-                f"    \u2192 Recommended: {rec.recommended_value} "
-                f"— {rec.reason[:72]}..."
-            )
+            lines.append(f"    \u2192 Recommended: {rec.recommended_value} — {rec.reason[:72]}...")
     lines.append("")
 
     if is_wsl:
@@ -1514,8 +1541,8 @@ def wsl_system_report() -> str:
             lines.append("  Recommended %UserProfile%\\.wslconfig settings:")
             lines.append(f"    memory={rec_mem}GB  swap={rec_swap}GB  processors={rec_procs}")
             lines.append(
-                "  Run: python -c \"from runtime_guard import generate_wslconfig; "
-                "print(generate_wslconfig())\""
+                '  Run: python -c "from runtime_guard import generate_wslconfig; '
+                'print(generate_wslconfig())"'
             )
         lines.append("")
 
@@ -1588,7 +1615,7 @@ def make_conftest_content(
         "- Pre-flight check before the suite: intervenes if pressure detected.",
         "- Per-test check: skips tests when memory is CRITICAL (vs. crashing).",
         "- Background polling thread throughout the session.",
-        '- Post-session memory summary logged to the root logger.',
+        "- Post-session memory summary logged to the root logger.",
         '"""',
         "",
         "from __future__ import annotations",
@@ -1739,6 +1766,7 @@ def _cli() -> None:  # pragma: no cover
     if args.version:
         try:
             from importlib.metadata import version as _pkg_version
+
             print(_pkg_version("runtime-guard"))
         except Exception:
             print("unknown")
@@ -1750,7 +1778,11 @@ def _cli() -> None:  # pragma: no cover
 
     if args.generate_wslconfig is not None:
         snap = _read_snapshot()
-        mem_gb = args.generate_wslconfig if args.generate_wslconfig > 0 else max(4, snap.mem_total_mb // 1024)
+        mem_gb = (
+            args.generate_wslconfig
+            if args.generate_wslconfig > 0
+            else max(4, snap.mem_total_mb // 1024)
+        )
         write_path = args.write
         content = generate_wslconfig(
             memory_gb=mem_gb,

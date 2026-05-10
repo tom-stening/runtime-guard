@@ -30,6 +30,7 @@ from runtime_guard import (
     emit_otel_event,
     fips_event_hash,
     make_worker_report,
+    soc2_gap_assessment,
     verify_audit_log_chain,
     pressure_report_attributes,
     render_prometheus_metrics,
@@ -1272,6 +1273,32 @@ class TestMultiProcessOrchestration:
         summary = guard.aggregate_workers([wr])
         assert wr["stage"] == "pool"
         assert summary["total_workers"] == 1
+
+
+class TestSoc2GapAssessment:
+    def test_reports_ready_when_all_controls_present(self):
+        out = soc2_gap_assessment({"CC6.1": True, "CC7.1": True})
+        assert out["total_controls"] == 2
+        assert out["covered_controls"] == 2
+        assert out["missing_controls"] == []
+        assert out["coverage_ratio"] == 1.0
+        assert out["status"] == "ready"
+
+    def test_reports_gaps_and_ratio(self):
+        out = soc2_gap_assessment({"CC6.1": True, "CC7.1": False, "CC8.1": False})
+        assert out["total_controls"] == 3
+        assert out["covered_controls"] == 1
+        assert out["missing_controls"] == ["CC7.1", "CC8.1"]
+        assert out["coverage_ratio"] == pytest.approx(1 / 3)
+        assert out["status"] == "gaps-found"
+
+    def test_handles_empty_input(self):
+        out = soc2_gap_assessment({})
+        assert out["total_controls"] == 0
+        assert out["covered_controls"] == 0
+        assert out["missing_controls"] == []
+        assert out["coverage_ratio"] == 0.0
+        assert out["status"] == "ready"
 
 
 class TestUnsupportedPlatformWarning:

@@ -35,6 +35,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `aggregate_worker_reports()` plus RuntimeGuard wrappers.
 - Integrity hardening: FIPS SHA-2 hash selection (`sha256|sha384|sha512`) and
   audit-chain verification via `verify_audit_log_chain()`.
+- Compliance scaffold: `soc2_gap_assessment()` for SOC2 control coverage,
+  missing-control reporting, and readiness status.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -50,6 +52,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M2-C03 moved to IN PROGRESS based on implemented policy scaffold.
 - Roadmap M2-C04 moved to IN PROGRESS based on implemented orchestration scaffold.
 - Roadmap M2-C05 moved to IN PROGRESS based on implemented integrity scaffold.
+- Roadmap M2-C06 moved to IN PROGRESS based on implemented compliance scaffold.
 
 ## [0.3.0] - 2026-05-10
 

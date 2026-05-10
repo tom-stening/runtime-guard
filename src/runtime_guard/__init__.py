@@ -85,6 +85,7 @@ __all__ = [
     "append_audit_log",
     "fips_event_hash",
     "verify_audit_log_chain",
+    "soc2_gap_assessment",
     "make_worker_report",
     "aggregate_worker_reports",
 ]
@@ -1930,6 +1931,31 @@ def verify_audit_log_chain(path: str) -> dict[str, Any]:
             prev_hash = expected_chain
 
     return {"ok": True, "line": line_no, "records": line_no, "last_hash": prev_hash}
+
+
+def soc2_gap_assessment(control_state: dict[str, bool]) -> dict[str, Any]:
+    """Summarize SOC2 control coverage and missing controls.
+
+    The function is intentionally generic so callers can map internal controls
+    (for example CC6.1, CC7.1, CC8.1) to boolean evidence states.
+    """
+
+    items: list[tuple[str, bool]] = []
+    for key, value in control_state.items():
+        items.append((str(key), bool(value)))
+
+    total = len(items)
+    covered = sum(1 for _, state in items if state)
+    missing = [name for name, state in items if not state]
+    score = (covered / total) if total else 0.0
+
+    return {
+        "total_controls": total,
+        "covered_controls": covered,
+        "missing_controls": missing,
+        "coverage_ratio": score,
+        "status": "ready" if missing == [] else "gaps-found",
+    }
 
 
 def make_worker_report(

@@ -281,6 +281,7 @@ Raw memory values from the OS at a point in time.
 | `append_audit_log(path, event) → dict[str, Any]` | Append a tamper-evident (hash-chained) JSON record to an audit log file. |
 | `fips_event_hash(payload, hash_algo="sha256") → str` | Hash payloads with FIPS-approved SHA-2 algorithms (`sha256`, `sha384`, `sha512`). |
 | `verify_audit_log_chain(path) → dict[str, Any]` | Verify hash-chain integrity for audit logs and report first failing line/reason. |
+| `soc2_gap_assessment(control_state) → dict[str, Any]` | Summarize control coverage and gaps for SOC2 readiness tracking. |
 | `make_worker_report(guard, ...) → dict[str, Any]` | Build a process-local worker pressure report for parent-process orchestration. |
 | `aggregate_worker_reports(reports) → dict[str, Any]` | Aggregate worker reports into pool/job-queue summary metrics and worst severity. |
 | `generate_wslconfig(memory_gb, ...) → str` | Generate `.wslconfig` content (or write/merge to file). |

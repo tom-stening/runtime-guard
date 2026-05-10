@@ -26,6 +26,7 @@ from runtime_guard import (
     emit_otel_event,
     pressure_report_attributes,
     render_prometheus_metrics,
+    trace_context_attributes,
     attach_ray_guard,
     _read_snapshot,
     attach_polars_guard,
@@ -769,13 +770,23 @@ class TestRayIntegration:
 
 
 class TestOpenTelemetryExport:
+    class _DummySpanContext:
+        def __init__(self, trace_id: int, span_id: int, sampled: bool = True):
+            self.trace_id = trace_id
+            self.span_id = span_id
+            self.trace_flags = type("_Flags", (), {"sampled": sampled})()
+
     class _DummySpan:
-        def __init__(self, recording: bool = True):
+        def __init__(self, recording: bool = True, context: object | None = None):
             self._recording = recording
             self.events: list[tuple[str, dict[str, object]]] = []
+            self._context = context
 
         def is_recording(self) -> bool:
             return self._recording
+
+        def get_span_context(self):
+            return self._context
 
         def add_event(self, name: str, *, attributes: dict[str, object]) -> None:
             self.events.append((name, attributes))
@@ -797,13 +808,20 @@ class TestOpenTelemetryExport:
 
     def test_emit_with_explicit_span(self):
         report = _make_report(stage="span-stage")
-        span = self._DummySpan(recording=True)
+        ctx = self._DummySpanContext(
+            trace_id=0x0123456789ABCDEF0123456789ABCDEF,
+            span_id=0x0123456789ABCDEF,
+        )
+        span = self._DummySpan(recording=True, context=ctx)
         ok = emit_otel_event(report, span=span)
         assert ok is True
         assert len(span.events) == 1
         name, attrs = span.events[0]
         assert name == "runtime_guard.pressure"
         assert attrs["runtime_guard.stage"] == "span-stage"
+        assert attrs["runtime_guard.trace_id"] == "0123456789abcdef0123456789abcdef"
+        assert attrs["runtime_guard.trace_span_id"] == "0123456789abcdef"
+        assert attrs["runtime_guard.trace_sampled"] is True
 
     def test_emit_uses_current_span_from_module(self):
         report = _make_report(stage="module-stage")
@@ -826,6 +844,34 @@ class TestOpenTelemetryExport:
         report = _make_report()
         ok = emit_otel_event(report, module=object())
         assert ok is False
+
+    def test_trace_context_attributes_from_span(self):
+        ctx = self._DummySpanContext(
+            trace_id=0x11111111111111111111111111111111,
+            span_id=0x2222222222222222,
+            sampled=False,
+        )
+        span = self._DummySpan(context=ctx)
+        attrs = trace_context_attributes(span=span)
+        assert attrs["runtime_guard.trace_id"] == "11111111111111111111111111111111"
+        assert attrs["runtime_guard.trace_span_id"] == "2222222222222222"
+        assert attrs["runtime_guard.trace_sampled"] is False
+
+    def test_trace_context_attributes_from_module(self):
+        ctx = self._DummySpanContext(
+            trace_id=0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,
+            span_id=0xBBBBBBBBBBBBBBBB,
+        )
+        span = self._DummySpan(context=ctx)
+        trace_mod = self._DummyTrace(span)
+        attrs = trace_context_attributes(module=trace_mod)
+        assert attrs["runtime_guard.trace_id"] == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        assert attrs["runtime_guard.trace_span_id"] == "bbbbbbbbbbbbbbbb"
+
+    def test_trace_context_attributes_empty_when_no_context(self):
+        span = self._DummySpan(context=None)
+        attrs = trace_context_attributes(span=span)
+        assert attrs == {}
 
 
 # ---------------------------------------------------------------------------

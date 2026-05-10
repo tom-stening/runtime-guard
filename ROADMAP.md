@@ -65,7 +65,7 @@ This principle shapes all roadmap decisions:
 | M1-C03 | Ray cluster resource monitor | P1 | 🔄 IN PROGRESS | `attach_ray_guard()` hooks `get`/`wait`; actor-based per-node monitoring remains. |
 | M1-C04 | OpenTelemetry exporter | P2 | 🔄 IN PROGRESS | Added optional span-event exporter helpers; full metrics pipeline/exporter packaging remains. |
 | M1-C05 | Prometheus metrics endpoint | P2 | 🔄 IN PROGRESS | Added metrics renderer helper; endpoint wiring (FastAPI/ASGI examples) remains. |
-| M1-C06 | Distributed tracing context | P2 | 📅 PLANNED | Link pressure events to trace IDs. |
+| M1-C06 | Distributed tracing context | P2 | 🔄 IN PROGRESS | Added trace-context attribute extraction and OTEL event trace-ID linkage; broader tracing propagation patterns remain. |
 | M1-C07 | Config schema validation (`pydantic`) | P2 | 📅 PLANNED | Type-safe config validation without hard dependency. |
 | M1-C08 | Async context manager for work phases | P2 | 📅 PLANNED | `async with guard.phase("load-csv")` for structured spans. |
 

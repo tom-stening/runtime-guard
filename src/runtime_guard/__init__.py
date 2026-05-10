@@ -76,6 +76,7 @@ __all__ = [
     "attach_dask_guard",
     "attach_ray_guard",
     "pressure_report_attributes",
+    "trace_context_attributes",
     "emit_otel_event",
     "render_prometheus_metrics",
 ]
@@ -1322,6 +1323,61 @@ def pressure_report_attributes(report: "PressureReport") -> dict[str, Any]:
     }
 
 
+def trace_context_attributes(
+    *,
+    span: Any | None = None,
+    module: Any | None = None,
+    prefix: str = "runtime_guard.trace",
+) -> dict[str, Any]:
+    """Extract trace/span IDs from an OpenTelemetry span into flat attributes.
+
+    Returns an empty dict when OpenTelemetry is unavailable or when no usable
+    span context is present.
+    """
+    target_span = span
+    if target_span is None:
+        trace_mod = module
+        if trace_mod is None:
+            try:
+                from opentelemetry import trace as trace_mod  # type: ignore
+            except Exception:
+                return {}
+        get_current_span = getattr(trace_mod, "get_current_span", None)
+        if not callable(get_current_span):
+            return {}
+        target_span = get_current_span()
+
+    if target_span is None:
+        return {}
+
+    get_span_context = getattr(target_span, "get_span_context", None)
+    if not callable(get_span_context):
+        return {}
+
+    span_context = get_span_context()
+    if span_context is None:
+        return {}
+
+    trace_id = getattr(span_context, "trace_id", 0)
+    span_id = getattr(span_context, "span_id", 0)
+    if not isinstance(trace_id, int) or not isinstance(span_id, int):
+        return {}
+    if trace_id <= 0 or span_id <= 0:
+        return {}
+
+    attrs: dict[str, Any] = {
+        f"{prefix}_id": f"{trace_id:032x}",
+        f"{prefix}_span_id": f"{span_id:016x}",
+    }
+
+    trace_flags = getattr(span_context, "trace_flags", None)
+    sampled = getattr(trace_flags, "sampled", None)
+    if isinstance(sampled, bool):
+        attrs[f"{prefix}_sampled"] = sampled
+
+    return attrs
+
+
 def emit_otel_event(
     report: "PressureReport",
     *,
@@ -1358,7 +1414,9 @@ def emit_otel_event(
     if not callable(add_event):
         return False
 
-    add_event(event_name, attributes=pressure_report_attributes(report))
+    attrs = pressure_report_attributes(report)
+    attrs.update(trace_context_attributes(span=target_span))
+    add_event(event_name, attributes=attrs)
     return True
 
 

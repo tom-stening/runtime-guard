@@ -19,6 +19,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `emit_otel_event()` for optional span event emission.
 - Prometheus scaffolding: `render_prometheus_metrics()` for dependency-free
   exposition text rendering suitable for `/metrics` endpoints.
+- Distributed tracing context scaffolding: `trace_context_attributes()` and
+  OTEL event enrichment with trace/span IDs when available.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -26,6 +28,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M1-C03 moved to IN PROGRESS based on implemented integration scaffold.
 - Roadmap M1-C04 moved to IN PROGRESS based on implemented exporter scaffold.
 - Roadmap M1-C05 moved to IN PROGRESS based on implemented metrics scaffold.
+- Roadmap M1-C06 moved to IN PROGRESS based on implemented tracing scaffold.
 
 ## [0.3.0] - 2026-05-10
 

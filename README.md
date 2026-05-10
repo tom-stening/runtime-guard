@@ -454,6 +454,10 @@ incident runbook entry points are documented in
 - Dask triage template: [.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml](.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml)
 - Ray cookbook: [INTEGRATION_RAY.md](INTEGRATION_RAY.md)
 
+## Enablement
+
+- Training and certification draft: [TRAINING_CURRICULUM.md](TRAINING_CURRICULUM.md)
+
 ---
 
 ## Architecture

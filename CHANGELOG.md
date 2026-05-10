@@ -57,6 +57,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   monitoring.
 - Ray integration cookbook in `INTEGRATION_RAY.md` with staged hook,
   orchestration, and audit logging examples.
+- Training/certification program draft in `TRAINING_CURRICULUM.md` with
+  1-day agenda, lab structure, and certification rubric.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -79,6 +81,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M1-I02 moved to IN PROGRESS based on Dask issue template kickoff.
 - Roadmap M2-I01 note expanded with repo background-service automation artifacts.
 - Roadmap M1-I03 moved to IN PROGRESS based on Ray cookbook kickoff.
+- Roadmap M2-I03 moved to IN PROGRESS based on curriculum draft kickoff.
 
 ## [0.3.0] - 2026-05-10
 

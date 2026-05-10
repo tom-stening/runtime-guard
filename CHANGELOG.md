@@ -66,6 +66,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Audit policy taxonomy helpers: `audit_policy_taxonomy()` and
   `normalize_policy_violation_event()` with canonical token normalization for
   `event_type=policy_violation` records.
+- SOC2 readiness enhancements: `soc2_evidence_requirements()` and
+  `soc2_readiness_report()` now track evidence completeness alongside control
+  coverage for audit-readiness evaluation.
 - Ray integration cookbook in `INTEGRATION_RAY.md` with staged hook,
   orchestration, and audit logging examples.
 - Training/certification program draft in `TRAINING_CURRICULUM.md` with

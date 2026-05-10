@@ -92,6 +92,8 @@ __all__ = [
     "verify_audit_log_chain",
     "soc2_required_controls",
     "soc2_gap_assessment",
+    "soc2_evidence_requirements",
+    "soc2_readiness_report",
     "make_worker_report",
     "aggregate_worker_reports",
 ]
@@ -132,6 +134,20 @@ _SOC2_RUNTIME_GUARD_CONTROLS: dict[str, str] = {
     "CC6.1": "Logical access controls and role-bound privileged actions.",
     "CC7.1": "Monitoring for anomalies and operational events.",
     "CC7.2": "Incident response workflow and escalation evidence.",
+}
+_SOC2_CONTROL_EVIDENCE_REQUIREMENTS: dict[str, list[str]] = {
+    "CC6.1": [
+        "access-review-log",
+        "privileged-action-audit-trail",
+    ],
+    "CC7.1": [
+        "monitoring-alert-history",
+        "on-call-acknowledgement-record",
+    ],
+    "CC7.2": [
+        "incident-timeline",
+        "post-incident-corrective-actions",
+    ],
 }
 
 
@@ -2240,6 +2256,96 @@ def soc2_gap_assessment(
         "unknown_controls": unknown_controls,
         "coverage_ratio": score,
         "status": "ready" if missing_required == [] else "gaps-found",
+    }
+
+
+def soc2_evidence_requirements(
+    *,
+    required_controls: dict[str, str] | None = None,
+) -> dict[str, list[str]]:
+    """Return evidence artifacts expected for SOC2 controls.
+
+    If ``required_controls`` is provided, the returned map is scoped to those
+    control IDs and omits unknown IDs.
+    """
+
+    requirements = {
+        control_id: list(items) for control_id, items in _SOC2_CONTROL_EVIDENCE_REQUIREMENTS.items()
+    }
+    if required_controls is None:
+        return requirements
+
+    scoped: dict[str, list[str]] = {}
+    for control_id in required_controls:
+        if control_id in requirements:
+            scoped[control_id] = list(requirements[control_id])
+    return scoped
+
+
+def soc2_readiness_report(
+    control_state: dict[str, bool],
+    *,
+    evidence_state: dict[str, list[str] | tuple[str, ...] | set[str]] | None = None,
+    required_controls: dict[str, str] | None = None,
+    evidence_requirements: dict[str, list[str]] | None = None,
+) -> dict[str, Any]:
+    """Build a SOC2 readiness report with control and evidence coverage."""
+
+    required = (
+        dict(required_controls) if required_controls is not None else soc2_required_controls()
+    )
+    gap = soc2_gap_assessment(control_state, required_controls=required)
+    expected = (
+        dict(evidence_requirements)
+        if evidence_requirements is not None
+        else soc2_evidence_requirements(required_controls=required)
+    )
+    evidence_lookup = evidence_state or {}
+
+    missing_evidence_by_control: dict[str, list[str]] = {}
+    provided_evidence_count = 0
+    expected_evidence_count = 0
+
+    for control_id in sorted(required.keys()):
+        if not bool(control_state.get(control_id, False)):
+            continue
+
+        required_items = list(expected.get(control_id, []))
+        expected_evidence_count += len(required_items)
+        provided_items = {
+            str(item).strip()
+            for item in evidence_lookup.get(control_id, [])
+            if str(item).strip() != ""
+        }
+        provided_evidence_count += len([item for item in required_items if item in provided_items])
+        missing_items = [item for item in required_items if item not in provided_items]
+        if missing_items:
+            missing_evidence_by_control[control_id] = missing_items
+
+    missing_evidence_controls = sorted(missing_evidence_by_control.keys())
+    evidence_ratio = (
+        (provided_evidence_count / expected_evidence_count) if expected_evidence_count else 1.0
+    )
+
+    if gap["missing_required_controls"]:
+        status = "gaps-found"
+        maturity = "initial" if gap["coverage_ratio"] < 0.5 else "partial"
+    elif missing_evidence_controls:
+        status = "evidence-missing"
+        maturity = "controls-implemented-evidence-pending"
+    else:
+        status = "ready"
+        maturity = "audit-ready"
+
+    return {
+        **gap,
+        "status": status,
+        "maturity": maturity,
+        "expected_evidence_count": expected_evidence_count,
+        "provided_evidence_count": provided_evidence_count,
+        "missing_evidence_controls": missing_evidence_controls,
+        "missing_evidence_by_control": missing_evidence_by_control,
+        "evidence_ratio": evidence_ratio,
     }
 
 

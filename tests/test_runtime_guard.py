@@ -35,7 +35,9 @@ from runtime_guard import (
     make_sitecustomize_content,
     normalize_policy_violation_event,
     soc2_required_controls,
+    soc2_evidence_requirements,
     soc2_gap_assessment,
+    soc2_readiness_report,
     resolve_signal_recovery_policy,
     verify_audit_log_chain,
     pressure_report_attributes,
@@ -1462,6 +1464,39 @@ class TestSoc2GapAssessment:
         assert out["unknown_controls"] == []
         assert out["coverage_ratio"] == 0.0
         assert out["status"] == "gaps-found"
+
+    def test_evidence_requirements_scoped_to_required_controls(self):
+        req = soc2_evidence_requirements(required_controls={"CC6.1": "x", "CC8.1": "y"})
+        assert sorted(req.keys()) == ["CC6.1"]
+        assert "access-review-log" in req["CC6.1"]
+
+    def test_readiness_report_ready_with_evidence(self):
+        out = soc2_readiness_report(
+            {"CC6.1": True, "CC7.1": True, "CC7.2": True},
+            evidence_state={
+                "CC6.1": ["access-review-log", "privileged-action-audit-trail"],
+                "CC7.1": ["monitoring-alert-history", "on-call-acknowledgement-record"],
+                "CC7.2": ["incident-timeline", "post-incident-corrective-actions"],
+            },
+        )
+        assert out["status"] == "ready"
+        assert out["maturity"] == "audit-ready"
+        assert out["missing_evidence_controls"] == []
+        assert out["evidence_ratio"] == 1.0
+
+    def test_readiness_report_detects_missing_evidence(self):
+        out = soc2_readiness_report(
+            {"CC6.1": True, "CC7.1": True, "CC7.2": True},
+            evidence_state={
+                "CC6.1": ["access-review-log"],
+                "CC7.1": ["monitoring-alert-history"],
+                "CC7.2": ["incident-timeline"],
+            },
+        )
+        assert out["status"] == "evidence-missing"
+        assert out["maturity"] == "controls-implemented-evidence-pending"
+        assert out["missing_evidence_controls"] == ["CC6.1", "CC7.1", "CC7.2"]
+        assert out["evidence_ratio"] == pytest.approx(0.5)
 
 
 class TestUnsupportedPlatformWarning:

@@ -739,9 +739,15 @@ Or use the CLI tool:
 ]
 
 python scripts/adoption_scorecard.py \
-  --records team_adoption.json \
+    --input team_adoption.json \
   --success-stage production \
   --output scorecard.json
+
+# Validate ADOPTION_TRACKER.md against M2-I02 criteria
+python scripts/adoption_tracker_report.py \
+    --tracker ADOPTION_TRACKER.md \
+    --fail-on-gaps \
+    --output tracker_report.json
 ```
 
 **Validation:** Scorecard shows:

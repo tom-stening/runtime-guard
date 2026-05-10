@@ -902,7 +902,23 @@ class TestDaskIntegration:
             assert evidence["validation_ok"] is True
             assert "dask_integration_validated" in evidence["evidence_items"]
             assert "dask_hooks_installed" in evidence["evidence_items"]
+            assert "dask_scheduler_callback_api_available" not in evidence["evidence_items"]
             assert evidence["dask_version"] == "unknown"
+        finally:
+            restore()
+
+    def test_collect_dask_integration_evidence_includes_scheduler_api_marker(self, monkeypatch):
+        class _DaskWithCallbackAPI(self._DummyDask):
+            class callbacks:
+                class Callback:
+                    pass
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_dask_guard(guard, module=_DaskWithCallbackAPI)
+        try:
+            evidence = collect_dask_integration_evidence(guard, module=_DaskWithCallbackAPI)
+            assert "dask_scheduler_callback_api_available" in evidence["evidence_items"]
         finally:
             restore()
 
@@ -1020,6 +1036,37 @@ class TestDaskSchedulerCallbacks:
         # Each should have its own state
         assert report1["workers_monitored"] == 0
         assert report2["workers_monitored"] == 0
+
+    def test_scheduler_callback_exposes_callback_api_adapter_when_available(self):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _FakeDask:
+            class callbacks:
+                class Callback:
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, exc_type, exc, tb):
+                        return False
+
+        guard = RuntimeGuard()
+        reporter = install_dask_scheduler_callbacks(guard, module=_FakeDask)
+
+        assert getattr(reporter, "callback_api_available", False) is True
+        create_ctx = getattr(reporter, "create_callback_context")
+        ctx = create_ctx()
+        assert ctx is not None
+
+    def test_scheduler_callback_adapter_raises_when_api_unavailable(self):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        reporter = install_dask_scheduler_callbacks(guard)
+
+        assert getattr(reporter, "callback_api_available", True) is False
+        create_ctx = getattr(reporter, "create_callback_context")
+        with pytest.raises(RuntimeError, match="callback API unavailable"):
+            create_ctx()
 
 
 # ---------------------------------------------------------------------------

@@ -1738,6 +1738,7 @@ def install_dask_scheduler_callbacks(
     *,
     stage_prefix: str = "dask",
     enable_worker_reports: bool = True,
+    module: Any | None = None,
 ) -> Callable[[str], dict[str, Any]]:
     """Install memory monitoring callbacks into Dask scheduler.
 
@@ -1752,6 +1753,13 @@ def install_dask_scheduler_callbacks(
         Prefix for stage labels (default: "dask").
     enable_worker_reports : bool, optional
         If True, return worker report aggregator for post-compute analysis (default: True).
+
+    Parameters
+    ----------
+    module : Any, optional
+        Optional dask module object. When provided and it exposes
+        ``dask.callbacks.Callback``, the returned reporter is annotated with a
+        callback-context adapter suitable for direct registration.
 
     Returns
     -------
@@ -1858,6 +1866,36 @@ def install_dask_scheduler_callbacks(
 
     _SchedulerCallback.get_worker_report = staticmethod(_get_worker_report)  # type: ignore
 
+    callback_api_available = False
+    callback_context_cls: Any = _SchedulerCallback
+
+    callbacks_mod = getattr(module, "callbacks", None) if module is not None else None
+    callback_base = getattr(callbacks_mod, "Callback", None) if callbacks_mod is not None else None
+
+    if isinstance(callback_base, type):
+        callback_api_available = True
+
+        class _RuntimeGuardDaskCallback(callback_base):
+            def _pretask(self, key: str, *_args: Any, **kwargs: Any) -> None:
+                _callback_start(key, worker_id=kwargs.get("worker_id"))
+
+            def _posttask(self, key: str, value: Any, *_args: Any, **kwargs: Any) -> None:
+                _callback_finish(key, value, worker_id=kwargs.get("worker_id"))
+
+        callback_context_cls = _RuntimeGuardDaskCallback
+
+    def _create_callback_context() -> Any:
+        if not callback_api_available:
+            raise RuntimeError(
+                "Dask callback API unavailable; pass module=<dask module with callbacks.Callback>."
+            )
+        return callback_context_cls()
+
+    setattr(_get_worker_report, "callback_api_available", callback_api_available)
+    setattr(_get_worker_report, "callback_context_class", callback_context_cls)
+    setattr(_get_worker_report, "create_callback_context", _create_callback_context)
+    setattr(_get_worker_report, "stage_prefix", stage_prefix)
+
     return _get_worker_report
 
 
@@ -1872,6 +1910,7 @@ def validate_dask_integration(
     Returns a verification report showing:
     - Dask availability
     - compute/persist method status
+    - scheduler callback API availability
     - Guard hook status
     - Any errors encountered
 
@@ -1910,6 +1949,8 @@ def validate_dask_integration(
         base_mod = getattr(dask_mod, "base", None)
         base_compute = getattr(base_mod, "compute", None) if base_mod else None
         base_persist = getattr(base_mod, "persist", None) if base_mod else None
+        callbacks_mod = getattr(dask_mod, "callbacks", None)
+        callback_cls = getattr(callbacks_mod, "Callback", None) if callbacks_mod else None
 
         methods_wrapped = bool(getattr(compute_fn, "_runtime_guard_wrapped", False))
 
@@ -1922,6 +1963,7 @@ def validate_dask_integration(
             "base_module_present": base_mod is not None,
             "base_compute_present": base_compute is not None,
             "base_persist_present": base_persist is not None,
+            "scheduler_callback_api_present": callable(callback_cls),
             "errors": errors,
         }
     except Exception as exc:  # pragma: no cover
@@ -1964,6 +2006,9 @@ def collect_dask_integration_evidence(
 
     if validation.get("base_module_present"):
         evidence_items.append("dask_base_module_available")
+
+    if validation.get("scheduler_callback_api_present"):
+        evidence_items.append("dask_scheduler_callback_api_available")
 
     runtime_guard_version = "0.3.0"
     try:

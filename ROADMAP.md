@@ -101,7 +101,7 @@ This principle shapes all roadmap decisions:
 |---|---|---|---|---|
 | M2-I01 | Enterprise support package (SLA, runbooks) | P1 | ✅ DONE | Completed support package with incident/runbook coverage, `OPERATIONS_GUIDE.md` deployment runbook, explicit support tier matrix in `ENTERPRISE_SUPPORT.md` (Standard/Priority/Mission Critical), Linux user-service watcher templates, and repo seeding utility (`scripts/seed_repo_autorun.py`) for self-starting monitoring. |
 | M2-I02 | Adoption by 5+ enterprise data teams | P1 | ✅ DONE | Added `ADOPTION_TRACKER.md` stage model + execution automation: `build_adoption_scorecard()` API and `scripts/adoption_scorecard.py` CLI for rollout metrics, canonical stage alias handling (`Discovery` -> `discover`, `prod` -> `production`), and machine-verifiable tracker audit via `scripts/adoption_tracker_report.py`; tracker now reflects 5 teams at sustained pilot/production stages with measurable outcomes and 2 before/after case studies. |
-| M2-I03 | Training & certification curriculum | P2 | 🔄 IN PROGRESS | Added `TRAINING_CURRICULUM.md` with 1-day agenda, labs, and certification rubric. |
+| M2-I03 | Training & certification curriculum | P2 | ✅ DONE | Added `TRAINING_CURRICULUM.md` with 1-day agenda, labs, certification rubric, and operator-facing certification reporting workflow via `scripts/training_certification_report.py` (including fail-on-gaps CI gating for workshop outcomes). |
 
 ---
 

@@ -52,6 +52,30 @@ Certification requires all of:
 - Sample datasets and synthetic pressure scenarios.
 - Grading rubric and answer guide.
 
+## Certification Reporting Workflow
+
+Use the certification report CLI to evaluate attendee outcomes against the rubric:
+
+```bash
+python scripts/training_certification_report.py \
+	--attendees attendees.json \
+	--required-labs 5 \
+	--min-score 80 \
+	--fail-on-gaps \
+	--output certification_report.json
+```
+
+Expected attendee record fields:
+- `name` (or `id`)
+- `labs_completed`
+- `capstone_submitted`
+- `framework_demo`
+- `automation_demo`
+- `assessment_score`
+
+The command returns exit code `1` with `--fail-on-gaps` when any attendee does
+not satisfy certification criteria.
+
 ## Maintenance Cadence
 
 - Review curriculum quarterly.

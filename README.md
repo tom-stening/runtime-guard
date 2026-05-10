@@ -818,6 +818,7 @@ print(f"Hook methods available: {evidence['evidence_items']}")
 ## Enablement
 
 - Training and certification draft: [TRAINING_CURRICULUM.md](TRAINING_CURRICULUM.md)
+- Certification rubric evaluation: `python scripts/training_certification_report.py --attendees attendees.json --fail-on-gaps --output certification_report.json`
 
 ---
 

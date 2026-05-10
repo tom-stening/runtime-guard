@@ -88,18 +88,18 @@ This principle shapes all roadmap decisions:
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M2-C01 | Memory snap auto-recovery (signal handler) | P1 | 🔄 IN PROGRESS | Added signal handler scaffold plus environment-driven rollout policy helpers (`resolve_signal_recovery_policy`, `install_signal_recovery_from_policy`); rollout parsing sanitizes invalid kill thresholds, blank stage prefixes, and duplicate/unknown signals, and intervention policy now defaults to `critical` with explicit `any` override (`SIGNAL_RECOVERY_INTERVENE_ON`) to reduce warning-level overreaction. |
+| M2-C01 | Memory snap auto-recovery (signal handler) | P1 | ✅ DONE | Signal recovery now includes default `SIGABRT` handling, environment-driven rollout policy (`resolve_signal_recovery_policy`, `install_signal_recovery_from_policy`), critical-only intervention default with explicit `any` override (`SIGNAL_RECOVERY_INTERVENE_ON`), and optional hash-chained audit logging via `SIGNAL_RECOVERY_AUDIT_LOG` + `SIGNAL_RECOVERY_HASH_ALGO`. |
 | M2-C02 | Audit log for all policy violations | P1 | 🔄 IN PROGRESS | Added hash-chained audit records + CLI verification, expanded taxonomy coverage for incident/access/integrity-style events, and canonical normalization helpers (`audit_policy_taxonomy`, `normalize_policy_violation_event`) including action-triggered normalization when `event_type` is omitted; broader policy catalog rollout remains. |
 | M2-C03 | Dynamic policy reloading | P2 | 🔄 IN PROGRESS | Added file-backed policy overrides with auto-reload on mtime changes and env>policy>preset precedence. |
 | M2-C04 | Multi-process orchestration (optional) | P2 | ✅ DONE | Worker report + parent aggregation API; JSONL transport; parent-side CLI `scripts/aggregate_workers.py` with `--fail-on-pressure` / `--fail-on-critical` gating; multiprocess demo in `examples/`. |
-| M2-C05 | FIPS-certified hash for event dedup | P2 | 🔄 IN PROGRESS | Added FIPS SHA-2 algorithm selection and chain verification for audit/event integrity. |
+| M2-C05 | FIPS-certified hash for event dedup | P2 | 🔄 IN PROGRESS | Added FIPS SHA-2 algorithm selection and chain verification for audit/event integrity, plus `FipsDeduplicator` (thread-safe TTL dedup cache) and subprocess launch preflight safety checks (`RuntimeGuard.subprocess_safe`, `subprocess_safe`) to prevent avoidable WSL OOM cascades. |
 | M2-C06 | SOC2 prep integration + compliance gap assessment | P1 | 🔄 IN PROGRESS | Added baseline controls plus evidence requirements/readiness scoring (`soc2_evidence_requirements`, `soc2_readiness_report`); expanded default catalog includes anomaly triage/remediation and change-management controls (CC7.3, CC8.1), and now includes operator-facing CLI workflow (`scripts/soc2_readiness_report.py`) with example control/evidence inputs for repeatable readiness generation. |
 
 ### Integration stream
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M2-I01 | Enterprise support package (SLA, runbooks) | P1 | 🔄 IN PROGRESS | Added incident/runbook package, `OPERATIONS_GUIDE.md` deployment runbook, Linux user-service watcher templates, and repo seeding utility (`scripts/seed_repo_autorun.py`) for self-starting monitoring. |
+| M2-I01 | Enterprise support package (SLA, runbooks) | P1 | 🔄 IN PROGRESS | Added incident/runbook package, `OPERATIONS_GUIDE.md` deployment runbook, explicit support tier matrix in `ENTERPRISE_SUPPORT.md` (Standard/Priority/Mission Critical), Linux user-service watcher templates, and repo seeding utility (`scripts/seed_repo_autorun.py`) for self-starting monitoring. |
 | M2-I02 | Adoption by 5+ enterprise data teams | P1 | 🔄 IN PROGRESS | Added `ADOPTION_TRACKER.md` stage model + execution automation: `build_adoption_scorecard()` API and `scripts/adoption_scorecard.py` CLI for rollout metrics; input handling now canonicalizes stage aliases (e.g., `Discovery` -> `discover`, `prod` -> `production`) and tracks `expanded` stage consistently; 5-team procurement/evidence execution remains. |
 | M2-I03 | Training & certification curriculum | P2 | 🔄 IN PROGRESS | Added `TRAINING_CURRICULUM.md` with 1-day agenda, labs, and certification rubric. |
 

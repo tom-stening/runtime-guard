@@ -91,6 +91,7 @@ __all__ = [
     "normalize_policy_violation_event",
     "append_audit_log",
     "fips_event_hash",
+    "FipsDeduplicator",
     "verify_audit_log_chain",
     "soc2_required_controls",
     "soc2_gap_assessment",
@@ -108,6 +109,7 @@ __all__ = [
     "append_worker_report_jsonl",
     "load_worker_reports_jsonl",
     "aggregate_worker_reports_jsonl",
+    "subprocess_safe",
 ]
 
 logger = logging.getLogger(__name__)
@@ -993,6 +995,64 @@ class RuntimeGuard:
         """Return ``(available_mb, total_mb, swap_used_pct)`` as a quick snapshot."""
         snap = _read_snapshot()
         return snap.mem_available_mb, snap.mem_total_mb, snap.swap_used_pct
+
+    def subprocess_safe(
+        self,
+        label: str = "subprocess",
+        *,
+        min_mb: int = 500,
+        stage: str = "",
+    ) -> tuple[bool, str]:
+        """Check whether it is safe to launch a memory-hungry subprocess.
+
+        Intended for callers that are about to fork a heavy process
+        (e.g. Chrome/Selenium, Java VM, data-processing workers) and want
+        to bail out gracefully rather than crash with an OOM error.
+
+        Parameters
+        ----------
+        label:
+            Human-readable name of the subprocess being launched, used in
+            the returned reason string for diagnostics (e.g. ``"Chrome"``).
+        min_mb:
+            Minimum available RAM (MB) required to proceed.  Defaults to
+            500 MB — a conservative floor for browser processes on WSL2.
+            Increase for known heavy processes (e.g. 1024 for JVM).
+        stage:
+            Optional stage label forwarded to ``check()`` so pressure events
+            are attributed to this launch site in structured logs.
+
+        Returns
+        -------
+        ``(True, "")`` when it is safe to proceed.
+        ``(False, reason)`` when memory pressure is critical or available
+        RAM is below *min_mb*.  *reason* is a human-readable string
+        suitable for use in log messages or exception text.
+
+        Example
+        -------
+        ::
+
+            safe, reason = guard.subprocess_safe("Chrome", min_mb=500)
+            if not safe:
+                raise RuntimeError(
+                    f"Skipping Chrome launch — {reason}. "
+                    "Free memory before retrying."
+                )
+        """
+        snap = _read_snapshot()
+        if snap.mem_available_mb < min_mb:
+            return (
+                False,
+                f"{label} launch skipped — "
+                f"MemAvailable={snap.mem_available_mb} MB < {min_mb} MB threshold",
+            )
+
+        report = self.check(stage=stage or f"pre-launch:{label}")
+        if report is not None and report.is_critical:
+            return False, f"{label} launch skipped — system under memory pressure ({report.cause})"
+
+        return True, ""
 
     # ------------------------------------------------------------------
     # Helpers
@@ -2608,12 +2668,17 @@ def attach_signal_recovery(
     intervene_on: str = "critical",
     kill_hogs_above_mb: int | None = None,
     chain_previous: bool = False,
+    audit_log_path: str | None = None,
+    hash_algo: str = "sha256",
     module: Any | None = None,
 ) -> Callable[[], None]:
     """Install signal handlers that emit a final pressure report.
 
     This provides M2-C01 scaffolding for signal-driven auto-recovery while
     keeping runtime dependencies at zero.
+
+    If ``audit_log_path`` is provided, each signal event is also written to the
+    hash-chained audit log, satisfying M2-C02 audit trail requirements.
     """
     signal_mod = module
     if signal_mod is None:
@@ -2625,7 +2690,7 @@ def attach_signal_recovery(
 
     if signals_to_handle is None:
         default_signals: list[int] = []
-        for name in ("SIGTERM", "SIGINT", "SIGUSR1"):
+        for name in ("SIGTERM", "SIGINT", "SIGUSR1", "SIGABRT"):
             value = getattr(signal_mod, name, None)
             if isinstance(value, int):
                 default_signals.append(value)
@@ -2652,6 +2717,29 @@ def attach_signal_recovery(
             should_intervene = report.is_critical or intervene_on_key == "any"
             if auto_intervene and should_intervene:
                 guard.intervene(report, kill_hogs_above_mb=kill_hogs_above_mb)
+
+            if audit_log_path is not None:
+                _severity = "critical" if report.is_critical else "warning"
+                _action = "recover" if auto_intervene and should_intervene else "observe"
+                try:
+                    append_audit_log(
+                        audit_log_path,
+                        {
+                            "event_type": "signal_recovery",
+                            "category": "incident",
+                            "action": _action,
+                            "severity": _severity,
+                            "signal": _stage_name(signum),
+                            "stage": f"{stage_prefix}:{_stage_name(signum)}",
+                            "rss_mb": getattr(report, "rss_mb", None),
+                            "swap_pct": getattr(report, "swap_pct", None),
+                            "is_critical": report.is_critical,
+                            "intervened": auto_intervene and should_intervene,
+                        },
+                        hash_algo=hash_algo,
+                    )
+                except Exception:
+                    pass  # never let audit-log failure interrupt signal handling
 
         if chain_previous:
             prev = previous_handlers.get(signum)
@@ -2683,7 +2771,9 @@ def resolve_signal_recovery_policy(
     - ``<PREFIX>_SIGNAL_RECOVERY_STAGE_PREFIX`` (str, default: signal)
     - ``<PREFIX>_SIGNAL_RECOVERY_KILL_HOGS_MB`` (int or unset)
     - ``<PREFIX>_SIGNAL_RECOVERY_SIGNALS`` (CSV: names or ints)
-      default: ``SIGTERM,SIGINT,SIGUSR1``
+      default: ``SIGTERM,SIGINT,SIGUSR1,SIGABRT``
+    - ``<PREFIX>_SIGNAL_RECOVERY_AUDIT_LOG`` (path or unset)
+    - ``<PREFIX>_SIGNAL_RECOVERY_HASH_ALGO`` (sha256|sha384|sha512, default: sha256)
     """
     signal_mod = module
     if signal_mod is None:
@@ -2728,7 +2818,7 @@ def resolve_signal_recovery_policy(
 
     kill_hogs_above_mb = _as_positive_int(_env("SIGNAL_RECOVERY_KILL_HOGS_MB"))
 
-    signals_csv = _env("SIGNAL_RECOVERY_SIGNALS", "SIGTERM,SIGINT,SIGUSR1") or ""
+    signals_csv = _env("SIGNAL_RECOVERY_SIGNALS", "SIGTERM,SIGINT,SIGUSR1,SIGABRT") or ""
     signals_to_handle: list[int] = []
     seen_signals: set[int] = set()
     for token in signals_csv.split(","):
@@ -2747,6 +2837,14 @@ def resolve_signal_recovery_policy(
             signals_to_handle.append(signum)
             seen_signals.add(signum)
 
+    audit_log_path = _env("SIGNAL_RECOVERY_AUDIT_LOG") or None
+    if audit_log_path is not None:
+        audit_log_path = audit_log_path.strip() or None
+
+    hash_algo_env = str(_env("SIGNAL_RECOVERY_HASH_ALGO", "sha256") or "sha256").strip().lower()
+    if hash_algo_env not in _FIPS_HASH_ALGOS:
+        hash_algo_env = "sha256"
+
     return {
         "enabled": enabled,
         "signals_to_handle": signals_to_handle,
@@ -2755,6 +2853,8 @@ def resolve_signal_recovery_policy(
         "intervene_on": intervene_on,
         "kill_hogs_above_mb": kill_hogs_above_mb,
         "chain_previous": chain_previous,
+        "audit_log_path": audit_log_path,
+        "hash_algo": hash_algo_env,
     }
 
 
@@ -2777,6 +2877,8 @@ def install_signal_recovery_from_policy(
         intervene_on=str(policy.get("intervene_on", "critical")),
         kill_hogs_above_mb=policy.get("kill_hogs_above_mb"),
         chain_previous=bool(policy.get("chain_previous", False)),
+        audit_log_path=policy.get("audit_log_path"),
+        hash_algo=str(policy.get("hash_algo", "sha256")),
         module=module,
     )
 
@@ -2791,6 +2893,76 @@ def fips_event_hash(payload: str, *, hash_algo: str = "sha256") -> str:
     h = hashlib.new(algo)
     h.update(payload.encode("utf-8"))
     return h.hexdigest()
+
+
+class FipsDeduplicator:
+    """Thread-safe event deduplicator using FIPS-approved SHA hashes.
+
+    Prevents duplicate events from flooding audit logs or alerting pipelines.
+    Events are considered duplicates when their FIPS hash (computed over
+    a canonical JSON representation) has already been seen within the
+    configured ``ttl_s`` window.  Pass ``ttl_s=0`` (or ``ttl_s=None``) to
+    keep seen hashes indefinitely.
+
+    Example::
+
+        dedup = FipsDeduplicator(ttl_s=300)  # 5-minute dedup window
+        event = {"category": "memory", "action": "pressure_detected"}
+        if dedup.is_new(event):
+            append_audit_log("audit.jsonl", event)
+    """
+
+    def __init__(self, *, hash_algo: str = "sha256", ttl_s: float | int | None = 300) -> None:
+        algo = hash_algo.strip().lower()
+        if algo not in _FIPS_HASH_ALGOS:
+            raise ValueError(
+                f"Unsupported hash algorithm {hash_algo!r}; use one of {sorted(_FIPS_HASH_ALGOS)}"
+            )
+        self._algo = algo
+        self._ttl: float | None = float(ttl_s) if ttl_s is not None and float(ttl_s) > 0 else None
+        self._seen: dict[str, float] = {}  # hash -> monotonic timestamp of first sight
+        self._lock = threading.Lock()
+
+    def _canonical(self, event: dict[str, Any]) -> str:
+        """Stable JSON representation for hashing (sorted keys, no whitespace)."""
+        return json.dumps(event, sort_keys=True, separators=(",", ":"), default=str)
+
+    def event_hash(self, event: dict[str, Any]) -> str:
+        """Return the FIPS hash for ``event`` without recording it."""
+        return fips_event_hash(self._canonical(event), hash_algo=self._algo)
+
+    def is_new(self, event: dict[str, Any]) -> bool:
+        """Return ``True`` and record ``event`` if it is new; ``False`` if duplicate."""
+        digest = self.event_hash(event)
+        now = time.monotonic()
+        with self._lock:
+            if self._ttl is not None:
+                # Purge expired entries inline to prevent unbounded growth
+                expired = [h for h, ts in self._seen.items() if (now - ts) >= self._ttl]
+                for h in expired:
+                    del self._seen[h]
+
+            if digest in self._seen:
+                return False
+            self._seen[digest] = now
+            return True
+
+    def mark_seen(self, event: dict[str, Any]) -> None:
+        """Explicitly mark ``event`` as seen without checking."""
+        digest = self.event_hash(event)
+        with self._lock:
+            self._seen[digest] = time.monotonic()
+
+    def reset(self) -> None:
+        """Clear all seen hashes."""
+        with self._lock:
+            self._seen.clear()
+
+    @property
+    def seen_count(self) -> int:
+        """Number of unique events currently tracked (before TTL expiry)."""
+        with self._lock:
+            return len(self._seen)
 
 
 def append_audit_log(
@@ -3783,6 +3955,44 @@ def apply_kernel_params(
                     rec.sysctl_command,
                 )
     return applied
+
+
+def subprocess_safe(
+    label: str = "subprocess",
+    *,
+    min_mb: int = 500,
+    env_prefix: str = "RUNTIME_GUARD",
+) -> tuple[bool, str]:
+    """Module-level convenience wrapper for :meth:`RuntimeGuard.subprocess_safe`.
+
+    Check whether it is safe to launch a memory-hungry subprocess without
+    needing to create a ``RuntimeGuard`` instance first.
+
+    Parameters
+    ----------
+    label:
+        Human-readable name of the subprocess (e.g. ``"Chrome"``).
+    min_mb:
+        Minimum available RAM in MB required to proceed.  Defaults to 500.
+    env_prefix:
+        RuntimeGuard env prefix for threshold overrides.  Defaults to
+        ``RUNTIME_GUARD``; change to match your repo's prefix.
+
+    Returns
+    -------
+    ``(True, "")`` when safe.  ``(False, reason)`` when pressure is high.
+
+    Example
+    -------
+    ::
+
+        from runtime_guard import subprocess_safe
+
+        safe, reason = subprocess_safe("Chrome", min_mb=500)
+        if not safe:
+            raise RuntimeError(f"Skipping Chrome — {reason}")
+    """
+    return RuntimeGuard(env_prefix=env_prefix).subprocess_safe(label, min_mb=min_mb)
 
 
 def wsl_system_report() -> str:

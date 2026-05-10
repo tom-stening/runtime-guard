@@ -23,6 +23,19 @@ Notes:
 - Targets are objective goals, not legal guarantees.
 - "Business hours" defaults to Monday-Friday, 09:00-17:00 UTC.
 
+## Support Tiers
+
+| Tier | Intended Users | Included Channels | Sev 1 Initial Response | Sev 2 Initial Response | Notes |
+|---|---|---|---|---|---|
+| Standard | Small teams, pilot deployments | GitHub issues + async maintainer triage | 8 hours | 2 business days | Best for evaluation and early rollout. |
+| Priority | Production teams with regular workloads | Dedicated triage queue + issue escalation labels | 4 hours | 8 business hours | Recommended default for enterprise production. |
+| Mission Critical | Regulated and high-availability pipelines | Priority channel + hotfix coordination | 1 hour | 4 business hours | Includes coordinated incident bridge for Sev 1. |
+
+Tier mapping guidance:
+- Start with `Priority` once a team reaches production stage.
+- Move to `Mission Critical` for workloads with strict SLA penalties or compliance commitments.
+- Maintain a per-team on-call roster and escalation contact for Sev 1 qualification.
+
 ## Intake Requirements
 
 To speed triage, include:

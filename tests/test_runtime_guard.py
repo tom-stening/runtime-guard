@@ -2142,6 +2142,30 @@ class TestAuditLog:
         assert out["hash_algo"] == "sha384"
         assert len(out["hash"]) == 96
 
+    def test_append_audit_log_deduplicator_skips_duplicate_writes(self, tmp_path):
+        path = tmp_path / "audit.log"
+        dedup = FipsDeduplicator(ttl_s=300)
+
+        first = append_audit_log(str(path), {"action": "policy_violation", "n": 1}, deduplicator=dedup)
+        second = append_audit_log(str(path), {"action": "policy_violation", "n": 1}, deduplicator=dedup)
+
+        assert first.get("skipped", False) is False
+        assert second["skipped"] is True
+
+        lines = path.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
+
+    def test_runtime_guard_audit_deduplicator_passthrough(self, tmp_path):
+        guard = RuntimeGuard(log_tag="audit-test")
+        dedup = FipsDeduplicator(ttl_s=300)
+        path = tmp_path / "audit.log"
+
+        first = guard.audit(_make_report(stage="train"), path=str(path), deduplicator=dedup)
+        second = guard.audit(_make_report(stage="train"), path=str(path), deduplicator=dedup)
+
+        assert first.get("skipped", False) is False
+        assert second["skipped"] is True
+
 
 # ---------------------------------------------------------------------------
 # M2-C04 — Multi-process orchestration scaffold

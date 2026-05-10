@@ -708,6 +708,7 @@ class RuntimeGuard:
         action: str = "pressure-detected",
         metadata: dict[str, Any] | None = None,
         hash_algo: str = "sha256",
+        deduplicator: "FipsDeduplicator" | None = None,
     ) -> dict[str, Any]:
         """Append a pressure event to an audit log file."""
         event: dict[str, Any] = {
@@ -723,7 +724,12 @@ class RuntimeGuard:
         }
         if metadata:
             event["metadata"] = metadata
-        return append_audit_log(path, event, hash_algo=hash_algo)
+        return append_audit_log(
+            path,
+            event,
+            hash_algo=hash_algo,
+            deduplicator=deduplicator,
+        )
 
     def worker_report(
         self,
@@ -2970,6 +2976,7 @@ def append_audit_log(
     event: dict[str, Any],
     *,
     hash_algo: str = "sha256",
+    deduplicator: "FipsDeduplicator" | None = None,
 ) -> dict[str, Any]:
     """Append an event to a newline-delimited JSON audit log.
 
@@ -2984,6 +2991,23 @@ def append_audit_log(
         raise ValueError(
             f"Unsupported hash algorithm {hash_algo!r}; use one of {sorted(_FIPS_HASH_ALGOS)}"
         )
+
+    ts = int(time.time())
+    normalized_event = normalize_policy_violation_event(event)
+    event_payload = json.dumps(normalized_event, sort_keys=True, separators=(",", ":"))
+    event_hash = fips_event_hash(event_payload, hash_algo=algo)
+
+    # Fast-path duplicate suppression before scanning/writing the chain file.
+    if deduplicator is not None and not deduplicator.is_new(normalized_event):
+        return {
+            "ts": ts,
+            "hash_algo": algo,
+            "event": normalized_event,
+            "event_hash": event_hash,
+            "prev_hash": "",
+            "hash": "",
+            "skipped": True,
+        }
 
     prev_hash = ""
     if os.path.exists(expanded):
@@ -3010,11 +3034,6 @@ def append_audit_log(
                         continue
         except OSError:
             prev_hash = ""
-
-    ts = int(time.time())
-    normalized_event = normalize_policy_violation_event(event)
-    event_payload = json.dumps(normalized_event, sort_keys=True, separators=(",", ":"))
-    event_hash = fips_event_hash(event_payload, hash_algo=algo)
     chain_input = f"{prev_hash}\n{ts}\n{event_payload}".encode("utf-8")
     digest = hashlib.new(algo, chain_input).hexdigest()
 

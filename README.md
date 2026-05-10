@@ -281,7 +281,7 @@ Raw memory values from the OS at a point in time.
 | `install_signal_recovery_from_policy(guard, env_prefix="RUNTIME_GUARD") → Callable[[], None]` | Install signal recovery directly from environment-resolved policy defaults. |
 | `audit_policy_taxonomy() → dict[str, list[str]]` | Return allowed severity/category/action vocab for policy-violation audit events. |
 | `normalize_policy_violation_event(event) → dict[str, Any]` | Canonicalize policy-violation event fields to standardized taxonomy tokens. |
-| `append_audit_log(path, event) → dict[str, Any]` | Append a tamper-evident (hash-chained) JSON record to an audit log file. |
+| `append_audit_log(path, event, hash_algo='sha256', deduplicator=None) → dict[str, Any]` | Append a tamper-evident (hash-chained) JSON record to an audit log file; when a deduplicator is provided, duplicate events are skipped with `{"skipped": true}`. |
 | `fips_event_hash(payload, hash_algo="sha256") → str` | Hash payloads with FIPS-approved SHA-2 algorithms (`sha256`, `sha384`, `sha512`). |
 | `verify_audit_log_chain(path) → dict[str, Any]` | Verify hash-chain integrity for audit logs and report first failing line/reason. |
 | `soc2_required_controls() → dict[str, str]` | Return runtime-guard's default SOC2 control baseline (CC6.1, CC7.1, CC7.2). |

@@ -23,9 +23,10 @@ Instead of a generic "memory is low" alert, runtime-guard tells you _which side_
 7. [Background Monitoring](#background-monitoring)
 8. [WSL 2 Utilities](#wsl-2-utilities)
 9. [Enterprise Support](#enterprise-support)
-10. [Framework Integration Guides](#framework-integration-guides)
-11. [Architecture](#architecture)
-12. [FAQ](#faq)
+10. [Team Adoption Guide](#team-adoption-guide)
+11. [Framework Integration Guides](#framework-integration-guides)
+12. [Architecture](#architecture)
+13. [FAQ](#faq)
 
 ---
 
@@ -485,6 +486,209 @@ generate_wslconfig(memory_gb=8, output_path="~/.wslconfig", dry_run=False)
 Enterprise-facing support scope, severity definitions, response targets, and
 incident runbook entry points are documented in
 [ENTERPRISE_SUPPORT.md](ENTERPRISE_SUPPORT.md).
+
+---
+
+## Team Adoption Guide
+
+### Why adopt runtime-guard?
+
+When a Python process hits memory limits, teams don't know: **Is my code leaking memory, or is the system under pressure?** This distinction is critical for:
+
+- **Debugging OOM crashes** — identify whether to optimize code or ask ops for more resources
+- **CI/CD reliability** — avoid flaky test failures due to system pressure
+- **Production stability** — alert on actionable memory issues before kernel OOM killer strikes
+- **Cost optimization** — right-size infrastructure based on *actual* demand vs. *system* demand
+
+### Adoption stages
+
+Follow this 4-stage rollout to integrate runtime-guard safely into your workflow:
+
+#### Stage 1: Developer snapshot (local dev)
+
+**Goal:** Understand your code's memory footprint.
+
+```python
+# In your training script, inference pipeline, or data-load code:
+from runtime_guard import RuntimeGuard
+
+# Set env: RUNTIME_GUARD_POSTURE=tight
+guard = RuntimeGuard()
+
+# Before heavy workload
+guard.check_and_log(stage="before-train")
+
+# ... your model training / data processing ...
+
+# After workload
+guard.check_and_log(stage="after-train")
+```
+
+**Or from command line:**
+
+```bash
+RUNTIME_GUARD_POSTURE=tight python train.py
+```
+
+**Validation:** Check that logs appear in `stderr` during development. If memory is tight during development, you'll see reports like:
+```json
+{"timestamp": "...", "stage": "before-train", "cause": "Low available RAM", "self_inflicted": false, ...}
+```
+
+#### Stage 2: CI/CD gate (test & build pipelines)
+
+**Goal:** Fail builds early if system memory is insufficient.
+
+```bash
+# In your CI config (GitHub Actions, CircleCI, etc.):
+before_test_step:
+  - runtime-guard --check --posture ci --stage "pre-test" || exit 1
+  - pytest tests/
+```
+
+**Or** gate within Python test setup:
+
+```python
+# conftest.py
+from runtime_guard import make_pytest_guard
+
+_guard = make_pytest_guard(posture="ci", cooldown_s=60.0)
+
+@pytest.fixture(autouse=True)
+def _memory_gate():
+    _guard.check_and_log(stage="test")
+```
+
+**Or use environment variables:**
+
+```bash
+export RUNTIME_GUARD_POSTURE=ci
+pytest tests/  # guard automatically checks before tests
+```
+
+**Validation:** Run with `--stage "pre-test"` manually to confirm exit codes:
+- Exit 0 = healthy (tests should run)
+- Exit 1 = memory pressure (tests skipped automatically)
+
+#### Stage 3: Staging environment (background monitoring)
+
+**Goal:** Detect memory creep and OOM risks in realistic workloads.
+
+```python
+from runtime_guard import RuntimeGuard
+
+guard = RuntimeGuard(cooldown_s=30.0)
+guard.start_background_check(interval_s=10.0)  # check every 10 seconds
+
+# Long-running job:
+for batch in data_batches:
+    process_batch(batch)  # guard emits warnings if pressure rises
+
+guard.stop_background_check()
+```
+
+**Or set environment:**
+
+```bash
+RUNTIME_GUARD_POSTURE=relaxed python long_job.py
+```
+
+**Validation:** Check application logs for structured JSON events on `runtime_guard.events` logger. Example:
+
+```json
+{"timestamp": "2025-01-15T10:23:45Z", "stage": "batch-inference", "missing_mem_mb": 512, "self_inflicted": true}
+```
+
+#### Stage 4: Production (adoption metrics & compliance)
+
+**Goal:** Measure adoption success and compliance posture.
+
+Once runtime-guard is deployed across your team, measure success using the **adoption scorecard**:
+
+```python
+from runtime_guard import build_adoption_scorecard
+
+team_records = [
+    {"team": "data-eng", "stage": "staging", "evidence": ["validated", "incidents:0"]},
+    {"team": "ml-infra", "stage": "production", "evidence": ["validated", "incidents:2"]},
+    {"team": "analytics", "stage": "ci-only", "evidence": ["validated"]},
+]
+
+scorecard = build_adoption_scorecard(team_records, success_stage="production")
+print(scorecard)
+# Output:
+# {
+#   "total_teams": 3,
+#   "reached_success_stage": 1,
+#   "adoption_ratio": 0.333,
+#   "stage_counts": {"ci_only": 1, "staging": 1, "production": 1, ...},
+#   "status": "in-progress",
+#   "missing_evidence_teams": ["analytics"],
+# }
+```
+
+Or use the CLI tool:
+
+```bash
+# team_adoption.json:
+[
+  {"team": "data-eng", "stage": "staging", "evidence": ["validated"]},
+  {"team": "ml-infra", "stage": "production", "evidence": ["validated"]},
+]
+
+python scripts/adoption_scorecard.py \
+  --records team_adoption.json \
+  --success-stage production \
+  --output scorecard.json
+```
+
+**Validation:** Scorecard shows:
+- Teams deployed and validated (`reached_success_stage` teams at target stage)
+- % of teams reaching "production" stage (target: 80%+ → `adoption_ratio >= 0.8`)
+- Audit trail for compliance / SOC2 evidence (`missing_evidence_teams` should be empty)
+
+### Integration validation
+
+After attaching runtime-guard to your framework (Polars, Dask, Ray), validate the integration:
+
+```python
+from runtime_guard import (
+    RuntimeGuard,
+    attach_polars_guard,
+    validate_polars_integration,
+    collect_polars_integration_evidence,
+)
+
+guard = RuntimeGuard()
+restore = attach_polars_guard(guard)
+
+# Verify integration succeeded
+validation = validate_polars_integration(guard)
+assert validation["ok"], f"Integration failed: {validation['errors']}"
+
+# Collect adoption evidence
+evidence = collect_polars_integration_evidence(guard)
+print(f"Integration validated: {evidence['validation_ok']}")
+print(f"Hook methods available: {evidence['evidence_items']}")
+# Output: ['polars_integration_validated', 'polars_hooks_installed', 'collect_present', ...]
+```
+
+**Framework guides:**
+- Polars: [INTEGRATION_POLARS.md](INTEGRATION_POLARS.md)
+- Dask: [.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml](.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml)
+- Ray: [INTEGRATION_RAY.md](INTEGRATION_RAY.md)
+
+### Measuring success
+
+**Baseline metrics to track:**
+
+| Metric | Target | How to measure |
+|---|---|---|
+| Teams deployed | 5+ | Use `build_adoption_scorecard()` → `total_teams` |
+| Teams at "production" stage | 80%+ | `adoption_ratio >= 0.8` |
+| Incident response time | <1h | Audit log verification: `runtime-guard --verify-audit-log` |
+| False positive rate | <5% | Ratio of "self_inflicted=false" events to total events |
+| Memory savings (if intervening) | 5%+ | Sum of intervention results: `result.gc_freed_mb + result.cache_dropped_mb` |
 
 ---
 

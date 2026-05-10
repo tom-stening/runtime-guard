@@ -890,3 +890,25 @@ bandit -r src/
 ## License
 
 MIT — see [LICENSE](LICENSE) for the full text.
+
+---
+
+## Multi-Process Orchestration Example
+
+To aggregate memory pressure across a process pool or job queue, each worker writes a report and the parent aggregates results:
+
+```python
+# examples/multiprocess_pool_guard_demo.py
+from runtime_guard import RuntimeGuard, make_worker_report, append_worker_report_jsonl, aggregate_worker_reports_jsonl
+
+# In each worker:
+guard = RuntimeGuard()
+report = make_worker_report(guard, stage="worker", worker_id=str(worker_id))
+append_worker_report_jsonl("/tmp/worker_guard_reports.jsonl", report)
+
+# In the parent:
+summary = aggregate_worker_reports_jsonl("/tmp/worker_guard_reports.jsonl")
+print(summary)
+```
+
+See the full demo: [examples/multiprocess_pool_guard_demo.py](examples/multiprocess_pool_guard_demo.py)

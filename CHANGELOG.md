@@ -50,6 +50,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   definitions, per-team evidence checklist, and milestone success criteria.
 - Polars adoption playbook in `INTEGRATION_POLARS.md` with rollout phases,
   validation workflow, and evidence checklist for M1-I01.
+- Dask issue intake template in `.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml`
+  to collect runtime-guard check/snapshot evidence for incident triage.
+- Linux background service automation: `scripts/runtime_guard_repo_watcher.py`
+  plus user-service templates in `scripts/systemd/` for repo-activity-aware
+  monitoring.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -69,6 +74,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M2-I01 moved to IN PROGRESS based on enterprise support package draft.
 - Roadmap M2-I02 moved to IN PROGRESS based on adoption tracker kickoff.
 - Roadmap M1-I01 moved to IN PROGRESS based on Polars integration playbook kickoff.
+- Roadmap M1-I02 moved to IN PROGRESS based on Dask issue template kickoff.
+- Roadmap M2-I01 note expanded with repo background-service automation artifacts.
 
 ## [0.3.0] - 2026-05-10
 

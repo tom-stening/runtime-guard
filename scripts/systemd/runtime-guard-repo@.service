@@ -1,0 +1,13 @@
+[Unit]
+Description=runtime-guard repo watcher (%i)
+After=default.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/runtime-guard/%i.env
+ExecStart=/usr/bin/env bash -lc '${PYTHON_BIN:-python3} ${WATCHER_SCRIPT} --repo-path "${REPO_PATH}" --stage "${STAGE:-repo-background}" --interval-active "${INTERVAL_ACTIVE:-15}" --interval-idle "${INTERVAL_IDLE:-60}" --cooldown-s "${COOLDOWN_S:-30}" --log-tag "${LOG_TAG:-runtime-guard}"'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

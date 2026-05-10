@@ -350,6 +350,50 @@ guard.stop_background_check()                    # clean shutdown
 
 The background thread is **fork-safe**: after `os.fork()`, the child process gets a clean state with no active thread. Call `start_background_check()` again in the child if needed.
 
+### Automatic background service (Linux, systemd --user)
+
+Use the repository watcher script to run checks only while the repo has active
+processes (detected via `/proc/*/cwd`).
+
+1. Ensure runtime-guard is installed in the repo environment:
+
+```bash
+cd /path/to/repo
+python -m pip install -e .
+```
+
+2. Copy service template and create instance env:
+
+```bash
+mkdir -p ~/.config/systemd/user ~/.config/runtime-guard
+cp scripts/systemd/runtime-guard-repo@.service ~/.config/systemd/user/
+cp scripts/systemd/runtime-guard-repo.env.example ~/.config/runtime-guard/my-repo.env
+```
+
+3. Edit `~/.config/runtime-guard/my-repo.env`:
+- `PYTHON_BIN` to the repo venv Python.
+- `WATCHER_SCRIPT` to `scripts/runtime_guard_repo_watcher.py` absolute path.
+- `REPO_PATH` to the repository root.
+
+4. Enable and start:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now runtime-guard-repo@my-repo.service
+systemctl --user status runtime-guard-repo@my-repo.service
+```
+
+5. View logs:
+
+```bash
+journalctl --user -u runtime-guard-repo@my-repo.service -f
+```
+
+Notes:
+- Current watcher implementation targets Linux `/proc` environments.
+- Checks are skipped while repo is idle to reduce overhead.
+- For highest attribution fidelity, keep in-process checks in app/test entrypoints as well.
+
 ---
 
 ## WSL 2 Utilities

@@ -74,7 +74,7 @@ This principle shapes all roadmap decisions:
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
 | M1-I01 | Polars adopts as default memory monitor | P1 | 🔄 IN PROGRESS | Added `INTEGRATION_POLARS.md` with hook strategy, rollout phases, validation steps, and evidence checklist. |
-| M1-I02 | Dask issue template integration | P2 | 📅 PLANNED | Pre-fill memory details in bug reports. |
+| M1-I02 | Dask issue template integration | P2 | 🔄 IN PROGRESS | Added `.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml` to pre-fill runtime-guard memory context in Dask bug reports. |
 | M1-I03 | Ray tutorial & cookbook examples | P2 | 📅 PLANNED | 3 real-world Ray + runtime-guard workflows. |
 | M1-I04 | Community monitoring dashboard (optional OSS) | P3 | 📅 PLANNED | Grafana dashboard template + sample data. |
 
@@ -99,7 +99,7 @@ This principle shapes all roadmap decisions:
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M2-I01 | Enterprise support package (SLA, runbooks) | P1 | 🔄 IN PROGRESS | Initial enterprise package published in `ENTERPRISE_SUPPORT.md` with severity matrix and incident runbook entry points. |
+| M2-I01 | Enterprise support package (SLA, runbooks) | P1 | 🔄 IN PROGRESS | Added incident/runbook package in `ENTERPRISE_SUPPORT.md` plus Linux user-service automation templates for repo-level background monitoring. |
 | M2-I02 | Adoption by 5+ enterprise data teams | P1 | 🔄 IN PROGRESS | Added `ADOPTION_TRACKER.md` with stage model, evidence checklist, and success metrics to drive 5-team target. |
 | M2-I03 | Training & certification curriculum | P2 | 📅 PLANNED | "Mastering Memory Diagnostics" 1-day workshop. |
 

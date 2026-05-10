@@ -920,3 +920,19 @@ print(summary)
 ```
 
 See the full demo: [examples/multiprocess_pool_guard_demo.py](examples/multiprocess_pool_guard_demo.py)
+
+For parent-side aggregation from a JSONL worker transport file:
+
+```bash
+python scripts/aggregate_workers.py --input /tmp/worker_guard_reports.jsonl --pretty
+```
+
+To gate CI or orchestration on pressure:
+
+```bash
+# Exit 1 if any worker reported warning or critical pressure
+python scripts/aggregate_workers.py --input /tmp/worker_guard_reports.jsonl --fail-on-pressure
+
+# Exit 1 only on critical pressure (default recommended gate)
+python scripts/aggregate_workers.py --input /tmp/worker_guard_reports.jsonl --fail-on-critical
+```

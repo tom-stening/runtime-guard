@@ -26,7 +26,9 @@ from runtime_guard import (
     attach_dask_guard,
     attach_signal_recovery,
     append_audit_log,
+    aggregate_worker_reports,
     emit_otel_event,
+    make_worker_report,
     pressure_report_attributes,
     render_prometheus_metrics,
     trace_context_attributes,
@@ -1154,6 +1156,80 @@ class TestAuditLog:
         assert out["event"]["action"] == "policy-violation"
         assert out["event"]["stage"] == "train"
         assert out["event"]["metadata"]["run_id"] == "abc123"
+
+
+# ---------------------------------------------------------------------------
+# M2-C04 — Multi-process orchestration scaffold
+# ---------------------------------------------------------------------------
+
+
+class TestMultiProcessOrchestration:
+    def test_make_worker_report_no_pressure(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        monkeypatch.setattr(
+            "runtime_guard._read_snapshot",
+            lambda: MemSnapshot(
+                mem_available_mb=7000, mem_total_mb=8000, swap_used_pct=1, rss_mb=100
+            ),
+        )
+        report = make_worker_report(guard, stage="worker-a", worker_id="w1")
+        assert report["pressure"] is False
+        assert report["severity"] == "none"
+        assert report["worker_id"] == "w1"
+        assert report["stage"] == "worker-a"
+
+    def test_make_worker_report_with_pressure(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(
+            guard, "check", lambda stage="": _make_report(stage=stage, is_critical=True)
+        )
+        report = make_worker_report(guard, stage="worker-b")
+        assert report["pressure"] is True
+        assert report["severity"] == "critical"
+        assert report["missing_mem_mb"] >= 0
+
+    def test_aggregate_worker_reports(self):
+        summary = aggregate_worker_reports(
+            [
+                {"worker_id": "a", "pressure": False, "severity": "none", "swap_used_pct": 5},
+                {
+                    "worker_id": "b",
+                    "pressure": True,
+                    "severity": "warning",
+                    "missing_mem_mb": 120,
+                    "swap_used_pct": 60,
+                },
+                {
+                    "worker_id": "c",
+                    "pressure": True,
+                    "severity": "critical",
+                    "missing_mem_mb": 900,
+                    "swap_used_pct": 99,
+                },
+            ]
+        )
+        assert summary["total_workers"] == 3
+        assert summary["pressured_workers"] == 2
+        assert summary["critical_workers"] == 1
+        assert summary["any_pressure"] is True
+        assert summary["worst_severity"] == "critical"
+        assert summary["max_missing_mem_mb"] == 900
+        assert summary["max_swap_used_pct"] == 99
+
+    def test_runtime_guard_worker_wrappers(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        monkeypatch.setattr(
+            "runtime_guard._read_snapshot",
+            lambda: MemSnapshot(
+                mem_available_mb=6000, mem_total_mb=8000, swap_used_pct=2, rss_mb=50
+            ),
+        )
+        wr = guard.worker_report(stage="pool")
+        summary = guard.aggregate_workers([wr])
+        assert wr["stage"] == "pool"
+        assert summary["total_workers"] == 1
 
 
 class TestUnsupportedPlatformWarning:

@@ -31,6 +31,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   append-only hash-chained policy event records.
 - Dynamic policy reloading scaffolding: `set_policy_overrides()`,
   `load_policy_file()`, and `reload_policy_if_changed()`.
+- Multi-process orchestration scaffolding: `make_worker_report()` and
+  `aggregate_worker_reports()` plus RuntimeGuard wrappers.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -44,6 +46,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M2-C01 moved to IN PROGRESS based on implemented signal scaffold.
 - Roadmap M2-C02 moved to IN PROGRESS based on implemented audit scaffold.
 - Roadmap M2-C03 moved to IN PROGRESS based on implemented policy scaffold.
+- Roadmap M2-C04 moved to IN PROGRESS based on implemented orchestration scaffold.
 
 ## [0.3.0] - 2026-05-10
 

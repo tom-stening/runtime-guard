@@ -279,6 +279,8 @@ Raw memory values from the OS at a point in time.
 | `validate_runtime_guard_config(config, use_pydantic=True) → dict[str, Any]` | Validate RuntimeGuard threshold/posture config with optional pydantic schema support and strict fallback validation. |
 | `attach_signal_recovery(guard, ...) → Callable[[], None]` | Install signal handlers that run a final pressure check/log (and optional intervention), returning a restore function. |
 | `append_audit_log(path, event) → dict[str, Any]` | Append a tamper-evident (hash-chained) JSON record to an audit log file. |
+| `make_worker_report(guard, ...) → dict[str, Any]` | Build a process-local worker pressure report for parent-process orchestration. |
+| `aggregate_worker_reports(reports) → dict[str, Any]` | Aggregate worker reports into pool/job-queue summary metrics and worst severity. |
 | `generate_wslconfig(memory_gb, ...) → str` | Generate `.wslconfig` content (or write/merge to file). |
 | `recommend_kernel_params(...) → list[KernelParamRecommendation]` | Return sysctl recommendations for WSL 2 memory tuning. |
 | `apply_kernel_params(recommendations) → list[InterventionResult]` | Apply sysctl recommendations (requires root). |

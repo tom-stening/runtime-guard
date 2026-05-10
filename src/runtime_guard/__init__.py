@@ -83,6 +83,8 @@ __all__ = [
     "validate_runtime_guard_config",
     "attach_signal_recovery",
     "append_audit_log",
+    "make_worker_report",
+    "aggregate_worker_reports",
 ]
 
 logger = logging.getLogger(__name__)
@@ -582,6 +584,25 @@ class RuntimeGuard:
         if metadata:
             event["metadata"] = metadata
         return append_audit_log(path, event)
+
+    def worker_report(
+        self,
+        *,
+        stage: str = "worker",
+        worker_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build a process-local worker report for parent aggregation."""
+        return make_worker_report(
+            self,
+            stage=stage,
+            worker_id=worker_id,
+            metadata=metadata,
+        )
+
+    def aggregate_workers(self, reports: list[dict[str, Any]]) -> dict[str, Any]:
+        """Aggregate worker reports into a single orchestration summary."""
+        return aggregate_worker_reports(reports)
 
     def set_policy_overrides(self, config: dict[str, Any]) -> dict[str, Any]:
         """Set validated in-memory policy overrides for thresholds/posture."""
@@ -1818,6 +1839,77 @@ def append_audit_log(path: str, event: dict[str, Any]) -> dict[str, Any]:
         fh.write(json.dumps(record, separators=(",", ":")) + "\n")
 
     return record
+
+
+def make_worker_report(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "worker",
+    worker_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create a single worker report suitable for parent-process aggregation."""
+    report = guard.check(stage=stage)
+    snap = report.snapshot if report is not None else _read_snapshot()
+    severity = "none"
+    if report is not None:
+        severity = "critical" if report.is_critical else "warning"
+
+    out: dict[str, Any] = {
+        "ts": int(time.time()),
+        "pid": os.getpid(),
+        "worker_id": worker_id or str(os.getpid()),
+        "stage": stage,
+        "pressure": report is not None,
+        "severity": severity,
+        "self_inflicted": bool(report.self_inflicted) if report is not None else False,
+        "cause": report.cause if report is not None else "",
+        "missing_mem_mb": report.missing_mem_mb if report is not None else 0,
+        "swap_excess_pct": report.swap_excess_pct if report is not None else 0,
+        "mem_available_mb": snap.mem_available_mb,
+        "mem_total_mb": snap.mem_total_mb,
+        "swap_used_pct": snap.swap_used_pct,
+        "rss_mb": snap.rss_mb,
+    }
+    if metadata:
+        out["metadata"] = metadata
+    return out
+
+
+def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate worker reports from a process pool or job queue."""
+    total = len(reports)
+    pressured = [r for r in reports if bool(r.get("pressure"))]
+    critical = [r for r in pressured if str(r.get("severity", "")).lower() == "critical"]
+
+    max_missing = 0
+    max_swap = 0
+    for r in reports:
+        try:
+            max_missing = max(max_missing, int(r.get("missing_mem_mb", 0) or 0))
+        except (TypeError, ValueError):
+            pass
+        try:
+            max_swap = max(max_swap, int(r.get("swap_used_pct", 0) or 0))
+        except (TypeError, ValueError):
+            pass
+
+    worst_severity = "none"
+    if critical:
+        worst_severity = "critical"
+    elif pressured:
+        worst_severity = "warning"
+
+    return {
+        "total_workers": total,
+        "pressured_workers": len(pressured),
+        "critical_workers": len(critical),
+        "any_pressure": bool(pressured),
+        "worst_severity": worst_severity,
+        "max_missing_mem_mb": max_missing,
+        "max_swap_used_pct": max_swap,
+        "workers": reports,
+    }
 
 
 # ---------------------------------------------------------------------------

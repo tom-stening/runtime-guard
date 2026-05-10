@@ -4334,6 +4334,8 @@ def _cli() -> None:  # pragma: no cover
     --snapshot         Print a detailed human-readable memory snapshot and exit 0.
     --check            Exit 0 (no pressure) or 1 (pressure detected); always prints cause.
     --verify-audit-log Verify an audit log hash chain; exit 0 on success, 1 on failure.
+    --audit-policy-taxonomy
+                       Print JSON taxonomy catalog used for policy-violation normalization.
     --report           Full WSL2 system health report (same as wsl_system_report()).
     --generate-wslconfig [MEM_GB]
                        Print a recommended .wslconfig; optionally write it with
@@ -4364,6 +4366,11 @@ def _cli() -> None:  # pragma: no cover
         "--verify-audit-log",
         metavar="PATH",
         help="Verify audit log chain integrity; exit 0 when valid, 1 when invalid.",
+    )
+    group.add_argument(
+        "--audit-policy-taxonomy",
+        action="store_true",
+        help="Print the audit policy taxonomy JSON catalog and exit 0.",
     )
     group.add_argument(
         "--report",
@@ -4430,6 +4437,11 @@ def _cli() -> None:  # pragma: no cover
             file=sys.stderr,
         )
         sys.exit(1)
+
+    if args.audit_policy_taxonomy:
+        taxonomy = audit_policy_taxonomy()
+        print(json.dumps(taxonomy, indent=2, sort_keys=True))
+        return
 
     if args.generate_wslconfig is not None:
         snap = _read_snapshot()

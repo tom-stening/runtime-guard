@@ -2768,6 +2768,26 @@ class TestCLI:
         code, _ = self._run_cli("--verify-audit-log", "audit.log")
         assert code == 1
 
+    def test_audit_policy_taxonomy_prints_json(self, capsys):
+        from runtime_guard import _cli
+
+        old_argv = sys.argv
+        sys.argv = ["runtime-guard", "--audit-policy-taxonomy"]
+        try:
+            _cli()
+        except SystemExit:
+            pass
+        finally:
+            sys.argv = old_argv
+
+        out = capsys.readouterr().out
+        payload = json.loads(out)
+        assert "severity" in payload
+        assert "category" in payload
+        assert "action" in payload
+        assert "memory" in payload["category"]
+        assert "policy_violation" in payload["action"]
+
 
 # ---------------------------------------------------------------------------
 # M2-C04 — JSONL worker-report transport adapters for process-pool coordination

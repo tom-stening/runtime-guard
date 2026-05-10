@@ -67,7 +67,7 @@ This principle shapes all roadmap decisions:
 | M1-C05 | Prometheus metrics endpoint | P2 | 🔄 IN PROGRESS | Added metrics renderer helper; endpoint wiring (FastAPI/ASGI examples) remains. |
 | M1-C06 | Distributed tracing context | P2 | 🔄 IN PROGRESS | Added trace-context attribute extraction and OTEL event trace-ID linkage; broader tracing propagation patterns remain. |
 | M1-C07 | Config schema validation (`pydantic`) | P2 | 🔄 IN PROGRESS | Added optional schema validator with strict fallback; integration into broader config surfaces remains. |
-| M1-C08 | Async context manager for work phases | P2 | 📅 PLANNED | `async with guard.phase("load-csv")` for structured spans. |
+| M1-C08 | Async context manager for work phases | P2 | 🔄 IN PROGRESS | `guard.phase()` supports `with` and `async with`; deeper tracing/span semantics remain. |
 
 ### Integration stream
 

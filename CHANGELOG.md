@@ -23,6 +23,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   OTEL event enrichment with trace/span IDs when available.
 - Config schema validation scaffolding: `validate_runtime_guard_config()` with
   optional pydantic support and strict fallback validation.
+- Phase context scaffolding: `guard.phase(...)` supports `with` and
+  `async with` for phase-scoped memory checks.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
@@ -32,6 +34,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Roadmap M1-C05 moved to IN PROGRESS based on implemented metrics scaffold.
 - Roadmap M1-C06 moved to IN PROGRESS based on implemented tracing scaffold.
 - Roadmap M1-C07 moved to IN PROGRESS based on implemented config scaffold.
+- Roadmap M1-C08 moved to IN PROGRESS based on implemented phase scaffold.
 
 ## [0.3.0] - 2026-05-10
 

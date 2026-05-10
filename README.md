@@ -439,7 +439,7 @@ A: Yes. On Linux it reads `/proc/meminfo`, which reflects the host's memory (not
 A: No, for normal `check()` / `log()` usage. `apply_kernel_params()` and `oom_protect()` write to protected paths and do require elevated privileges (or `CAP_SYS_ADMIN`).
 
 **Q: Can I use it with `asyncio`?**  
-A: Yes. `check()` and `log()` are synchronous and do not block the event loop for significant time (sub-millisecond on Linux). For structured async spans, `async with guard.phase("load-csv")` is planned for M1-C08.
+A: Yes. `check()` and `log()` are synchronous and do not block the event loop for significant time (sub-millisecond on Linux). You can also use phase-scoped checks with `async with guard.phase("load-csv")` (and synchronous `with guard.phase(...)`).
 
 **Q: Why does `check()` return `None` on macOS/Windows when memory is clearly low?**  
 A: The macOS and Windows snapshot readers are best-effort approximations. If subprocess calls to `vm_stat`/`sysctl`/PowerShell fail, the snapshot is zero-filled and no pressure is reported. Check the `runtime_guard` logger at `DEBUG` level for subprocess errors.

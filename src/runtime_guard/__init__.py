@@ -204,6 +204,43 @@ class PressureReport:
     swap_excess_pct: int = 0  # how many percentage points above max_swap_pct
 
 
+class _GuardPhaseContext:
+    """Sync/async context manager for phase-scoped RuntimeGuard checks."""
+
+    def __init__(
+        self,
+        guard: "RuntimeGuard",
+        stage: str,
+        *,
+        check_on_enter: bool,
+        check_on_exit: bool,
+    ) -> None:
+        self._guard = guard
+        self._stage = stage
+        self._check_on_enter = check_on_enter
+        self._check_on_exit = check_on_exit
+
+    def __enter__(self) -> "_GuardPhaseContext":
+        if self._check_on_enter:
+            self._guard.check_and_log(stage=f"{self._stage}:enter")
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        if self._check_on_exit:
+            self._guard.check_and_log(stage=f"{self._stage}:exit")
+        return False
+
+    async def __aenter__(self) -> "_GuardPhaseContext":
+        if self._check_on_enter:
+            self._guard.check_and_log(stage=f"{self._stage}:enter")
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        if self._check_on_exit:
+            self._guard.check_and_log(stage=f"{self._stage}:exit")
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Core class
 # ---------------------------------------------------------------------------
@@ -471,6 +508,26 @@ class RuntimeGuard:
         if report is not None:
             self.log(report)
         return report
+
+    def phase(
+        self,
+        stage: str,
+        *,
+        check_on_enter: bool = True,
+        check_on_exit: bool = True,
+    ) -> "_GuardPhaseContext":
+        """Return a context manager that checks memory around a named phase.
+
+        Supports both ``with`` and ``async with`` usage. By default, memory is
+        checked on both enter and exit with stage labels ``<stage>:enter`` and
+        ``<stage>:exit``.
+        """
+        return _GuardPhaseContext(
+            self,
+            stage,
+            check_on_enter=check_on_enter,
+            check_on_exit=check_on_exit,
+        )
 
     # ------------------------------------------------------------------
     # Background check

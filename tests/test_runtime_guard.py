@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import asyncio
 import sys
 import time
 import unittest.mock as mock
@@ -936,6 +937,46 @@ class TestConfigValidation:
     def test_rejects_out_of_range_percent(self):
         with pytest.raises(ValueError, match="must be <= 100"):
             validate_runtime_guard_config({"max_swap_used_pct": 101}, use_pydantic=False)
+
+
+# ---------------------------------------------------------------------------
+# M1-C08 — Async phase context manager scaffold
+# ---------------------------------------------------------------------------
+
+
+class TestPhaseContextManager:
+    def test_sync_phase_calls_enter_and_exit(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        with guard.phase("load-csv"):
+            pass
+
+        assert calls == ["load-csv:enter", "load-csv:exit"]
+
+    def test_sync_phase_calls_exit_on_exception(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        with pytest.raises(RuntimeError, match="boom"):
+            with guard.phase("train"):
+                raise RuntimeError("boom")
+
+        assert calls == ["train:enter", "train:exit"]
+
+    def test_async_phase_calls_enter_and_exit(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        async def _run() -> None:
+            async with guard.phase("async-stage"):
+                return None
+
+        asyncio.run(_run())
+        assert calls == ["async-stage:enter", "async-stage:exit"]
 
 
 class TestUnsupportedPlatformWarning:

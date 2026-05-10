@@ -1462,7 +1462,9 @@ class TestAuditLog:
         taxonomy = audit_policy_taxonomy()
         assert "warning" in taxonomy["severity"]
         assert "memory" in taxonomy["category"]
+        assert "incident" in taxonomy["category"]
         assert "policy_violation" in taxonomy["action"]
+        assert "remediate" in taxonomy["action"]
 
     def test_normalize_policy_violation_event_canonicalizes_tokens(self):
         out = normalize_policy_violation_event(
@@ -1496,6 +1498,30 @@ class TestAuditLog:
         assert event["severity"] == "warning"
         assert event["category"] == "unknown"
         assert event["action"] == "custom"
+
+    def test_normalize_policy_violation_event_maps_enterprise_aliases(self):
+        out = normalize_policy_violation_event(
+            {
+                "event_type": "policy_violation",
+                "severity": "Warning",
+                "category": "Incident Response",
+                "action": "Corrective Action",
+            }
+        )
+        assert out["severity"] == "warning"
+        assert out["category"] == "incident"
+        assert out["action"] == "remediate"
+
+    def test_normalize_policy_violation_event_maps_access_aliases(self):
+        out = normalize_policy_violation_event(
+            {
+                "event_type": "policy_violation",
+                "category": "Access Review",
+                "action": "ack",
+            }
+        )
+        assert out["category"] == "access"
+        assert out["action"] == "acknowledge"
 
     def test_append_audit_log_creates_record(self, tmp_path):
         path = tmp_path / "audit.log"

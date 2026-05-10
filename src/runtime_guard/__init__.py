@@ -117,6 +117,10 @@ _atfork_registered: bool = False
 _FIPS_HASH_ALGOS: set[str] = {"sha256", "sha384", "sha512"}
 _AUDIT_POLICY_SEVERITIES: set[str] = {"info", "warning", "critical"}
 _AUDIT_POLICY_CATEGORIES: set[str] = {
+    "access",
+    "availability",
+    "incident",
+    "integrity",
     "memory",
     "swap",
     "process",
@@ -126,8 +130,11 @@ _AUDIT_POLICY_CATEGORIES: set[str] = {
     "unknown",
 }
 _AUDIT_POLICY_ACTIONS: set[str] = {
+    "acknowledge",
     "observe",
     "notify",
+    "recover",
+    "remediate",
     "throttle",
     "kill_hogs",
     "snapshot",
@@ -2518,6 +2525,38 @@ def normalize_policy_violation_event(event: dict[str, Any]) -> dict[str, Any]:
         raw = str(value).strip().lower()
         return raw.replace("-", "_").replace(" ", "_")
 
+    category_aliases = {
+        "mem": "memory",
+        "memory_pressure": "memory",
+        "oom": "memory",
+        "host": "system",
+        "host_pressure": "system",
+        "configuration": "config",
+        "cfg": "config",
+        "policy": "compliance",
+        "governance": "compliance",
+        "soc2": "compliance",
+        "incident_response": "incident",
+        "response": "incident",
+        "access_control": "access",
+        "access_review": "access",
+        "privileged_access": "access",
+        "hash_integrity": "integrity",
+        "tamper": "integrity",
+        "uptime": "availability",
+        "capacity": "availability",
+    }
+    action_aliases = {
+        "ack": "acknowledge",
+        "acknowledged": "acknowledge",
+        "auto_recovery": "recover",
+        "incident_response": "recover",
+        "restart": "recover",
+        "remediation": "remediate",
+        "corrective_action": "remediate",
+        "corrective_actions": "remediate",
+    }
+
     out = dict(event)
     event_type = _token(out.get("event_type", ""))
     if event_type not in {"policy_violation", "policyviolation"}:
@@ -2531,11 +2570,13 @@ def normalize_policy_violation_event(event: dict[str, Any]) -> dict[str, Any]:
     out["severity"] = sev
 
     category = _token(out.get("category", "memory"))
+    category = category_aliases.get(category, category)
     if category not in _AUDIT_POLICY_CATEGORIES:
         category = "unknown"
     out["category"] = category
 
     action = _token(out.get("action", "observe"))
+    action = action_aliases.get(action, action)
     if action not in _AUDIT_POLICY_ACTIONS:
         action = "custom"
     out["action"] = action

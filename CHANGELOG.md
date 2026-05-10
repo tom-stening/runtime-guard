@@ -34,6 +34,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `RuntimeGuard.install_signal_recovery()` for final signal-triggered checks.
 - Audit scaffolding: `append_audit_log()` and `RuntimeGuard.audit()` for
   append-only hash-chained policy event records.
+- Audit taxonomy expansion: `normalize_policy_violation_event()` now preserves
+  common enterprise aliases such as incident-response, access-review, and
+  corrective-action records instead of collapsing them to generic unknown/custom
+  values.
 - Dynamic policy reloading scaffolding: `set_policy_overrides()`,
   `load_policy_file()`, and `reload_policy_if_changed()`.
 - Multi-process orchestration scaffolding: `make_worker_report()` and

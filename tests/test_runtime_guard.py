@@ -759,6 +759,10 @@ class TestRayIntegration:
         def wait(items: list[int], *, num_returns: int = 1) -> tuple[list[int], list[int]]:
             return items[:num_returns], items[num_returns:]
 
+        @staticmethod
+        def put(value: object) -> str:
+            return f"obj:{value}"
+
     def test_attach_calls_check_before_get(self, monkeypatch):
         guard = RuntimeGuard()
         calls: list[str] = []
@@ -788,15 +792,29 @@ class TestRayIntegration:
         finally:
             restore()
 
+    def test_attach_calls_check_before_put(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+        restore = attach_ray_guard(guard, stage="ray-put", module=self._DummyRay)
+        try:
+            obj_ref = self._DummyRay.put({"k": 1})
+            assert obj_ref == "obj:{'k': 1}"
+            assert calls == ["ray-put"]
+        finally:
+            restore()
+
     def test_restore_restores_original_functions(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
         original_get = self._DummyRay.get
         original_wait = self._DummyRay.wait
+        original_put = self._DummyRay.put
         restore = attach_ray_guard(guard, module=self._DummyRay)
         restore()
         assert self._DummyRay.get is original_get
         assert self._DummyRay.wait is original_wait
+        assert self._DummyRay.put is original_put
 
     def test_attach_is_idempotent(self, monkeypatch):
         guard = RuntimeGuard()

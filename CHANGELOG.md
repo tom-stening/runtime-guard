@@ -19,6 +19,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `dask.base.persist` when available.
 - `attach_ray_guard()` integration helper for hooking RuntimeGuard into
   `ray.get`/`ray.wait` without introducing a hard runtime dependency.
+- `attach_ray_guard()` now also hooks `ray.put` when available.
 - OpenTelemetry exporter scaffolding: `pressure_report_attributes()` and
   `emit_otel_event()` for optional span event emission.
 - Prometheus scaffolding: `render_prometheus_metrics()` for dependency-free

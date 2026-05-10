@@ -1521,7 +1521,7 @@ def attach_ray_guard(
     stage: str = "ray-get",
     module: Any | None = None,
 ) -> Callable[[], None]:
-    """Attach RuntimeGuard checks to Ray get/wait entry points.
+    """Attach RuntimeGuard checks to Ray get/wait/put entry points.
 
     This helper provides M1-C03 integration scaffolding without introducing
     a hard runtime dependency on Ray. If ``module`` is not supplied, the
@@ -1551,16 +1551,23 @@ def attach_ray_guard(
         original_wait = wait_fn
         if callable(wait_fn) and getattr(wait_fn, "_runtime_guard_wrapped", False):
             original_wait = getattr(wait_fn, "_runtime_guard_original", wait_fn)
+        put_fn = getattr(module, "put", None)
+        original_put = put_fn
+        if callable(put_fn) and getattr(put_fn, "_runtime_guard_wrapped", False):
+            original_put = getattr(put_fn, "_runtime_guard_original", put_fn)
 
         def _restore() -> None:
             setattr(module, "get", original_get)
             if callable(original_wait):
                 setattr(module, "wait", original_wait)
+            if callable(original_put):
+                setattr(module, "put", original_put)
 
         return _restore
 
     original_get = get_fn
     original_wait = getattr(module, "wait", None)
+    original_put = getattr(module, "put", None)
 
     def _guarded_get(*args: Any, **kwargs: Any) -> Any:
         guard.check_and_log(stage=stage)
@@ -1580,10 +1587,22 @@ def attach_ray_guard(
         setattr(_guarded_wait, "_runtime_guard_original", original_wait)
         setattr(module, "wait", _guarded_wait)
 
+    if callable(original_put):
+
+        def _guarded_put(*args: Any, **kwargs: Any) -> Any:
+            guard.check_and_log(stage=stage)
+            return original_put(*args, **kwargs)
+
+        setattr(_guarded_put, "_runtime_guard_wrapped", True)
+        setattr(_guarded_put, "_runtime_guard_original", original_put)
+        setattr(module, "put", _guarded_put)
+
     def _restore() -> None:
         setattr(module, "get", original_get)
         if callable(original_wait):
             setattr(module, "wait", original_wait)
+        if callable(original_put):
+            setattr(module, "put", original_put)
 
     return _restore
 

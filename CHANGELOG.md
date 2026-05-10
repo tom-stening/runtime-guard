@@ -15,11 +15,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `dask.compute`/`dask.persist` without introducing a hard runtime dependency.
 - `attach_ray_guard()` integration helper for hooking RuntimeGuard into
   `ray.get`/`ray.wait` without introducing a hard runtime dependency.
+- OpenTelemetry exporter scaffolding: `pressure_report_attributes()` and
+  `emit_otel_event()` for optional span event emission.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
 - Roadmap M1-C02 moved to IN PROGRESS based on implemented integration scaffold.
 - Roadmap M1-C03 moved to IN PROGRESS based on implemented integration scaffold.
+- Roadmap M1-C04 moved to IN PROGRESS based on implemented exporter scaffold.
 
 ## [0.3.0] - 2026-05-10
 

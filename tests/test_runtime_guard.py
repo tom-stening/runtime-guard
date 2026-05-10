@@ -23,6 +23,8 @@ from runtime_guard import (
     PressureReport,
     RuntimeGuard,
     attach_dask_guard,
+    emit_otel_event,
+    pressure_report_attributes,
     attach_ray_guard,
     _read_snapshot,
     attach_polars_guard,
@@ -758,6 +760,71 @@ class TestRayIntegration:
 
         with pytest.raises(RuntimeError, match=r"ray\.get"):
             attach_ray_guard(RuntimeGuard(), module=NoGet)
+
+
+# ---------------------------------------------------------------------------
+# M1-C04 — OpenTelemetry exporter scaffold
+# ---------------------------------------------------------------------------
+
+
+class TestOpenTelemetryExport:
+    class _DummySpan:
+        def __init__(self, recording: bool = True):
+            self._recording = recording
+            self.events: list[tuple[str, dict[str, object]]] = []
+
+        def is_recording(self) -> bool:
+            return self._recording
+
+        def add_event(self, name: str, *, attributes: dict[str, object]) -> None:
+            self.events.append((name, attributes))
+
+    class _DummyTrace:
+        def __init__(self, span: object):
+            self._span = span
+
+        def get_current_span(self):
+            return self._span
+
+    def test_pressure_report_attributes_contains_expected_keys(self):
+        report = _make_report(stage="otel-stage")
+        attrs = pressure_report_attributes(report)
+        assert attrs["runtime_guard.stage"] == "otel-stage"
+        assert "runtime_guard.mem_available_mb" in attrs
+        assert "runtime_guard.swap_used_pct" in attrs
+        assert "runtime_guard.self_inflicted" in attrs
+
+    def test_emit_with_explicit_span(self):
+        report = _make_report(stage="span-stage")
+        span = self._DummySpan(recording=True)
+        ok = emit_otel_event(report, span=span)
+        assert ok is True
+        assert len(span.events) == 1
+        name, attrs = span.events[0]
+        assert name == "runtime_guard.pressure"
+        assert attrs["runtime_guard.stage"] == "span-stage"
+
+    def test_emit_uses_current_span_from_module(self):
+        report = _make_report(stage="module-stage")
+        span = self._DummySpan(recording=True)
+        trace_mod = self._DummyTrace(span)
+        ok = emit_otel_event(report, module=trace_mod)
+        assert ok is True
+        assert len(span.events) == 1
+        _, attrs = span.events[0]
+        assert attrs["runtime_guard.stage"] == "module-stage"
+
+    def test_emit_returns_false_when_span_not_recording(self):
+        report = _make_report()
+        span = self._DummySpan(recording=False)
+        ok = emit_otel_event(report, span=span)
+        assert ok is False
+        assert span.events == []
+
+    def test_emit_returns_false_without_otel(self):
+        report = _make_report()
+        ok = emit_otel_event(report, module=object())
+        assert ok is False
 
 
 class TestUnsupportedPlatformWarning:

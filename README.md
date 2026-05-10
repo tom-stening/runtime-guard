@@ -272,6 +272,8 @@ Raw memory values from the OS at a point in time.
 | `attach_polars_guard(guard, stage="polars-collect", module=None) → Callable[[], None]` | Monkeypatch `polars.LazyFrame.collect` to run `guard.check_and_log()` before each collect call. Returns a restore function. |
 | `attach_dask_guard(guard, stage="dask-compute", module=None) → Callable[[], None]` | Monkeypatch `dask.compute` (and `dask.persist` when present) to run `guard.check_and_log()` before each call. Returns a restore function. |
 | `attach_ray_guard(guard, stage="ray-get", module=None) → Callable[[], None]` | Monkeypatch `ray.get` (and `ray.wait` when present) to run `guard.check_and_log()` before each call. Returns a restore function. |
+| `pressure_report_attributes(report) → dict[str, Any]` | Convert a `PressureReport` into OpenTelemetry-friendly flat attributes. |
+| `emit_otel_event(report, event_name="runtime_guard.pressure", span=None, module=None) → bool` | Emit a pressure event on the current OpenTelemetry span (or provided span). Returns `True` when emitted. |
 | `generate_wslconfig(memory_gb, ...) → str` | Generate `.wslconfig` content (or write/merge to file). |
 | `recommend_kernel_params(...) → list[KernelParamRecommendation]` | Return sysctl recommendations for WSL 2 memory tuning. |
 | `apply_kernel_params(recommendations) → list[InterventionResult]` | Apply sysctl recommendations (requires root). |

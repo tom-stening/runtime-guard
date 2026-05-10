@@ -75,6 +75,8 @@ __all__ = [
     "attach_polars_guard",
     "attach_dask_guard",
     "attach_ray_guard",
+    "pressure_report_attributes",
+    "emit_otel_event",
 ]
 
 logger = logging.getLogger(__name__)
@@ -1293,6 +1295,70 @@ def attach_ray_guard(
             setattr(module, "wait", original_wait)
 
     return _restore
+
+
+def pressure_report_attributes(report: "PressureReport") -> dict[str, Any]:
+    """Convert a PressureReport into OpenTelemetry-friendly attributes."""
+    snap = report.snapshot
+    return {
+        "runtime_guard.is_critical": report.is_critical,
+        "runtime_guard.cause": report.cause,
+        "runtime_guard.self_inflicted": report.self_inflicted,
+        "runtime_guard.self_pct": report.self_pct,
+        "runtime_guard.pid": report.pid,
+        "runtime_guard.stage": report.stage,
+        "runtime_guard.min_mem_mb": report.min_mem_mb,
+        "runtime_guard.max_swap_pct": report.max_swap_pct,
+        "runtime_guard.missing_mem_mb": report.missing_mem_mb,
+        "runtime_guard.swap_excess_pct": report.swap_excess_pct,
+        "runtime_guard.mem_total_mb": snap.mem_total_mb,
+        "runtime_guard.mem_available_mb": snap.mem_available_mb,
+        "runtime_guard.swap_total_mb": snap.swap_total_mb,
+        "runtime_guard.swap_free_mb": snap.swap_free_mb,
+        "runtime_guard.swap_used_pct": snap.swap_used_pct,
+        "runtime_guard.rss_mb": snap.rss_mb,
+        "runtime_guard.vm_swap_mb": snap.vm_swap_mb,
+    }
+
+
+def emit_otel_event(
+    report: "PressureReport",
+    *,
+    event_name: str = "runtime_guard.pressure",
+    span: Any | None = None,
+    module: Any | None = None,
+) -> bool:
+    """Emit a RuntimeGuard pressure event on the current OpenTelemetry span.
+
+    Returns ``True`` when an event is emitted. Returns ``False`` when
+    OpenTelemetry is unavailable or there is no active recording span.
+    """
+    target_span = span
+    if target_span is None:
+        trace_mod = module
+        if trace_mod is None:
+            try:
+                from opentelemetry import trace as trace_mod  # type: ignore
+            except Exception:
+                return False
+        get_current_span = getattr(trace_mod, "get_current_span", None)
+        if not callable(get_current_span):
+            return False
+        target_span = get_current_span()
+
+    if target_span is None:
+        return False
+
+    is_recording = getattr(target_span, "is_recording", None)
+    if callable(is_recording) and not is_recording():
+        return False
+
+    add_event = getattr(target_span, "add_event", None)
+    if not callable(add_event):
+        return False
+
+    add_event(event_name, attributes=pressure_report_attributes(report))
+    return True
 
 
 # ---------------------------------------------------------------------------

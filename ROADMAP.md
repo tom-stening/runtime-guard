@@ -63,7 +63,7 @@ This principle shapes all roadmap decisions:
 | M1-C01 | Polars integration plugin | P1 | 🔄 IN PROGRESS | `attach_polars_guard()` hooks `LazyFrame.collect`; full native Polars callback integration remains. |
 | M1-C02 | Dask integration | P1 | 🔄 IN PROGRESS | `attach_dask_guard()` hooks `compute`/`persist`; deeper scheduler callback integration remains. |
 | M1-C03 | Ray cluster resource monitor | P1 | 🔄 IN PROGRESS | `attach_ray_guard()` hooks `get`/`wait`; actor-based per-node monitoring remains. |
-| M1-C04 | OpenTelemetry exporter | P2 | 📅 PLANNED | Emit memory/pressure metrics via OTEL SDK. |
+| M1-C04 | OpenTelemetry exporter | P2 | 🔄 IN PROGRESS | Added optional span-event exporter helpers; full metrics pipeline/exporter packaging remains. |
 | M1-C05 | Prometheus metrics endpoint | P2 | 📅 PLANNED | Optional FastAPI `/metrics` integration. |
 | M1-C06 | Distributed tracing context | P2 | 📅 PLANNED | Link pressure events to trace IDs. |
 | M1-C07 | Config schema validation (`pydantic`) | P2 | 📅 PLANNED | Type-safe config validation without hard dependency. |

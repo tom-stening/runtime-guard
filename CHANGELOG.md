@@ -13,10 +13,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   `polars.LazyFrame.collect` without introducing a hard runtime dependency.
 - `attach_dask_guard()` integration helper for hooking RuntimeGuard into
   `dask.compute`/`dask.persist` without introducing a hard runtime dependency.
+- `attach_ray_guard()` integration helper for hooking RuntimeGuard into
+  `ray.get`/`ray.wait` without introducing a hard runtime dependency.
 
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
 - Roadmap M1-C02 moved to IN PROGRESS based on implemented integration scaffold.
+- Roadmap M1-C03 moved to IN PROGRESS based on implemented integration scaffold.
 
 ## [0.3.0] - 2026-05-10
 

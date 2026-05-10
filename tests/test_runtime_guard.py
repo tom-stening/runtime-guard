@@ -23,6 +23,7 @@ from runtime_guard import (
     PressureReport,
     RuntimeGuard,
     attach_dask_guard,
+    attach_ray_guard,
     _read_snapshot,
     attach_polars_guard,
 )
@@ -682,6 +683,81 @@ class TestDaskIntegration:
 
         with pytest.raises(RuntimeError, match=r"dask\.compute"):
             attach_dask_guard(RuntimeGuard(), module=NoCompute)
+
+
+# ---------------------------------------------------------------------------
+# M1-C03 — Ray integration hook
+# ---------------------------------------------------------------------------
+
+
+class TestRayIntegration:
+    class _DummyRay:
+        @staticmethod
+        def get(value: int, add: int = 0) -> int:
+            return value + add
+
+        @staticmethod
+        def wait(items: list[int], *, num_returns: int = 1) -> tuple[list[int], list[int]]:
+            return items[:num_returns], items[num_returns:]
+
+    def test_attach_calls_check_before_get(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+
+        def fake_check_and_log(stage: str = "") -> None:
+            calls.append(stage)
+
+        monkeypatch.setattr(guard, "check_and_log", fake_check_and_log)
+        restore = attach_ray_guard(guard, stage="ray-pipeline", module=self._DummyRay)
+        try:
+            result = self._DummyRay.get(40, add=2)
+            assert result == 42
+            assert calls == ["ray-pipeline"]
+        finally:
+            restore()
+
+    def test_attach_calls_check_before_wait(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+        restore = attach_ray_guard(guard, stage="ray-wait", module=self._DummyRay)
+        try:
+            ready, remaining = self._DummyRay.wait([1, 2, 3], num_returns=2)
+            assert ready == [1, 2]
+            assert remaining == [3]
+            assert calls == ["ray-wait"]
+        finally:
+            restore()
+
+    def test_restore_restores_original_functions(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        original_get = self._DummyRay.get
+        original_wait = self._DummyRay.wait
+        restore = attach_ray_guard(guard, module=self._DummyRay)
+        restore()
+        assert self._DummyRay.get is original_get
+        assert self._DummyRay.wait is original_wait
+
+    def test_attach_is_idempotent(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+        restore_a = attach_ray_guard(guard, stage="s1", module=self._DummyRay)
+        restore_b = attach_ray_guard(guard, stage="s2", module=self._DummyRay)
+        try:
+            self._DummyRay.get(1)
+            assert len(calls) == 1
+        finally:
+            restore_b()
+            restore_a()
+
+    def test_attach_raises_when_no_get(self):
+        class NoGet:
+            pass
+
+        with pytest.raises(RuntimeError, match=r"ray\.get"):
+            attach_ray_guard(RuntimeGuard(), module=NoGet)
 
 
 class TestUnsupportedPlatformWarning:

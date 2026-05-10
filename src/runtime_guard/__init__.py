@@ -74,6 +74,7 @@ __all__ = [
     "make_conftest_content",
     "attach_polars_guard",
     "attach_dask_guard",
+    "attach_ray_guard",
 ]
 
 logger = logging.getLogger(__name__)
@@ -1217,6 +1218,79 @@ def attach_dask_guard(
         setattr(module, "compute", original_compute)
         if callable(original_persist):
             setattr(module, "persist", original_persist)
+
+    return _restore
+
+
+def attach_ray_guard(
+    guard: "RuntimeGuard",
+    *,
+    stage: str = "ray-get",
+    module: Any | None = None,
+) -> Callable[[], None]:
+    """Attach RuntimeGuard checks to Ray get/wait entry points.
+
+    This helper provides M1-C03 integration scaffolding without introducing
+    a hard runtime dependency on Ray. If ``module`` is not supplied, the
+    function attempts to import ``ray`` lazily at call time.
+
+    Returns
+    -------
+    Callable[[], None]
+        Restore function that undoes the monkeypatch.
+    """
+    if module is None:
+        try:
+            import ray as module  # type: ignore
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeError(
+                "Ray is not installed. Install ray or pass module=<ray module>."
+            ) from exc
+
+    get_fn = getattr(module, "get", None)
+    if get_fn is None or not callable(get_fn):
+        raise RuntimeError("The provided module does not expose callable ray.get.")
+
+    # Idempotent attach to avoid nested wrappers and duplicated checks.
+    if getattr(get_fn, "_runtime_guard_wrapped", False):
+        original_get = getattr(get_fn, "_runtime_guard_original", get_fn)
+        wait_fn = getattr(module, "wait", None)
+        original_wait = wait_fn
+        if callable(wait_fn) and getattr(wait_fn, "_runtime_guard_wrapped", False):
+            original_wait = getattr(wait_fn, "_runtime_guard_original", wait_fn)
+
+        def _restore() -> None:
+            setattr(module, "get", original_get)
+            if callable(original_wait):
+                setattr(module, "wait", original_wait)
+
+        return _restore
+
+    original_get = get_fn
+    original_wait = getattr(module, "wait", None)
+
+    def _guarded_get(*args: Any, **kwargs: Any) -> Any:
+        guard.check_and_log(stage=stage)
+        return original_get(*args, **kwargs)
+
+    setattr(_guarded_get, "_runtime_guard_wrapped", True)
+    setattr(_guarded_get, "_runtime_guard_original", original_get)
+    setattr(module, "get", _guarded_get)
+
+    if callable(original_wait):
+
+        def _guarded_wait(*args: Any, **kwargs: Any) -> Any:
+            guard.check_and_log(stage=stage)
+            return original_wait(*args, **kwargs)
+
+        setattr(_guarded_wait, "_runtime_guard_wrapped", True)
+        setattr(_guarded_wait, "_runtime_guard_original", original_wait)
+        setattr(module, "wait", _guarded_wait)
+
+    def _restore() -> None:
+        setattr(module, "get", original_get)
+        if callable(original_wait):
+            setattr(module, "wait", original_wait)
 
     return _restore
 

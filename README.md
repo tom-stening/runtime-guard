@@ -276,6 +276,7 @@ Raw memory values from the OS at a point in time.
 | `trace_context_attributes(span=None, module=None, prefix="runtime_guard.trace") → dict[str, Any]` | Extract trace/span IDs from current/provided OTEL span for linking RuntimeGuard events with distributed traces. |
 | `emit_otel_event(report, event_name="runtime_guard.pressure", span=None, module=None) → bool` | Emit a pressure event on the current OpenTelemetry span (or provided span). Returns `True` when emitted. |
 | `render_prometheus_metrics(report, prefix="runtime_guard") → str` | Render a `PressureReport` as Prometheus exposition text for HTTP `/metrics` endpoints. |
+| `validate_runtime_guard_config(config, use_pydantic=True) → dict[str, Any]` | Validate RuntimeGuard threshold/posture config with optional pydantic schema support and strict fallback validation. |
 | `generate_wslconfig(memory_gb, ...) → str` | Generate `.wslconfig` content (or write/merge to file). |
 | `recommend_kernel_params(...) → list[KernelParamRecommendation]` | Return sysctl recommendations for WSL 2 memory tuning. |
 | `apply_kernel_params(recommendations) → list[InterventionResult]` | Apply sysctl recommendations (requires root). |

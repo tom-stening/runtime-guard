@@ -79,6 +79,7 @@ __all__ = [
     "trace_context_attributes",
     "emit_otel_event",
     "render_prometheus_metrics",
+    "validate_runtime_guard_config",
 ]
 
 logger = logging.getLogger(__name__)
@@ -1445,6 +1446,85 @@ def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtim
         f'{prefix}_vm_swap_mb{{stage="{stage}"}} {snap.vm_swap_mb}',
     ]
     return "\n".join(lines) + "\n"
+
+
+def validate_runtime_guard_config(
+    config: dict[str, Any], *, use_pydantic: bool = True
+) -> dict[str, Any]:
+    """Validate RuntimeGuard config overrides.
+
+    Accepted keys are:
+    - posture: one of ``tight|relaxed|ci``
+    - min_mem_available_mb, max_swap_used_pct, critical_mem_mb,
+      critical_swap_pct, self_inflicted_pct: integer thresholds
+
+    Returns a normalized dict with validated values.
+    """
+    allowed_keys = {
+        "posture",
+        "min_mem_available_mb",
+        "max_swap_used_pct",
+        "critical_mem_mb",
+        "critical_swap_pct",
+        "self_inflicted_pct",
+    }
+    unknown = set(config) - allowed_keys
+    if unknown:
+        raise ValueError(f"Unknown config keys: {sorted(unknown)}")
+
+    if use_pydantic:
+        try:
+            from pydantic import BaseModel, ConfigDict, Field
+
+            class _ConfigModel(BaseModel):
+                model_config = ConfigDict(extra="forbid")
+
+                posture: str | None = None
+                min_mem_available_mb: int | None = Field(default=None, ge=0)
+                max_swap_used_pct: int | None = Field(default=None, ge=0, le=100)
+                critical_mem_mb: int | None = Field(default=None, ge=0)
+                critical_swap_pct: int | None = Field(default=None, ge=0, le=100)
+                self_inflicted_pct: int | None = Field(default=None, ge=0, le=100)
+
+            model = _ConfigModel(**config)
+            out = model.model_dump(exclude_none=True)
+            posture = out.get("posture")
+            if posture is not None and posture not in _PRESETS:
+                raise ValueError(f"Invalid posture {posture!r}; expected one of {sorted(_PRESETS)}")
+            return out
+        except ImportError:
+            pass
+
+    out: dict[str, Any] = {}
+
+    posture = config.get("posture")
+    if posture is not None:
+        posture_norm = str(posture).strip().lower()
+        if posture_norm not in _PRESETS:
+            raise ValueError(f"Invalid posture {posture!r}; expected one of {sorted(_PRESETS)}")
+        out["posture"] = posture_norm
+
+    def _coerce_int(name: str, *, minimum: int = 0, maximum: int | None = None) -> None:
+        if name not in config:
+            return
+        value = config[name]
+        try:
+            ivalue = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must be an integer") from exc
+        if ivalue < minimum:
+            raise ValueError(f"{name} must be >= {minimum}")
+        if maximum is not None and ivalue > maximum:
+            raise ValueError(f"{name} must be <= {maximum}")
+        out[name] = ivalue
+
+    _coerce_int("min_mem_available_mb", minimum=0)
+    _coerce_int("max_swap_used_pct", minimum=0, maximum=100)
+    _coerce_int("critical_mem_mb", minimum=0)
+    _coerce_int("critical_swap_pct", minimum=0, maximum=100)
+    _coerce_int("self_inflicted_pct", minimum=0, maximum=100)
+
+    return out
 
 
 # ---------------------------------------------------------------------------

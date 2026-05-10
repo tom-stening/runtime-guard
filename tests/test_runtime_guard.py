@@ -27,6 +27,7 @@ from runtime_guard import (
     pressure_report_attributes,
     render_prometheus_metrics,
     trace_context_attributes,
+    validate_runtime_guard_config,
     attach_ray_guard,
     _read_snapshot,
     attach_polars_guard,
@@ -897,6 +898,44 @@ class TestPrometheusRenderer:
         report = _make_report(stage='train "A"')
         text = render_prometheus_metrics(report)
         assert 'stage="train \\"A\\""' in text
+
+
+# ---------------------------------------------------------------------------
+# M1-C07 — Config schema validation scaffold
+# ---------------------------------------------------------------------------
+
+
+class TestConfigValidation:
+    def test_accepts_valid_config(self):
+        cfg = validate_runtime_guard_config(
+            {
+                "posture": "ci",
+                "min_mem_available_mb": 1024,
+                "max_swap_used_pct": 90,
+                "critical_mem_mb": 512,
+                "critical_swap_pct": 97,
+                "self_inflicted_pct": 20,
+            },
+            use_pydantic=False,
+        )
+        assert cfg["posture"] == "ci"
+        assert cfg["min_mem_available_mb"] == 1024
+
+    def test_rejects_unknown_key(self):
+        with pytest.raises(ValueError, match="Unknown config keys"):
+            validate_runtime_guard_config({"bad_key": 1}, use_pydantic=False)
+
+    def test_rejects_invalid_posture(self):
+        with pytest.raises(ValueError, match="Invalid posture"):
+            validate_runtime_guard_config({"posture": "fast"}, use_pydantic=False)
+
+    def test_rejects_non_integer_threshold(self):
+        with pytest.raises(ValueError, match="must be an integer"):
+            validate_runtime_guard_config({"min_mem_available_mb": "lots"}, use_pydantic=False)
+
+    def test_rejects_out_of_range_percent(self):
+        with pytest.raises(ValueError, match="must be <= 100"):
+            validate_runtime_guard_config({"max_swap_used_pct": 101}, use_pydantic=False)
 
 
 class TestUnsupportedPlatformWarning:

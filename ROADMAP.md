@@ -93,7 +93,7 @@ This principle shapes all roadmap decisions:
 | M2-C03 | Dynamic policy reloading | P2 | 🔄 IN PROGRESS | Added file-backed policy overrides with auto-reload on mtime changes and env>policy>preset precedence. |
 | M2-C04 | Multi-process orchestration (optional) | P2 | 🔄 IN PROGRESS | Added worker report + parent aggregation scaffolding for process pools/job queues; transport/adapters remain. |
 | M2-C05 | FIPS-certified hash for event dedup | P2 | 🔄 IN PROGRESS | Added FIPS SHA-2 algorithm selection and chain verification for audit/event integrity. |
-| M2-C06 | SOC2 prep integration + compliance gap assessment | P1 | 🔄 IN PROGRESS | Added baseline controls plus evidence requirements/readiness scoring (`soc2_evidence_requirements`, `soc2_readiness_report`); expanded default catalog now includes anomaly triage/remediation and change-management controls (CC7.3, CC8.1) while broader control rollout remains. |
+| M2-C06 | SOC2 prep integration + compliance gap assessment | P1 | 🔄 IN PROGRESS | Added baseline controls plus evidence requirements/readiness scoring (`soc2_evidence_requirements`, `soc2_readiness_report`); expanded default catalog includes anomaly triage/remediation and change-management controls (CC7.3, CC8.1), and now includes operator-facing CLI workflow (`scripts/soc2_readiness_report.py`) with example control/evidence inputs for repeatable readiness generation. |
 
 ### Integration stream
 

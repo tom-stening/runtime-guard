@@ -580,6 +580,14 @@ Production deployment steps, systemd examples, logging integration, metrics
 export, and live policy reload procedures are documented in
 [OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md).
 
+SOC2 readiness can be generated from control/evidence JSON inputs with:
+
+```bash
+python scripts/soc2_readiness_report.py \
+    --controls examples/soc2_controls_example.json \
+    --evidence examples/soc2_evidence_example.json
+```
+
 ---
 
 ## Team Adoption Guide

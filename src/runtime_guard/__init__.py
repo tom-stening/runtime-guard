@@ -1323,7 +1323,7 @@ def attach_polars_guard(
     stage: str = "polars-collect",
     module: Any | None = None,
 ) -> Callable[[], None]:
-    """Attach RuntimeGuard checks to ``polars.LazyFrame.collect``.
+    """Attach RuntimeGuard checks to ``polars.LazyFrame.collect``/``fetch``.
 
     This helper provides M1-C01 integration scaffolding without introducing
     a hard runtime dependency on Polars. If ``module`` is not supplied, the
@@ -1350,12 +1350,23 @@ def attach_polars_guard(
     if original_collect is None or not callable(original_collect):
         raise RuntimeError("polars.LazyFrame.collect is missing or not callable.")
 
+    original_fetch = getattr(lazyframe_cls, "fetch", None)
+
     # Idempotent attach to avoid nested wrappers and duplicated checks.
     if getattr(original_collect, "_runtime_guard_wrapped", False):
-        original = getattr(original_collect, "_runtime_guard_original", original_collect)
+        original_collect_unwrapped = getattr(
+            original_collect, "_runtime_guard_original", original_collect
+        )
+        original_fetch_unwrapped = original_fetch
+        if callable(original_fetch) and getattr(original_fetch, "_runtime_guard_wrapped", False):
+            original_fetch_unwrapped = getattr(
+                original_fetch, "_runtime_guard_original", original_fetch
+            )
 
         def _restore() -> None:
-            setattr(lazyframe_cls, "collect", original)
+            setattr(lazyframe_cls, "collect", original_collect_unwrapped)
+            if callable(original_fetch_unwrapped):
+                setattr(lazyframe_cls, "fetch", original_fetch_unwrapped)
 
         return _restore
 
@@ -1367,8 +1378,20 @@ def attach_polars_guard(
     setattr(_guarded_collect, "_runtime_guard_original", original_collect)
     setattr(lazyframe_cls, "collect", _guarded_collect)
 
+    if callable(original_fetch):
+
+        def _guarded_fetch(self: Any, *args: Any, **kwargs: Any) -> Any:
+            guard.check_and_log(stage=stage)
+            return original_fetch(self, *args, **kwargs)
+
+        setattr(_guarded_fetch, "_runtime_guard_wrapped", True)
+        setattr(_guarded_fetch, "_runtime_guard_original", original_fetch)
+        setattr(lazyframe_cls, "fetch", _guarded_fetch)
+
     def _restore() -> None:
         setattr(lazyframe_cls, "collect", original_collect)
+        if callable(original_fetch):
+            setattr(lazyframe_cls, "fetch", original_fetch)
 
     return _restore
 

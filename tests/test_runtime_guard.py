@@ -579,6 +579,9 @@ class TestPolarsIntegration:
             def collect(self, multiplier: int = 1) -> int:
                 return 21 * multiplier
 
+            def fetch(self, rows: int = 1) -> int:
+                return rows
+
     def test_attach_calls_check_before_collect(self, monkeypatch):
         guard = RuntimeGuard()
         calls: list[str] = []
@@ -599,9 +602,24 @@ class TestPolarsIntegration:
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
         original = self._DummyPolars.LazyFrame.collect
+        original_fetch = self._DummyPolars.LazyFrame.fetch
         restore = attach_polars_guard(guard, module=self._DummyPolars)
         restore()
         assert self._DummyPolars.LazyFrame.collect is original
+        assert self._DummyPolars.LazyFrame.fetch is original_fetch
+
+    def test_attach_calls_check_before_fetch(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-fetch", module=self._DummyPolars)
+        try:
+            result = self._DummyPolars.LazyFrame().fetch(rows=5)
+            assert result == 5
+            assert calls == ["polars-fetch"]
+        finally:
+            restore()
 
     def test_attach_is_idempotent(self, monkeypatch):
         guard = RuntimeGuard()

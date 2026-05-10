@@ -60,7 +60,7 @@ This principle shapes all roadmap decisions:
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M1-C01 | Polars integration plugin | P1 | 🔄 IN PROGRESS | `attach_polars_guard()` hooks `LazyFrame.collect`; full native Polars callback integration remains. |
+| M1-C01 | Polars integration plugin | P1 | 🔄 IN PROGRESS | `attach_polars_guard()` hooks `LazyFrame.collect` and `LazyFrame.fetch`; full native Polars callback integration remains. |
 | M1-C02 | Dask integration | P1 | 🔄 IN PROGRESS | `attach_dask_guard()` hooks `compute`/`persist`; deeper scheduler callback integration remains. |
 | M1-C03 | Ray cluster resource monitor | P1 | 🔄 IN PROGRESS | `attach_ray_guard()` hooks `get`/`wait`; actor-based per-node monitoring remains. |
 | M1-C04 | OpenTelemetry exporter | P2 | 🔄 IN PROGRESS | Added optional span-event exporter helpers; full metrics pipeline/exporter packaging remains. |

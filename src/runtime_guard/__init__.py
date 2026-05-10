@@ -2545,8 +2545,9 @@ def audit_policy_taxonomy() -> dict[str, list[str]]:
 def normalize_policy_violation_event(event: dict[str, Any]) -> dict[str, Any]:
     """Normalize policy-violation events to canonical taxonomy values.
 
-    Normalization is applied only when ``event_type`` resolves to
-    ``policy_violation``. Other event types are returned unchanged.
+    Normalization is applied when ``event_type`` resolves to
+    ``policy_violation`` or when ``action`` resolves to ``policy_violation``.
+    Other events are returned unchanged.
     """
 
     def _token(value: Any) -> str:
@@ -2587,7 +2588,11 @@ def normalize_policy_violation_event(event: dict[str, Any]) -> dict[str, Any]:
 
     out = dict(event)
     event_type = _token(out.get("event_type", ""))
-    if event_type not in {"policy_violation", "policyviolation"}:
+    action_type = _token(out.get("action", ""))
+    if event_type not in {"policy_violation", "policyviolation"} and action_type not in {
+        "policy_violation",
+        "policyviolation",
+    }:
         return out
 
     out["event_type"] = "policy_violation"

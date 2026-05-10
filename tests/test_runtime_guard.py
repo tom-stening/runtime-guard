@@ -1546,6 +1546,37 @@ class TestAuditLog:
         assert out["category"] == "access"
         assert out["action"] == "acknowledge"
 
+    def test_normalize_policy_violation_event_uses_action_when_event_type_missing(self):
+        out = normalize_policy_violation_event(
+            {
+                "action": "policy-violation",
+                "severity": "CRITICAL",
+                "category": "Memory Pressure",
+                "policy_id": 101,
+            }
+        )
+        assert out["event_type"] == "policy_violation"
+        assert out["severity"] == "critical"
+        assert out["category"] == "memory"
+        assert out["action"] == "policy_violation"
+        assert out["policy_id"] == "101"
+
+    def test_append_audit_log_normalizes_when_action_marks_policy_violation(self, tmp_path):
+        path = tmp_path / "audit.log"
+        rec = append_audit_log(
+            str(path),
+            {
+                "action": "policy_violation",
+                "severity": "INVALID",
+                "category": "NotARealCategory",
+            },
+        )
+        event = rec["event"]
+        assert event["event_type"] == "policy_violation"
+        assert event["severity"] == "warning"
+        assert event["category"] == "unknown"
+        assert event["action"] == "policy_violation"
+
     def test_append_audit_log_creates_record(self, tmp_path):
         path = tmp_path / "audit.log"
         record = append_audit_log(str(path), {"action": "test", "value": 1})
@@ -1569,7 +1600,7 @@ class TestAuditLog:
             action="policy-violation",
             metadata={"run_id": "abc123"},
         )
-        assert out["event"]["action"] == "policy-violation"
+        assert out["event"]["action"] == "policy_violation"
         assert out["event"]["stage"] == "train"
         assert out["event"]["metadata"]["run_id"] == "abc123"
 

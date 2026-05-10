@@ -41,6 +41,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   common enterprise aliases such as incident-response, access-review, and
   corrective-action records instead of collapsing them to generic unknown/custom
   values.
+- Audit normalization hardening: policy-violation normalization now activates
+  when `action` indicates a policy violation even if `event_type` is omitted,
+  improving canonicalization coverage for real-world producer payloads.
 - SOC2 baseline expansion: default control/evidence catalogs now include CC7.3
   anomaly triage/remediation and CC8.1 change-management requirements, improving
   readiness scoring coverage for operational response and approved policy updates.

@@ -1,3 +1,132 @@
+---
+
+### Policy 4: Regulated Sector Compliance (Healthcare/Finance)
+
+**Goal:** Ensure all memory pressure and access events are logged for compliance (HIPAA/SOC2), with mandatory escalation and retention.
+
+**Policy Definition:**
+
+```json
+{
+  "policy_id": "regulated-sector-compliance-v1",
+  "name": "Regulated Sector Compliance",
+  "description": "Log all memory, access, and integrity events for HIPAA/SOC2.",
+  "stages": [
+    {
+      "stage": "etl-load",
+      "min_mem_available_mb": 8192,
+      "max_swap_used_pct": 50,
+      "action_on_pressure": "notify"
+    },
+    {
+      "stage": "etl-transform",
+      "min_mem_available_mb": 4096,
+      "max_swap_used_pct": 70,
+      "action_on_pressure": "throttle"
+    }
+  ],
+  "audit_events": [
+    {"category": "memory", "action": "notify"},
+    {"category": "access", "action": "observe"},
+    {"category": "integrity", "action": "policy_violation"}
+  ],
+  "retention_days": 365,
+  "escalation": "All critical events must be escalated to compliance officer within 1 hour."
+}
+```
+
+**Example Audit Events:**
+
+```json
+{
+  "timestamp": 1715335000,
+  "event_type": "policy_violation",
+  "policy_id": "regulated-sector-compliance-v1",
+  "stage": "etl-load",
+  "category": "memory",
+  "action": "notify",
+  "severity": "warning",
+  "snapshot": {"mem_available_mb": 7900, "swap_used_pct": 51},
+  "cause": "MemAvailable=7900 MB (threshold: 8192 MB)",
+  "self_inflicted": true,
+  "process_id": 22222
+}
+```
+
+```json
+{
+  "timestamp": 1715335100,
+  "event_type": "policy_violation",
+  "policy_id": "regulated-sector-compliance-v1",
+  "category": "integrity",
+  "action": "policy_violation",
+  "severity": "critical",
+  "cause": "Audit log hash-chain broken at line 1201",
+  "escalation": "compliance-officer@company.com"
+}
+```
+
+**Integration Notes:**
+- Store audit logs in a secure, access-controlled location (0600 permissions).
+- Run `verify_audit_log_chain()` after every batch job.
+- Integrate with SIEM for real-time alerting on integrity or access events.
+- Retain logs for at least 1 year for compliance.
+
+---
+
+### Policy 5: Ephemeral CI/CD Runner Enforcement
+
+**Goal:** Aggressively enforce memory limits in short-lived CI/CD runners to prevent host instability and speed up failure feedback.
+
+**Policy Definition:**
+
+```json
+{
+  "policy_id": "ci-runner-enforcement-v1",
+  "name": "CI Runner Enforcement",
+  "description": "Terminate jobs on memory pressure in CI/CD ephemeral runners.",
+  "stages": [
+    {
+      "stage": "ci-test",
+      "min_mem_available_mb": 2048,
+      "max_swap_used_pct": 40,
+      "action_on_pressure": "kill_hogs"
+    }
+  ],
+  "audit_events": [
+    {"category": "memory", "action": "kill_hogs"},
+    {"category": "incident", "action": "abort"}
+  ],
+  "retention_days": 30
+}
+```
+
+**Example Audit Event:**
+
+```json
+{
+  "timestamp": 1715335200,
+  "event_type": "policy_violation",
+  "policy_id": "ci-runner-enforcement-v1",
+  "stage": "ci-test",
+  "category": "memory",
+  "action": "kill_hogs",
+  "severity": "critical",
+  "snapshot": {"mem_available_mb": 1800, "swap_used_pct": 45},
+  "processes_killed": [
+    {"pid": 33333, "name": "pytest", "rss_mb": 900, "cmdline": "pytest tests/"}
+  ],
+  "cause": "MemAvailable=1800 MB (threshold: 2048 MB)",
+  "self_inflicted": true,
+  "job_id": "ci-123456"
+}
+```
+
+**Integration Notes:**
+- Use in GitHub Actions, GitLab CI, Jenkins ephemeral runners, etc.
+- Set `RUNTIME_GUARD_POSTURE=ci` and `RUNTIME_GUARD_AUDIT_LOG=/tmp/ci-audit.log`.
+- Fail the job immediately if a critical event is logged.
+- Retain logs for 30 days for debugging and compliance.
 # Audit Policy Examples & Rollout Guide
 
 This document operationalizes roadmap item M2-C02:

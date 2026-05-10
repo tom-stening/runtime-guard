@@ -83,6 +83,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   coverage for audit-readiness evaluation.
 - Ray integration cookbook in `INTEGRATION_RAY.md` with staged hook,
   orchestration, and audit logging examples.
+- Team adoption guide in README with 4-stage rollout path: developer snapshot
+  (Stage 1) → CI/CD gate (Stage 2) → staging monitoring (Stage 3) → production
+  metrics (Stage 4). Includes integration validation pattern and success metrics.
+- ML pipeline reference implementation (`examples/ml_pipeline_demo.py`) for
+  M0-I01: demonstrates memory monitoring in realistic training workflows with
+  preflight checks, data-load snapshots, background monitoring, and post-training
+  summaries. Enables case-study proof for team adoption (M0-I01).
 - Training/certification program draft in `TRAINING_CURRICULUM.md` with
   1-day agenda, lab structure, and certification rubric.
 

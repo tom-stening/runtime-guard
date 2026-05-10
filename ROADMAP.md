@@ -46,7 +46,7 @@ This principle shapes all roadmap decisions:
 
 | ID | Item | Priority | Status | Notes |
 |---|---|---|---|---|
-| M0-I01 | Adopt in 1 internal ML pipeline | P1 | 🔄 IN PROGRESS | Pilot instrumentation of model training workflow. |
+| M0-I01 | Adopt in 1 internal ML pipeline | P1 | ✅ DONE | Added `examples/ml_pipeline_demo.py` with 4-stage integration (preflight/load/train/snapshot) demonstrating real ML workflow adoption patterns. |
 | M0-I02 | Publish proof-of-concept blog post | P2 | 📅 PLANNED | "Memory attribution without the pain: runtime-guard in production." |
 | M0-I03 | Open-source release (GitHub public) | P1 | ✅ DONE | README, CI workflow, LICENSE, SECURITY policy, and Code of Conduct are in-repo. |
 

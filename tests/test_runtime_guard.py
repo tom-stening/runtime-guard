@@ -205,27 +205,31 @@ class TestCooldown:
     def test_cooldown_allows_after_window(self, monkeypatch):
         g = RuntimeGuard(cooldown_s=0.05)
         report = _make_report()
+        cooldown_key = f"{report.stage}\x00warning"
         g.log(report)
-        first_ts = g._last_logged.get("warning")
+        first_ts = g._last_logged.get(cooldown_key)
         time.sleep(0.1)
         g.log(report)
-        assert g._last_logged.get("warning") > first_ts  # timestamp updated
+        assert g._last_logged.get(cooldown_key) > first_ts  # timestamp updated
 
     def test_cooldown_warning_and_critical_independent(self):
         g = RuntimeGuard(cooldown_s=60.0)
         warn_report = _make_report(is_critical=False)
         crit_report = _make_report(is_critical=True)
+        warn_key = f"{warn_report.stage}\x00warning"
+        crit_key = f"{crit_report.stage}\x00critical"
         g.log(warn_report)
-        assert "warning" in g._last_logged
-        assert "critical" not in g._last_logged
+        assert warn_key in g._last_logged
+        assert crit_key not in g._last_logged
         g.log(crit_report)
-        assert "critical" in g._last_logged
+        assert crit_key in g._last_logged
 
     def test_cooldown_custom_prefix(self):
         g = RuntimeGuard(env_prefix="MYAPP", cooldown_s=60.0)
         report = _make_report()
+        cooldown_key = f"{report.stage}\x00warning"
         g.log(report)
-        assert "warning" in g._last_logged
+        assert cooldown_key in g._last_logged
 
 
 # ---------------------------------------------------------------------------
@@ -480,6 +484,41 @@ class TestPressureReportNewFields:
 # ---------------------------------------------------------------------------
 # KI-005 — unsupported platform emits a warning (not silent)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# KI-004 — cooldown is now per-stage, not global
+# ---------------------------------------------------------------------------
+
+class TestPerStageCooldown:
+    def test_different_stages_independent(self):
+        """A cooldown for stage A must not suppress stage B."""
+        g = RuntimeGuard(cooldown_s=60.0)
+        report_a = _make_report(stage="stage-a")
+        report_b = _make_report(stage="stage-b")
+        g.log(report_a)  # starts cooldown for stage-a / warning
+        # stage-b has its own clock — must NOT be suppressed
+        key_b = "stage-b\x00warning"
+        g.log(report_b)
+        assert key_b in g._last_logged, "stage-b was incorrectly suppressed by stage-a cooldown"
+
+    def test_same_stage_is_suppressed(self):
+        """Repeat calls for the same stage ARE suppressed within the window."""
+        g = RuntimeGuard(cooldown_s=60.0)
+        report = _make_report(stage="train")
+        g.log(report)
+        ts1 = g._last_logged["train\x00warning"]
+        time.sleep(0.02)
+        g.log(report)
+        assert g._last_logged["train\x00warning"] == ts1, "Timestamp advanced when it should have been suppressed"
+
+    def test_empty_stage_and_named_stage_independent(self):
+        """stage='' and stage='train' are distinct cooldown buckets."""
+        g = RuntimeGuard(cooldown_s=60.0)
+        g.log(_make_report(stage=""))
+        g.log(_make_report(stage="train"))
+        assert "\x00warning" in g._last_logged
+        assert "train\x00warning" in g._last_logged
+
+
 
 class TestUnsupportedPlatformWarning:
     def test_warns_on_unknown_platform(self, monkeypatch, caplog):

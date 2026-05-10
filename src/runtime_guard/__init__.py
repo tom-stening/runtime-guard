@@ -1,8 +1,8 @@
 """runtime_guard — attribution-aware resource-pressure monitor.
 
 Zero third-party dependencies.  Reads /proc on Linux; falls back to
-``vm_stat``/``sysctl`` on macOS and ``wmic`` on Windows.  Silently
-no-ops when no memory information is available.
+``vm_stat``/``sysctl`` on macOS and PowerShell ``Get-CimInstance`` on
+Windows (``wmic`` retained as fallback for older builds).
 
 Public API
 ----------
@@ -10,23 +10,41 @@ RuntimeGuard   — main class; construct once, call check() or check_and_log()
 PressureReport — dataclass returned by check() when pressure is detected
 MemSnapshot    — dataclass holding the memory snapshot values
 
-New in this release
--------------------
+New in v0.3.0
+-------------
+* **macOS locale-safe page size** — uses ``sysctl hw.pagesize`` rather than
+    parsing English text headers from ``vm_stat`` output (KI-001).
+* **Windows PowerShell primary path** — ``Get-CimInstance Win32_OperatingSystem``
+    replaces ``wmic`` as the primary Windows backend; ``wmic`` is retained as a
+    fallback for builds that pre-date its deprecation (KI-002).
+* **Fork-safe background thread** — ``os.register_at_fork`` clears background
+    thread handles in forked child processes so workers can restart cleanly (KI-003).
+* **Unsupported-platform warning** — a single ``logging.WARNING`` is emitted when
+    a zero-filled snapshot is returned on an unknown platform (KI-005).
+* **Safe ``.wslconfig`` merge** — ``generate_wslconfig()`` backs up any existing
+    file and merges only the keys it owns; custom keys and sections are preserved
+    (KI-006).
+* **Full argparse CLI** — ``runtime-guard --snapshot|--check|--report|
+    --generate-wslconfig|--posture|--stage|--version`` (M0-C09).
+
+New in v0.2.0
+-------------
 * **Threshold presets** — set ``<PREFIX>_POSTURE=tight|relaxed|ci`` to select a
-  named threshold bundle instead of tuning four numeric env vars individually.
-  Explicit numeric env vars always win over the preset default.
+    named threshold bundle instead of tuning four numeric env vars individually.
+    Explicit numeric env vars always win over the preset default.
 * **Structured JSON events** — every ``log()`` call also emits a compact JSON
-  line at the same severity level on the ``runtime_guard.events`` logger so
-  log-aggregation pipelines can filter and forward structured events without
-  parsing human text.
+    line at the same severity level on the ``runtime_guard.events`` logger so
+    log-aggregation pipelines can filter and forward structured events without
+    parsing human text.
 * **Cooldown / deduplication** — pass ``cooldown_s=N`` (seconds) to suppress
-  repeat log emissions when the same pressure condition persists.  Defaults to
-  0 (emit every call, preserving previous behaviour).
+    repeat log emissions when the same pressure condition persists.  Defaults to
+    0 (emit every call, preserving previous behaviour).
 * **Periodic background check** — call ``start_background_check(interval_s)``
-  to poll memory on a daemon thread so pressure is detected between call sites.
-  Stop with ``stop_background_check()``.
+    to poll memory on a daemon thread so pressure is detected between call sites.
+    Stop with ``stop_background_check()``.
 * **Cross-platform snapshot** — ``_read_snapshot()`` now falls back to
-  ``vm_stat``/``sysctl hw.memsize``/``ps`` on macOS and ``wmic`` on Windows.
+    ``vm_stat``/``sysctl hw.memsize``/``ps`` on macOS and PowerShell/``wmic``
+    on Windows.
 """
 
 from __future__ import annotations
@@ -291,17 +309,22 @@ class RuntimeGuard:
         """Emit an attribution-aware log message.
 
         Calls ``logger.critical`` for critical pressure, ``logger.warning``
-        otherwise.  Respects the ``cooldown_s`` deduplication window.
+        otherwise.  Respects the ``cooldown_s`` deduplication window per stage:
+        each (stage, severity) pair has an independent cooldown clock so that
+        a pressure event in stage ``"data-load"`` does not suppress events from
+        a concurrent ``"model-train"`` stage (KI-004).
         Also emits a compact JSON event on the ``runtime_guard.events`` logger
         at the same level for log-aggregation pipelines.
         """
         severity_key = "critical" if report.is_critical else "warning"
+        # Key by stage so different stages have independent cooldown windows.
+        cooldown_key = f"{report.stage}\x00{severity_key}"
         if self._cooldown_s > 0:
             now = time.monotonic()
-            last = self._last_logged.get(severity_key, 0.0)
+            last = self._last_logged.get(cooldown_key, 0.0)
             if now - last < self._cooldown_s:
                 return
-            self._last_logged[severity_key] = now
+            self._last_logged[cooldown_key] = now
 
         snap = report.snapshot
         severity = "CRITICAL" if report.is_critical else "HIGH"

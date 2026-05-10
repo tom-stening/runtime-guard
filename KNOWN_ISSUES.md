@@ -14,14 +14,7 @@
 
 *(KI-001 through KI-003, KI-005, KI-006 resolved in v0.3.0 — see Closed Issues below.)*
 
-### KI-004 — `cooldown_s` timer is not per-stage, it is global
-- **Severity:** S2
-- **Affects:** Callers using multiple named stages with different cooldown expectations
-- **Version introduced:** 0.2.0
-- **Description:** The cooldown deduplication clock is a single timestamp shared across all `check()` / `log()` calls. If stage `"data-load"` fires a pressure event and starts the cooldown, stage `"model-train"` called 2 seconds later will also be suppressed even though it is a different logical phase.
-- **Workaround:** Construct a separate `RuntimeGuard` instance per stage, or set `cooldown_s=0` to disable deduplication.
-- **Fix target:** v0.4.0 — Make `_last_log_time` a `dict[str, float]` keyed by stage name.
-- **Linked PR:** (pending)
+*(All known issues resolved in v0.3.0 — see Closed Issues below.)*
 
 ---
 
@@ -34,6 +27,7 @@
 | KI-003 | Background check daemon thread not restarted after fork | `os.register_at_fork(after_in_child=…)` clears `_bg_thread` / `_bg_stop` in child | v0.3.0 |
 | KI-005 | Zero-filled snapshot on unsupported platforms raises no warning | `logging.WARNING` emitted once via module-level sentinel `_unsupported_platform_warned` | v0.3.0 |
 | KI-006 | `generate_wslconfig` overwrites existing `.wslconfig` without backup | New `_merge_wslconfig()` helper: backs up existing file, merges only managed `[wsl2]` keys, preserves all other keys and sections | v0.3.0 |
+| KI-004 | `cooldown_s` timer is global, not per-stage | `_last_logged` dict keyed by `f"{stage}\x00{severity}"` — each (stage, severity) pair now has an independent cooldown clock | v0.3.0 |
 
 ---
 

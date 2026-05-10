@@ -40,7 +40,7 @@ This principle shapes all roadmap decisions:
 | M0-C07 | Background check daemon thread | P2 | ✅ DONE | `start_background_check()`, `stop_background_check()`. |
 | M0-C08 | WSL 2 system report & kernel tuning | P2 | ✅ DONE | `wsl_system_report()`, `recommend_kernel_params()`. |
 | M0-C09 | CLI entry point (`runtime-guard` command) | P2 | ✅ DONE | `--snapshot`, `--check`, `--report`, `--generate-wslconfig`, `--posture`, `--stage`, `--version` modes. |
-| M0-C10 | Public docs: architecture, examples, FAQ | P1 | 🔄 IN PROGRESS | Docs structure ready; content being seeded. |
+| M0-C10 | Public docs: architecture, examples, FAQ | P1 | ✅ DONE | Full README: install, quickstart, config, CLI reference, API reference, pytest integration, background monitoring, WSL 2 utilities, architecture, FAQ. |
 
 ### Integration stream
 

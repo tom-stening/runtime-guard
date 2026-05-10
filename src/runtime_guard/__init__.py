@@ -1425,6 +1425,10 @@ def attach_dask_guard(
     if compute_fn is None or not callable(compute_fn):
         raise RuntimeError("The provided module does not expose callable dask.compute.")
 
+    base_mod = getattr(module, "base", None)
+    base_compute_fn = getattr(base_mod, "compute", None) if base_mod is not None else None
+    base_persist_fn = getattr(base_mod, "persist", None) if base_mod is not None else None
+
     # Idempotent attach to avoid nested wrappers and duplicated checks.
     if getattr(compute_fn, "_runtime_guard_wrapped", False):
         original_compute = getattr(compute_fn, "_runtime_guard_original", compute_fn)
@@ -1433,15 +1437,33 @@ def attach_dask_guard(
         if callable(persist_fn) and getattr(persist_fn, "_runtime_guard_wrapped", False):
             original_persist = getattr(persist_fn, "_runtime_guard_original", persist_fn)
 
+        original_base_compute = base_compute_fn
+        if callable(base_compute_fn) and getattr(base_compute_fn, "_runtime_guard_wrapped", False):
+            original_base_compute = getattr(
+                base_compute_fn, "_runtime_guard_original", base_compute_fn
+            )
+
+        original_base_persist = base_persist_fn
+        if callable(base_persist_fn) and getattr(base_persist_fn, "_runtime_guard_wrapped", False):
+            original_base_persist = getattr(
+                base_persist_fn, "_runtime_guard_original", base_persist_fn
+            )
+
         def _restore() -> None:
             setattr(module, "compute", original_compute)
             if callable(original_persist):
                 setattr(module, "persist", original_persist)
+            if base_mod is not None and callable(original_base_compute):
+                setattr(base_mod, "compute", original_base_compute)
+            if base_mod is not None and callable(original_base_persist):
+                setattr(base_mod, "persist", original_base_persist)
 
         return _restore
 
     original_compute = compute_fn
     original_persist = getattr(module, "persist", None)
+    original_base_compute = base_compute_fn
+    original_base_persist = base_persist_fn
 
     def _guarded_compute(*args: Any, **kwargs: Any) -> Any:
         guard.check_and_log(stage=stage)
@@ -1461,10 +1483,34 @@ def attach_dask_guard(
         setattr(_guarded_persist, "_runtime_guard_original", original_persist)
         setattr(module, "persist", _guarded_persist)
 
+    if base_mod is not None and callable(original_base_compute):
+
+        def _guarded_base_compute(*args: Any, **kwargs: Any) -> Any:
+            guard.check_and_log(stage=stage)
+            return original_base_compute(*args, **kwargs)
+
+        setattr(_guarded_base_compute, "_runtime_guard_wrapped", True)
+        setattr(_guarded_base_compute, "_runtime_guard_original", original_base_compute)
+        setattr(base_mod, "compute", _guarded_base_compute)
+
+    if base_mod is not None and callable(original_base_persist):
+
+        def _guarded_base_persist(*args: Any, **kwargs: Any) -> Any:
+            guard.check_and_log(stage=stage)
+            return original_base_persist(*args, **kwargs)
+
+        setattr(_guarded_base_persist, "_runtime_guard_wrapped", True)
+        setattr(_guarded_base_persist, "_runtime_guard_original", original_base_persist)
+        setattr(base_mod, "persist", _guarded_base_persist)
+
     def _restore() -> None:
         setattr(module, "compute", original_compute)
         if callable(original_persist):
             setattr(module, "persist", original_persist)
+        if base_mod is not None and callable(original_base_compute):
+            setattr(base_mod, "compute", original_base_compute)
+        if base_mod is not None and callable(original_base_persist):
+            setattr(base_mod, "persist", original_base_persist)
 
     return _restore
 

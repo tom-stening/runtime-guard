@@ -15,6 +15,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   available, with shared restore/idempotent semantics.
 - `attach_dask_guard()` integration helper for hooking RuntimeGuard into
   `dask.compute`/`dask.persist` without introducing a hard runtime dependency.
+- `attach_dask_guard()` now also hooks `dask.base.compute` and
+  `dask.base.persist` when available.
 - `attach_ray_guard()` integration helper for hooking RuntimeGuard into
   `ray.get`/`ray.wait` without introducing a hard runtime dependency.
 - OpenTelemetry exporter scaffolding: `pressure_report_attributes()` and

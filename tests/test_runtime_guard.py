@@ -658,6 +658,15 @@ class TestDaskIntegration:
         def persist(value: int) -> str:
             return f"persist:{value}"
 
+        class base:
+            @staticmethod
+            def compute(value: int, add: int = 0) -> int:
+                return value + add
+
+            @staticmethod
+            def persist(value: int) -> str:
+                return f"base-persist:{value}"
+
     def test_attach_calls_check_before_compute(self, monkeypatch):
         guard = RuntimeGuard()
         calls: list[str] = []
@@ -686,15 +695,33 @@ class TestDaskIntegration:
         finally:
             restore()
 
+    def test_attach_calls_check_before_base_compute_and_persist(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+        restore = attach_dask_guard(guard, stage="dask-base", module=self._DummyDask)
+        try:
+            out_compute = self._DummyDask.base.compute(40, add=2)
+            out_persist = self._DummyDask.base.persist(7)
+            assert out_compute == 42
+            assert out_persist == "base-persist:7"
+            assert calls == ["dask-base", "dask-base"]
+        finally:
+            restore()
+
     def test_restore_restores_original_functions(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
         original_compute = self._DummyDask.compute
         original_persist = self._DummyDask.persist
+        original_base_compute = self._DummyDask.base.compute
+        original_base_persist = self._DummyDask.base.persist
         restore = attach_dask_guard(guard, module=self._DummyDask)
         restore()
         assert self._DummyDask.compute is original_compute
         assert self._DummyDask.persist is original_persist
+        assert self._DummyDask.base.compute is original_base_compute
+        assert self._DummyDask.base.persist is original_base_persist
 
     def test_attach_is_idempotent(self, monkeypatch):
         guard = RuntimeGuard()

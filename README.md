@@ -271,7 +271,7 @@ Raw memory values from the OS at a point in time.
 | `make_pytest_guard(**kwargs) → RuntimeGuard` | Return a `RuntimeGuard` configured for pytest environments. |
 | `make_conftest_content(**kwargs) → str` | Generate a ready-to-use `conftest.py` string for pytest projects. |
 | `attach_polars_guard(guard, stage="polars-collect", module=None) → Callable[[], None]` | Monkeypatch `polars.LazyFrame.collect` (and `fetch` when present) to run `guard.check_and_log()` before each call. Returns a restore function. |
-| `attach_dask_guard(guard, stage="dask-compute", module=None) → Callable[[], None]` | Monkeypatch `dask.compute` (and `dask.persist` when present) to run `guard.check_and_log()` before each call. Returns a restore function. |
+| `attach_dask_guard(guard, stage="dask-compute", module=None) → Callable[[], None]` | Monkeypatch `dask.compute`/`dask.persist` plus `dask.base.compute`/`dask.base.persist` when present to run `guard.check_and_log()` before each call. Returns a restore function. |
 | `attach_ray_guard(guard, stage="ray-get", module=None) → Callable[[], None]` | Monkeypatch `ray.get` (and `ray.wait` when present) to run `guard.check_and_log()` before each call. Returns a restore function. |
 | `pressure_report_attributes(report) → dict[str, Any]` | Convert a `PressureReport` into OpenTelemetry-friendly flat attributes. |
 | `trace_context_attributes(span=None, module=None, prefix="runtime_guard.trace") → dict[str, Any]` | Extract trace/span IDs from current/provided OTEL span for linking RuntimeGuard events with distributed traces. |

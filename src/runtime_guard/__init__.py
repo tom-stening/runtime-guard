@@ -594,13 +594,20 @@ class RuntimeGuard:
             )
         )
 
-    def check_and_log(self, stage: str = "") -> PressureReport | None:
-        """Convenience: check() then log() if pressure is found."""
+    def check_and_log(self, stage: str = "", *, auto_intervene: bool = False, kill_hogs_above_mb: int | None = None) -> PressureReport | None:
+        """Convenience: check() then log() if pressure is found.
+        
+        Args:
+            stage: Name of the check stage for logging
+            auto_intervene: If True, calls intervene() when critical pressure is detected
+            kill_hogs_above_mb: Memory threshold (MB) for killing hog processes
+        """
         report = self.check(stage=stage)
         if report is not None:
             self.log(report)
+            if auto_intervene and report.is_critical:
+                self.intervene(report, kill_hogs_above_mb=kill_hogs_above_mb)
         return report
-
     def phase(
         self,
         stage: str,
@@ -767,7 +774,9 @@ class RuntimeGuard:
         self,
         interval_s: float = 60.0,
         stage: str = "background",
-    ) -> None:  # noqa: E501
+        auto_intervene: bool = False,
+        kill_hogs_above_mb: int | None = None,
+    ) -> None:
         """Start a periodic background pressure check on a daemon thread.
 
         Pressure events detected between call sites are logged via the normal
@@ -794,7 +803,9 @@ class RuntimeGuard:
 
         def _loop() -> None:
             while not stop_event.wait(interval):
-                guard.check_and_log(stage=check_stage)
+                auto_int = auto_intervene
+                kill_hogs_mb = kill_hogs_above_mb
+                guard.check_and_log(stage=check_stage, auto_intervene=auto_int, kill_hogs_above_mb=kill_hogs_mb)
 
         self._bg_thread = threading.Thread(target=_loop, daemon=True, name="runtime-guard-bg")
         self._bg_thread.start()

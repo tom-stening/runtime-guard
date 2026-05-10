@@ -327,7 +327,7 @@ class TestBackgroundCheck:
         """Background thread should invoke check_and_log."""
         calls: list[str] = []
 
-        def fake_check_and_log(stage=""):
+        def fake_check_and_log(stage="", **kwargs):
             calls.append(stage)
             return None
 

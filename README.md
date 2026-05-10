@@ -10,11 +10,9 @@ Instead of a generic "memory is low" alert, runtime-guard tells you _which side_
 - **Threshold presets** — `tight`, `relaxed`, and `ci` bundles for instant configuration.
 - **CLI first-class** — `runtime-guard --check` integrates cleanly into shell scripts, CI gates, and health-check loops.
 
----
 
 ## Table of Contents
 
-1. [Install](#install)
 2. [Quickstart](#quickstart)
 3. [Configuration](#configuration)
 4. [CLI Reference](#cli-reference)
@@ -24,23 +22,16 @@ Instead of a generic "memory is low" alert, runtime-guard tells you _which side_
 8. [WSL 2 Utilities](#wsl-2-utilities)
 9. [Enterprise Support](#enterprise-support)
 10. [Team Adoption Guide](#team-adoption-guide)
-11. [Framework Integration Guides](#framework-integration-guides)
-12. [Architecture](#architecture)
-13. [FAQ](#faq)
-
+11. [Operations & Deployment](#operations--deployment)
+12. [Framework Integration Guides](#framework-integration-guides)
+13. [Architecture](#architecture)
+14. [FAQ](#faq)
 ---
 
 ## Install
 
 ```bash
 pip install git+https://github.com/tom-stening/runtime-guard.git
-```
-
-For local development:
-
-```bash
-git clone https://github.com/tom-stening/runtime-guard.git
-cd runtime-guard
 pip install -e ".[dev]"
 ```
 
@@ -67,11 +58,9 @@ guard.check_and_log(stage="model-train")  # check + log in one call
 
 Use a preset posture for instant threshold bundles:
 
-```python
 guard = RuntimeGuard()
 # or set RUNTIME_GUARD_POSTURE=tight in the environment
 ```
-
 ```bash
 RUNTIME_GUARD_POSTURE=ci python train.py
 ```

@@ -93,6 +93,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Training/certification program draft in `TRAINING_CURRICULUM.md` with
   1-day agenda, lab structure, and certification rubric.
 
+- Operations deployment guide (`OPERATIONS_GUIDE.md`) for M2-I01: complete
+  production deployment path including installation, systemd service setup,
+  logging integration, metrics export (Prometheus/OTEL), troubleshooting, and
+  rollback procedures. Enables ops teams to deploy at scale.
 ### Changed
 - Roadmap M1-C01 moved to IN PROGRESS based on implemented integration scaffold.
 - Roadmap M1-C02 moved to IN PROGRESS based on implemented integration scaffold.
@@ -124,6 +128,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - 19 additional tests for recent fixes and CLI behavior.
 - README expansion: full API reference, architecture, WSL utilities, and FAQ.
 
+- Operations deployment guide (`OPERATIONS_GUIDE.md`) for M2-I01: complete
+  production deployment path including installation, systemd service setup,
+  logging integration, metrics export (Prometheus/OTEL), troubleshooting, and
+  rollback procedures. Enables ops teams to deploy at scale.
 ### Changed
 - Windows memory reader now uses PowerShell `Get-CimInstance` first with `wmic`
   fallback for older builds.

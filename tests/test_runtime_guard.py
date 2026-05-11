@@ -499,6 +499,125 @@ class TestTopMemoryProcesses:
         # May be empty if ps is missing; just verify it doesn't raise
         assert isinstance(result, str)
 
+    def test_top_memory_process_details_parses_rows(self, monkeypatch):
+        from runtime_guard import _top_memory_process_details
+
+        monkeypatch.setattr(
+            "subprocess.run",
+            mock.Mock(
+                return_value=mock.Mock(
+                    stdout=(
+                        "123 204800 python train.py\n"
+                        "456 102400 node /vscode/server.js\n"
+                    )
+                )
+            ),
+        )
+
+        rows = _top_memory_process_details(2)
+        assert rows == [
+            {"pid": 123, "rss_mb": 200, "command": "python train.py"},
+            {"pid": 456, "rss_mb": 100, "command": "node /vscode/server.js"},
+        ]
+
+
+class TestWslRuntimeContext:
+    def test_read_wsl_running_distros_parses_running_rows(self, monkeypatch):
+        from runtime_guard import _read_wsl_running_distros
+
+        monkeypatch.setattr("runtime_guard._is_wsl", lambda: True)
+        monkeypatch.setattr(
+            "subprocess.check_output",
+            mock.Mock(
+                return_value=(
+                    " \x00 \x00N\x00A\x00M\x00E\x00  \x00S\x00T\x00A\x00T\x00E\x00  \x00V\x00E\x00R\x00S\x00I\x00O\x00N\x00\n"
+                    "\x00*\x00 \x00U\x00b\x00u\x00n\x00t\x00u\x00-\x002\x004\x00.\x000\x004\x00      \x00R\x00u\x00n\x00n\x00i\x00n\x00g\x00         \x002\x00\n"
+                    "\x00  \x00d\x00o\x00c\x00k\x00e\x00r\x00-\x00d\x00e\x00s\x00k\x00t\x00o\x00p\x00    \x00R\x00u\x00n\x00n\x00i\x00n\x00g\x00         \x002\x00\n"
+                    "\x00  \x00U\x00b\x00u\x00n\x00t\x00u\x00-\x002\x002\x00.\x000\x004\x00      \x00S\x00t\x00o\x00p\x00p\x00e\x00d\x00         \x002\x00\n"
+                )
+            ),
+        )
+
+        ctx = _read_wsl_running_distros()
+        assert ctx["wsl_running_distro_count"] == 2
+        assert ctx["docker_desktop_running"] is True
+        assert [row["name"] for row in ctx["wsl_running_distros"]] == [
+            "Ubuntu-24.04",
+            "docker-desktop",
+        ]
+
+    def test_read_wsl_running_distros_returns_empty_when_not_wsl(self):
+        from runtime_guard import _read_wsl_running_distros
+
+        ctx = _read_wsl_running_distros()
+        assert ctx["wsl_running_distro_count"] >= 0
+
+
+class TestDiagnoseWslCrash:
+    def test_diagnose_wsl_crash_includes_top_processes_and_runtime_context(self, monkeypatch):
+        from runtime_guard import diagnose_wsl_crash
+
+        monkeypatch.setattr(
+            "runtime_guard._read_snapshot",
+            lambda: MemSnapshot(
+                mem_total_mb=16384,
+                mem_available_mb=900,
+                swap_total_mb=8192,
+                swap_free_mb=512,
+                swap_used_pct=93,
+                rss_mb=120,
+                vm_swap_mb=0,
+                host_mem_total_mb=32768,
+                host_mem_available_mb=12000,
+                host_swap_total_mb=65536,
+                host_swap_free_mb=40000,
+                host_swap_used_pct=39,
+            ),
+        )
+        monkeypatch.setattr(
+            "runtime_guard._read_linux_memory_psi",
+            lambda: {
+                "psi_some_avg10": 22.0,
+                "psi_some_avg60": 10.0,
+                "psi_full_avg10": 11.0,
+                "psi_full_avg60": 5.0,
+            },
+        )
+        monkeypatch.setattr(
+            "runtime_guard._top_memory_process_details",
+            lambda n=8: [{"pid": 1, "rss_mb": 1500, "command": "python main.py"}],
+        )
+        monkeypatch.setattr(
+            "runtime_guard._read_wsl_running_distros",
+            lambda: {
+                "wsl_running_distros": [
+                    {"name": "Ubuntu-24.04", "state": "Running", "version": 2},
+                    {"name": "docker-desktop", "state": "Running", "version": 2},
+                ],
+                "wsl_running_distro_count": 2,
+                "docker_desktop_running": True,
+            },
+        )
+        monkeypatch.setattr(
+            "runtime_guard._read_windows_wsl_event_hints",
+            lambda max_events=6: {
+                "host_event_logs_checked": ["System"],
+                "host_error_event_count": 0,
+                "host_high_relevance_event_count": 0,
+                "host_error_events": [],
+            },
+        )
+
+        diag = diagnose_wsl_crash()
+        assert diag["risk_level"] in {"high", "critical"}
+        assert diag["guest_top_memory_processes"] == [
+            {"pid": 1, "rss_mb": 1500, "command": "python main.py"}
+        ]
+        assert diag["wsl_running_distro_count"] == 2
+        assert diag["docker_desktop_running"] is True
+        assert any("multiple WSL distros" in item for item in diag["likely_causes"])
+        assert any("docker-desktop" in item for item in diag["likely_causes"])
+
 
 class TestPressureReportNewFields:
     def test_missing_mem_mb_populated(self):

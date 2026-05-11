@@ -1597,6 +1597,86 @@ def _top_memory_processes(n: int = 5) -> str:
         return ""
 
 
+def _top_memory_process_details(n: int = 5) -> list[dict[str, Any]]:
+    """Return structured details for the top *n* RSS consumers."""
+    try:
+        result = subprocess.run(
+            ["ps", "axo", "pid,rss,args", "--no-headers", "--sort=-rss"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        rows: list[dict[str, Any]] = []
+        for line in result.stdout.splitlines():
+            parts = line.split(None, 2)
+            if len(parts) < 3:
+                continue
+            try:
+                pid = int(parts[0])
+                rss_mb = int(parts[1]) // 1024
+            except ValueError:
+                continue
+            command = parts[2].strip()
+            if len(command) > 220:
+                command = command[:220] + "..."
+            rows.append({"pid": pid, "rss_mb": rss_mb, "command": command})
+            if len(rows) >= n:
+                break
+        return rows
+    except Exception:
+        return []
+
+
+def _read_wsl_running_distros() -> dict[str, Any]:
+    """Return the currently running WSL distros as seen from the host."""
+    out: dict[str, Any] = {
+        "wsl_running_distros": [],
+        "wsl_running_distro_count": 0,
+        "docker_desktop_running": False,
+    }
+
+    if not _is_wsl():
+        return out
+
+    try:
+        raw = subprocess.check_output(
+            ["cmd.exe", "/c", "cd /d C:\\ && wsl -l -v"],
+            stderr=subprocess.DEVNULL,
+            timeout=8,
+            text=True,
+        )
+    except Exception:
+        return out
+
+    # cmd.exe / wsl.exe output can arrive as NUL-padded UTF-16-style text.
+    # Normalize it before line-based parsing.
+    raw = raw.replace("\x00", "")
+
+    import re as _re
+
+    running: list[dict[str, Any]] = []
+    line_re = _re.compile(r"^\*?\s*(.*?)\s{2,}(Running|Stopped|Installing)\s+(\d+)\s*$")
+    for raw_line in raw.splitlines():
+        line = raw_line.strip()
+        if not line or line.lower().startswith("name"):
+            continue
+        match = line_re.match(line)
+        if not match:
+            continue
+        name, state, version = match.groups()
+        if state != "Running":
+            continue
+        row = {"name": name.strip(), "state": state, "version": int(version)}
+        running.append(row)
+
+    out["wsl_running_distros"] = running
+    out["wsl_running_distro_count"] = len(running)
+    out["docker_desktop_running"] = any(
+        str(row.get("name", "")).lower() == "docker-desktop" for row in running
+    )
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Active intervention helpers
 # ---------------------------------------------------------------------------
@@ -5478,6 +5558,8 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
     host_vm_used_pct = int(metrics.get("host_vm_used_pct", 0) or 0)
     host_error_event_count = int(metrics.get("host_error_event_count", 0) or 0)
     host_high_relevance_event_count = int(metrics.get("host_high_relevance_event_count", 0) or 0)
+    running_distro_count = int(metrics.get("wsl_running_distro_count", 0) or 0)
+    docker_desktop_running = bool(metrics.get("docker_desktop_running", False))
 
     if guest_mem_available_mb < 1024:
         score += 2
@@ -5495,6 +5577,14 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
         score += 1
         causes.append("guest some memory PSI avg10 indicates sustained contention")
         prevention.append("limit extension host count and long-running indexers during heavy jobs")
+    if running_distro_count > 1 and (guest_mem_available_mb < 2048 or psi_full_avg10 >= 5 or guest_swap_used_pct >= 70):
+        score += 1
+        causes.append("multiple WSL distros are running concurrently during guest memory pressure")
+        prevention.append("stop idle WSL distros before heavy IDE, training, or test workloads")
+    if docker_desktop_running and (guest_mem_available_mb < 2048 or psi_full_avg10 >= 5 or guest_swap_used_pct >= 70):
+        score += 1
+        causes.append("docker-desktop is running alongside pressured WSL workloads")
+        prevention.append("stop docker-desktop when it is not needed during heavy WSL sessions")
     if host_vm_used_pct >= 85:
         score += 1
         causes.append("host virtual memory usage is high")
@@ -5661,8 +5751,10 @@ def diagnose_wsl_crash() -> dict[str, Any]:
         "drift_mem_available_mb": snap.drift_mem_available_mb,
         "drift_swap_used_pct": snap.drift_swap_used_pct,
         "host_high_relevance_event_count": 0,
+        "guest_top_memory_processes": _top_memory_process_details(8),
     }
     metrics.update(psi)
+    metrics.update(_read_wsl_running_distros())
     metrics.update(_read_windows_wsl_event_hints())
 
     level, score, causes, prevention = _classify_wsl_crash_risk(metrics)

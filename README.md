@@ -128,6 +128,7 @@ With no options, prints a compact status line and exits 1 if pressure is detecte
 | `--verify-audit-log PATH` | Verify audit hash-chain integrity at PATH. **Exit 0 if valid, 1 if invalid.** |
 | `--audit-policy-taxonomy` | Print the audit policy taxonomy catalog (`severity`, `category`, `action`) as JSON. |
 | `--report` | Print full WSL 2 system report (kernel params, memory, recommendations). |
+| `--diagnose-wsl-crash` | Print host+guest WSL crash diagnostics, including PSI pressure, active distros/docker load, and top guest RSS offenders. |
 | `--generate-wslconfig [MEM_GB]` | Generate `.wslconfig` content. Defaults to half of detected total RAM. |
 | `--write PATH` | Write generated `.wslconfig` to PATH instead of printing. Backs up existing file. |
 | `--policy-file PATH` | Load threshold/posture overrides from a JSON policy file. |
@@ -147,6 +148,9 @@ runtime-guard --snapshot
 
 # Generate and apply a WSL 2 memory config
 runtime-guard --generate-wslconfig 8 --write ~/.wslconfig
+
+# Diagnose likely host+guest causes after a WSL crash or restart
+runtime-guard --diagnose-wsl-crash --json
 
 # Check version
 runtime-guard --version

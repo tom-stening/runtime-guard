@@ -19,6 +19,9 @@ _guard = None
 
 if RuntimeGuard is not None and _enabled:
     try:
+        _posture_key = "RUNTIME_GUARD_POSTURE"
+        if not os.environ.get(_posture_key, "").strip():
+            os.environ[_posture_key] = "wsl_dev"
         _guard = RuntimeGuard(
             env_prefix='RUNTIME_GUARD',
             log_tag='runtime-guard',

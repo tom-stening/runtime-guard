@@ -163,7 +163,19 @@ def _build_payload(
     }
 
     if include_wsl_diagnosis:
-        payload["wsl_diagnosis"] = diagnose_wsl_crash()
+        diag = diagnose_wsl_crash()
+        payload["wsl_diagnosis"] = diag
+        summary["wsl_risk_level"] = str(diag.get("risk_level", "unknown"))
+        summary["wsl_risk_score"] = int(diag.get("risk_score", 0) or 0)
+        summary["wsl_running_distro_count"] = int(diag.get("wsl_running_distro_count", 0) or 0)
+        summary["wsl_docker_desktop_running"] = bool(diag.get("docker_desktop_running", False))
+        top_rows = diag.get("guest_top_memory_processes", [])
+        if isinstance(top_rows, list) and top_rows:
+            first = top_rows[0]
+            if isinstance(first, dict):
+                summary["wsl_top_process_pid"] = int(first.get("pid", 0) or 0)
+                summary["wsl_top_process_rss_mb"] = int(first.get("rss_mb", 0) or 0)
+                summary["wsl_top_process_command"] = str(first.get("command", ""))
 
     if isinstance(integration_report, dict):
         payload["integration_status"] = integration_report

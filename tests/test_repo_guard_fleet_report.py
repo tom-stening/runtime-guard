@@ -79,3 +79,5 @@ def test_includes_wsl_diagnosis_when_requested(tmp_path: Path) -> None:
     runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
     assert "wsl_diagnosis" in runtime
     assert "risk_level" in runtime["wsl_diagnosis"]
+    assert "wsl_risk_level" in runtime["summary"]
+    assert "wsl_running_distro_count" in runtime["summary"]

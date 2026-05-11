@@ -2447,6 +2447,10 @@ def enable_ray_actor_memory_monitoring(
         "remote_wrapper": None,
         "get_actor_report": None,
         "reset_actor_report": None,
+        "node_report": None,
+        "reset_node_reports": None,
+        "get_all_node_reports": None,
+        "cluster_summary": None,
         "instructions": [
             "1. Add 'from runtime_guard import guard' to actor module (or pass via init)",
             "2. Wrap method calls with: if guard.check(stage='actor-method') is not None: handle_pressure()",
@@ -2541,6 +2545,40 @@ def enable_ray_actor_memory_monitoring(
     def _reset_actor_report() -> None:
         actor_event_state.clear()
 
+    def _node_report(node_id: str) -> dict[str, Any]:
+        return _get_actor_report(node_id=node_id)
+
+    def _reset_node_reports() -> None:
+        actor_event_state.clear()
+
+    def _get_all_node_reports() -> dict[str, Any]:
+        return {
+            "ok": True,
+            "nodes": actor_event_state,
+            "nodes_monitored": len(actor_event_state),
+            "total_events": sum(int(v.get("events", 0)) for v in actor_event_state.values()),
+        }
+
+    def _cluster_summary() -> dict[str, Any]:
+        node_rows = actor_event_state.values()
+        total_events = sum(int(v.get("events", 0)) for v in node_rows)
+        total_actors = sum(len(v.get("actors", {})) for v in node_rows)
+        busiest_node = None
+        busiest_events = -1
+        for node_id, row in actor_event_state.items():
+            events = int(row.get("events", 0))
+            if events > busiest_events:
+                busiest_events = events
+                busiest_node = node_id
+        return {
+            "ok": True,
+            "nodes_monitored": len(actor_event_state),
+            "actors_monitored": total_actors,
+            "total_events": total_events,
+            "busiest_node": busiest_node,
+            "busiest_node_events": max(busiest_events, 0),
+        }
+
     def _method_decorator(method: Any) -> Any:
         """Decorator for actor methods to add memory monitoring."""
 
@@ -2607,6 +2645,10 @@ def enable_ray_actor_memory_monitoring(
     config["remote_wrapper"] = _remote_wrapper
     config["get_actor_report"] = _get_actor_report
     config["reset_actor_report"] = _reset_actor_report
+    config["node_report"] = _node_report
+    config["reset_node_reports"] = _reset_node_reports
+    config["get_all_node_reports"] = _get_all_node_reports
+    config["cluster_summary"] = _cluster_summary
 
     return config
 

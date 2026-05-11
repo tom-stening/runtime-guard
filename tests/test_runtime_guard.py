@@ -1784,10 +1784,18 @@ class TestRayActorMemoryMonitoring:
         assert "remote_wrapper" in config
         assert "get_actor_report" in config
         assert "reset_actor_report" in config
+        assert "node_report" in config
+        assert "reset_node_reports" in config
+        assert "get_all_node_reports" in config
+        assert "cluster_summary" in config
         assert callable(config["method_decorator"])
         assert callable(config["remote_wrapper"])
         assert callable(config["get_actor_report"])
         assert callable(config["reset_actor_report"])
+        assert callable(config["node_report"])
+        assert callable(config["reset_node_reports"])
+        assert callable(config["get_all_node_reports"])
+        assert callable(config["cluster_summary"])
 
     def test_actor_method_decorator_calls_check_on_entry(self, monkeypatch):
         """Actor method decorator calls check_and_log on entry."""
@@ -1959,6 +1967,58 @@ class TestRayActorMemoryMonitoring:
 
         config["reset_actor_report"]()
         after = config["get_actor_report"]()
+        assert after["nodes_monitored"] == 0
+        assert after["total_events"] == 0
+
+    def test_node_report_and_get_all_node_reports(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-x", actor_id="actor-1") == 2
+        assert wrapped(2, node_id="node-y", actor_id="actor-2") == 3
+
+        node_x = config["node_report"]("node-x")
+        assert node_x["ok"] is True
+        assert node_x["node_id"] == "node-x"
+        assert node_x["events"] == 1
+
+        all_nodes = config["get_all_node_reports"]()
+        assert all_nodes["ok"] is True
+        assert all_nodes["nodes_monitored"] == 2
+        assert all_nodes["total_events"] == 2
+
+    def test_cluster_summary_and_node_reset(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-a", actor_id="actor-1") == 2
+        assert wrapped(2, node_id="node-a", actor_id="actor-1") == 3
+        assert wrapped(3, node_id="node-b", actor_id="actor-2") == 4
+
+        summary = config["cluster_summary"]()
+        assert summary["ok"] is True
+        assert summary["nodes_monitored"] == 2
+        assert summary["actors_monitored"] == 2
+        assert summary["total_events"] == 3
+        assert summary["busiest_node"] == "node-a"
+        assert summary["busiest_node_events"] == 2
+
+        config["reset_node_reports"]()
+        after = config["get_all_node_reports"]()
         assert after["nodes_monitored"] == 0
         assert after["total_events"] == 0
 

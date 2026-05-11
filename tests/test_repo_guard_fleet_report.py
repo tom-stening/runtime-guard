@@ -48,6 +48,11 @@ def test_builds_runtime_summary_from_enforcement_report(tmp_path: Path) -> None:
     assert runtime["summary"]["unenforced_repos"] == 1
     assert runtime["summary"]["fully_enforced"] is False
     assert runtime["summary"]["active_repos"] == 0
+    assert runtime["summary"]["recommendation_count"] >= 1
+    assert any(
+        "enforce_runtime_guard_all_repos.py" in row
+        for row in runtime["recommendations"]
+    )
 
 
 def test_marks_all_repos_enforced_when_statuses_are_enforced(tmp_path: Path) -> None:
@@ -81,3 +86,5 @@ def test_includes_wsl_diagnosis_when_requested(tmp_path: Path) -> None:
     assert "risk_level" in runtime["wsl_diagnosis"]
     assert "wsl_risk_level" in runtime["summary"]
     assert "wsl_running_distro_count" in runtime["summary"]
+    assert isinstance(runtime["recommendations"], list)
+    assert runtime["summary"]["recommendation_count"] == len(runtime["recommendations"])

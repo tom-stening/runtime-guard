@@ -167,9 +167,17 @@
     "tool": "validate_integration_fleet",
     "warnings": []
   },
+  "recommendations": [
+    "WSL risk is elevated; reduce concurrent heavy processes and rerun runtime-guard --diagnose-wsl-crash --json.",
+    "Stop docker-desktop when not needed during heavy WSL IDE/test/training sessions.",
+    "Close idle VS Code windows/workspaces to reduce extension host memory pressure.",
+    "increase .wslconfig swap and reduce memory spikes before heavy launches",
+    "stop idle WSL distros before heavy IDE, training, or test workloads",
+    "stop docker-desktop when it is not needed during heavy WSL sessions"
+  ],
   "repos": [
     {
-      "active_pid_count": 118,
+      "active_pid_count": 138,
       "details": "Refreshed RuntimeGuard-managed sitecustomize.py",
       "is_active": true,
       "is_enforced": true,
@@ -422,7 +430,7 @@
       "status": "enforced"
     },
     {
-      "active_pid_count": 18,
+      "active_pid_count": 24,
       "details": "Refreshed RuntimeGuard-managed sitecustomize.py",
       "is_active": true,
       "is_enforced": true,
@@ -466,7 +474,7 @@
       "status": "enforced"
     },
     {
-      "active_pid_count": 19,
+      "active_pid_count": 21,
       "details": "Refreshed RuntimeGuard-managed sitecustomize.py",
       "is_active": true,
       "is_enforced": true,
@@ -576,7 +584,7 @@
       "status": "enforced"
     },
     {
-      "active_pid_count": 15,
+      "active_pid_count": 27,
       "details": "Refreshed RuntimeGuard-managed sitecustomize.py",
       "is_active": true,
       "is_enforced": true,
@@ -1226,66 +1234,67 @@
     "integration_pressure_fallback_enabled": false,
     "integration_risk_level": "low",
     "proc_scan_enabled": true,
+    "recommendation_count": 6,
     "total_repos": 54,
     "unenforced_repos": 0,
     "wsl_docker_desktop_running": true,
-    "wsl_risk_level": "moderate",
-    "wsl_risk_score": 2,
+    "wsl_risk_level": "high",
+    "wsl_risk_score": 4,
     "wsl_running_distro_count": 2,
     "wsl_top_process_command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
-    "wsl_top_process_pid": 12114,
-    "wsl_top_process_rss_mb": 2718
+    "wsl_top_process_pid": 104186,
+    "wsl_top_process_rss_mb": 3062
   },
   "wsl_diagnosis": {
     "docker_desktop_running": true,
-    "drift_mem_available_mb": -24427,
+    "drift_mem_available_mb": -24780,
     "drift_mem_total_mb": -49453,
-    "drift_swap_used_pct": 18,
-    "guest_mem_available_mb": 1362,
+    "drift_swap_used_pct": 39,
+    "guest_mem_available_mb": 1684,
     "guest_mem_total_mb": 15995,
-    "guest_swap_free_mb": 4756,
+    "guest_swap_free_mb": 1013,
     "guest_swap_total_mb": 16384,
-    "guest_swap_used_pct": 70,
+    "guest_swap_used_pct": 93,
     "guest_top_memory_processes": [
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
-        "pid": 12114,
-        "rss_mb": 2718
+        "pid": 104186,
+        "rss_mb": 3062
       },
       {
         "command": "/home/thomas_stening/ML-Trading/venv/bin/python main.py",
         "pid": 71724,
-        "rss_mb": 1467
-      },
-      {
-        "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
-        "pid": 1894,
-        "rss_mb": 1263
-      },
-      {
-        "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
-        "pid": 1707,
-        "rss_mb": 1046
-      },
-      {
-        "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
-        "pid": 1708,
-        "rss_mb": 940
+        "rss_mb": 1867
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 1703,
-        "rss_mb": 934
+        "rss_mb": 1620
+      },
+      {
+        "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
+        "pid": 1708,
+        "rss_mb": 1118
+      },
+      {
+        "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
+        "pid": 1707,
+        "rss_mb": 967
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node /home/thomas_stening/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js --cancellationReceive=file:8e08...",
         "pid": 27453,
-        "rss_mb": 717
+        "rss_mb": 507
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node /home/thomas_stening/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js --cancellationReceive=file:14ba...",
         "pid": 25760,
-        "rss_mb": 518
+        "rss_mb": 505
+      },
+      {
+        "command": "python scripts/check_critical_imports.py",
+        "pid": 119382,
+        "rss_mb": 427
       }
     ],
     "host_error_event_count": 1,
@@ -1306,27 +1315,32 @@
       "System"
     ],
     "host_high_relevance_event_count": 0,
-    "host_mem_free_mb": 25789,
+    "host_mem_free_mb": 26464,
     "host_mem_total_mb": 65448,
-    "host_vm_free_mb": 47228,
+    "host_vm_free_mb": 46132,
     "host_vm_total_mb": 100448,
-    "host_vm_used_pct": 52,
+    "host_vm_used_pct": 54,
     "likely_causes": [
+      "guest swap usage is at or above 90%",
       "multiple WSL distros are running concurrently during guest memory pressure",
       "docker-desktop is running alongside pressured WSL workloads",
-      "host warning/error events were detected (low relevance to WSL)"
+      "host warning/error events were detected (low relevance to WSL)",
+      "top guest RSS offenders are consuming significant memory: pid=104186 rss=3062MB cmd=/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-resu...; pid=71724 rss=1867MB cmd=/home/thomas_stening/ML-Trading/venv/bin/python main.py; pid=1703 rss=1620MB cmd=/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-resu..."
     ],
     "prevention_actions": [
+      "increase .wslconfig swap and reduce memory spikes before heavy launches",
       "stop idle WSL distros before heavy IDE, training, or test workloads",
       "stop docker-desktop when it is not needed during heavy WSL sessions",
-      "review host events, but prioritize guest memory pressure signals first"
+      "review host events, but prioritize guest memory pressure signals first",
+      "close idle VS Code windows/workspaces to reduce extension host memory pressure",
+      "pause non-essential long-running Python jobs while memory pressure is elevated"
     ],
-    "psi_full_avg10": 1.71,
-    "psi_full_avg60": 2.1,
-    "psi_some_avg10": 4.34,
-    "psi_some_avg60": 4.96,
-    "risk_level": "moderate",
-    "risk_score": 2,
+    "psi_full_avg10": 3.49,
+    "psi_full_avg60": 1.65,
+    "psi_some_avg10": 4.66,
+    "psi_some_avg60": 2.81,
+    "risk_level": "high",
+    "risk_score": 4,
     "wsl_running_distro_count": 2,
     "wsl_running_distros": [
       {

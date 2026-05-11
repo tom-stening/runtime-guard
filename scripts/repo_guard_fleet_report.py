@@ -91,6 +91,70 @@ def sys_platform_linux_proc_available() -> bool:
     return os.name == "posix" and os.path.isdir("/proc")
 
 
+def _build_recommendations(
+    summary: dict[str, Any],
+    *,
+    include_wsl_diagnosis: bool,
+    wsl_diag: dict[str, Any] | None,
+) -> list[str]:
+    recommendations: list[str] = []
+
+    if not bool(summary.get("fully_enforced", False)):
+        recommendations.append(
+            "Run enforce_runtime_guard_all_repos.py with --enforce-all-repos to close guard coverage gaps."
+        )
+
+    integration_healthy = summary.get("integration_overall_healthy")
+    if integration_healthy is False:
+        recommendations.append(
+            "Run validate_integration_fleet.py --json --require-healthy and fix unhealthy component checks."
+        )
+
+    if include_wsl_diagnosis and isinstance(wsl_diag, dict):
+        wsl_risk = str(summary.get("wsl_risk_level", "unknown"))
+        if wsl_risk in {"moderate", "high", "critical"}:
+            recommendations.append(
+                "WSL risk is elevated; reduce concurrent heavy processes and rerun runtime-guard --diagnose-wsl-crash --json."
+            )
+
+        if bool(summary.get("wsl_docker_desktop_running", False)):
+            recommendations.append(
+                "Stop docker-desktop when not needed during heavy WSL IDE/test/training sessions."
+            )
+
+        top_cmd = str(summary.get("wsl_top_process_command", "")).lower()
+        if "vscode-server" in top_cmd or "extensionhost" in top_cmd:
+            recommendations.append(
+                "Close idle VS Code windows/workspaces to reduce extension host memory pressure."
+            )
+        if "pylance" in top_cmd:
+            recommendations.append(
+                "Reduce Pylance indexing scope (exclude large directories) during heavy workload windows."
+            )
+        if "python" in top_cmd:
+            recommendations.append(
+                "Pause non-essential long-running Python jobs while memory pressure is elevated."
+            )
+
+        for action in wsl_diag.get("prevention_actions", [])[:3]:
+            text = str(action).strip()
+            if text:
+                recommendations.append(text)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for row in recommendations:
+        if row in seen:
+            continue
+        seen.add(row)
+        deduped.append(row)
+
+    if not deduped:
+        deduped.append("Fleet status is healthy; keep periodic enforcement and runtime reporting enabled.")
+
+    return deduped
+
+
 def _build_payload(
     enforcement: dict[str, Any],
     *,
@@ -156,6 +220,8 @@ def _build_payload(
                 pressure_meta.get("pressure_detected", False)
             )
 
+    wsl_diag: dict[str, Any] | None = None
+
     payload: dict[str, Any] = {
         "source_enforcement_report": enforcement,
         "summary": summary,
@@ -163,19 +229,26 @@ def _build_payload(
     }
 
     if include_wsl_diagnosis:
-        diag = diagnose_wsl_crash()
-        payload["wsl_diagnosis"] = diag
-        summary["wsl_risk_level"] = str(diag.get("risk_level", "unknown"))
-        summary["wsl_risk_score"] = int(diag.get("risk_score", 0) or 0)
-        summary["wsl_running_distro_count"] = int(diag.get("wsl_running_distro_count", 0) or 0)
-        summary["wsl_docker_desktop_running"] = bool(diag.get("docker_desktop_running", False))
-        top_rows = diag.get("guest_top_memory_processes", [])
+        wsl_diag = diagnose_wsl_crash()
+        payload["wsl_diagnosis"] = wsl_diag
+        summary["wsl_risk_level"] = str(wsl_diag.get("risk_level", "unknown"))
+        summary["wsl_risk_score"] = int(wsl_diag.get("risk_score", 0) or 0)
+        summary["wsl_running_distro_count"] = int(wsl_diag.get("wsl_running_distro_count", 0) or 0)
+        summary["wsl_docker_desktop_running"] = bool(wsl_diag.get("docker_desktop_running", False))
+        top_rows = wsl_diag.get("guest_top_memory_processes", [])
         if isinstance(top_rows, list) and top_rows:
             first = top_rows[0]
             if isinstance(first, dict):
                 summary["wsl_top_process_pid"] = int(first.get("pid", 0) or 0)
                 summary["wsl_top_process_rss_mb"] = int(first.get("rss_mb", 0) or 0)
                 summary["wsl_top_process_command"] = str(first.get("command", ""))
+
+    payload["recommendations"] = _build_recommendations(
+        summary,
+        include_wsl_diagnosis=include_wsl_diagnosis,
+        wsl_diag=wsl_diag,
+    )
+    summary["recommendation_count"] = len(payload["recommendations"])
 
     if isinstance(integration_report, dict):
         payload["integration_status"] = integration_report

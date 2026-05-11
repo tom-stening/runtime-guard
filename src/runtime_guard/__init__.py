@@ -276,6 +276,16 @@ class MemSnapshot:
     swap_used_pct: int = 0
     rss_mb: int = 0
     vm_swap_mb: int = 0
+    # Host (Windows) metrics when running under WSL
+    host_mem_total_mb: int = 0
+    host_mem_available_mb: int = 0
+    host_swap_total_mb: int = 0
+    host_swap_free_mb: int = 0
+    host_swap_used_pct: int = 0
+    # Drift fields (guest - host)
+    drift_mem_total_mb: int = 0
+    drift_mem_available_mb: int = 0
+    drift_swap_used_pct: int = 0
 
 
 @dataclass
@@ -621,29 +631,35 @@ class RuntimeGuard:
 
         # --- Structured JSON event (runtime_guard.events logger) ---
         json_log_fn = _json_logger.critical if report.is_critical else _json_logger.warning
-        json_log_fn(
-            json.dumps(
-                {
-                    "event": "runtime_guard.pressure",
-                    "severity": severity_key,
-                    "tag": self._tag,
-                    "stage": report.stage,
-                    "pid": report.pid,
-                    "cause": report.cause,
-                    "self_inflicted": report.self_inflicted,
-                    "self_pct": report.self_pct,
-                    "is_critical": report.is_critical,
-                    "mem_available_mb": snap.mem_available_mb,
-                    "mem_total_mb": snap.mem_total_mb,
-                    "swap_used_pct": snap.swap_used_pct,
-                    "rss_mb": snap.rss_mb,
-                    "vm_swap_mb": snap.vm_swap_mb,
-                    "missing_mem_mb": report.missing_mem_mb,
-                    "swap_excess_pct": report.swap_excess_pct,
-                },
-                separators=(",", ":"),
-            )
-        )
+        json_log = {
+            "event": "runtime_guard.pressure",
+            "severity": severity_key,
+            "tag": self._tag,
+            "stage": report.stage,
+            "pid": report.pid,
+            "cause": report.cause,
+            "self_inflicted": report.self_inflicted,
+            "self_pct": report.self_pct,
+            "is_critical": report.is_critical,
+            "mem_available_mb": snap.mem_available_mb,
+            "mem_total_mb": snap.mem_total_mb,
+            "swap_used_pct": snap.swap_used_pct,
+            "rss_mb": snap.rss_mb,
+            "vm_swap_mb": snap.vm_swap_mb,
+            "missing_mem_mb": report.missing_mem_mb,
+            "swap_excess_pct": report.swap_excess_pct,
+        }
+        # If host metrics are present, include them and drift
+        if getattr(snap, "host_mem_total_mb", 0):
+            json_log["host_mem_total_mb"] = snap.host_mem_total_mb
+            json_log["host_mem_available_mb"] = snap.host_mem_available_mb
+            json_log["host_swap_total_mb"] = snap.host_swap_total_mb
+            json_log["host_swap_free_mb"] = snap.host_swap_free_mb
+            json_log["host_swap_used_pct"] = snap.host_swap_used_pct
+            json_log["drift_mem_total_mb"] = snap.drift_mem_total_mb
+            json_log["drift_mem_available_mb"] = snap.drift_mem_available_mb
+            json_log["drift_swap_used_pct"] = snap.drift_swap_used_pct
+        json_log_fn(json.dumps(json_log, separators=(",", ":")))
 
     def check_and_log(self, stage: str = "", *, auto_intervene: bool = False, kill_hogs_above_mb: int | None = None) -> PressureReport | None:
         """Convenience: check() then log() if pressure is found.
@@ -1149,6 +1165,70 @@ def _read_snapshot() -> MemSnapshot:
 
 
 def _read_linux(snap: MemSnapshot) -> None:
+    # If running under WSL, also snapshot host (Windows) metrics
+    if _is_wsl():
+        _read_windows_host_from_wsl(snap)
+        # Compute drift fields
+        if snap.host_mem_total_mb:
+            snap.drift_mem_total_mb = snap.mem_total_mb - snap.host_mem_total_mb
+        if snap.host_mem_available_mb:
+            snap.drift_mem_available_mb = snap.mem_available_mb - snap.host_mem_available_mb
+        if snap.host_swap_used_pct:
+            snap.drift_swap_used_pct = snap.swap_used_pct - snap.host_swap_used_pct
+
+# -- WSL Host (Windows) snapshot from WSL -------------------------------
+def _read_windows_host_from_wsl(snap: MemSnapshot) -> None:
+    """Populate host_* fields on snap by calling PowerShell from WSL."""
+    try:
+        out = subprocess.check_output([
+            "powershell.exe",
+            "-NoProfile",
+            "-Command",
+            "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize,FreePhysicalMemory,TotalVirtualMemorySize,FreeVirtualMemory,TotalSwapSpaceSize | ConvertTo-Csv -NoTypeInformation"
+        ], stderr=subprocess.DEVNULL, timeout=8, text=True)
+        lines = [ln.strip().strip('"') for ln in out.splitlines() if ln.strip()]
+        if len(lines) >= 2:
+            headers = [h.strip('"') for h in lines[0].split(",")]
+            values = [v.strip('"') for v in lines[1].split(",")]
+            row = dict(zip(headers, values))
+            snap.host_mem_total_mb = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
+            snap.host_mem_available_mb = int(row.get("FreePhysicalMemory", 0) or 0) // 1024
+            # Swap: Windows reports swap as part of virtual memory; try to estimate
+            swap_total_kb = int(row.get("TotalVirtualMemorySize", 0) or 0)
+            swap_free_kb = int(row.get("FreeVirtualMemory", 0) or 0)
+            snap.host_swap_total_mb = swap_total_kb // 1024
+            snap.host_swap_free_mb = swap_free_kb // 1024
+            if snap.host_swap_total_mb > 0:
+                snap.host_swap_used_pct = int(100 * (snap.host_swap_total_mb - snap.host_swap_free_mb) / snap.host_swap_total_mb)
+    except Exception:
+        pass
+
+    # -- WSL Host (Windows) snapshot from WSL -------------------------------
+    def _read_windows_host_from_wsl(snap: MemSnapshot) -> None:
+        """Populate host_* fields on snap by calling PowerShell from WSL."""
+        try:
+            out = subprocess.check_output([
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize,FreePhysicalMemory,TotalVirtualMemorySize,FreeVirtualMemory,TotalSwapSpaceSize | ConvertTo-Csv -NoTypeInformation"
+            ], stderr=subprocess.DEVNULL, timeout=8, text=True)
+            lines = [ln.strip().strip('"') for ln in out.splitlines() if ln.strip()]
+            if len(lines) >= 2:
+                headers = [h.strip('"') for h in lines[0].split(",")]
+                values = [v.strip('"') for v in lines[1].split(",")]
+                row = dict(zip(headers, values))
+                snap.host_mem_total_mb = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
+                snap.host_mem_available_mb = int(row.get("FreePhysicalMemory", 0) or 0) // 1024
+                # Swap: Windows reports swap as part of virtual memory; try to estimate
+                swap_total_kb = int(row.get("TotalVirtualMemorySize", 0) or 0)
+                swap_free_kb = int(row.get("FreeVirtualMemory", 0) or 0)
+                snap.host_swap_total_mb = swap_total_kb // 1024
+                snap.host_swap_free_mb = swap_free_kb // 1024
+                if snap.host_swap_total_mb > 0:
+                    snap.host_swap_used_pct = int(100 * (snap.host_swap_total_mb - snap.host_swap_free_mb) / snap.host_swap_total_mb)
+        except Exception:
+            pass
     try:
         meminfo: dict[str, int] = {}
         with open("/proc/meminfo", encoding="utf-8") as fh:
@@ -2797,6 +2877,16 @@ def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtim
         f'{prefix}_rss_mb{{stage="{stage}"}} {snap.rss_mb}',
         f'{prefix}_vm_swap_mb{{stage="{stage}"}} {snap.vm_swap_mb}',
     ]
+    # Add host (Windows) metrics if present
+    if getattr(snap, "host_mem_total_mb", 0):
+        lines.append(f'{prefix}_host_mem_total_mb{{stage="{stage}"}} {snap.host_mem_total_mb}')
+        lines.append(f'{prefix}_host_mem_available_mb{{stage="{stage}"}} {snap.host_mem_available_mb}')
+        lines.append(f'{prefix}_host_swap_total_mb{{stage="{stage}"}} {snap.host_swap_total_mb}')
+        lines.append(f'{prefix}_host_swap_free_mb{{stage="{stage}"}} {snap.host_swap_free_mb}')
+        lines.append(f'{prefix}_host_swap_used_pct{{stage="{stage}"}} {snap.host_swap_used_pct}')
+        lines.append(f'{prefix}_drift_mem_total_mb{{stage="{stage}"}} {snap.drift_mem_total_mb}')
+        lines.append(f'{prefix}_drift_mem_available_mb{{stage="{stage}"}} {snap.drift_mem_available_mb}')
+        lines.append(f'{prefix}_drift_swap_used_pct{{stage="{stage}"}} {snap.drift_swap_used_pct}')
     return "\n".join(lines) + "\n"
 
 

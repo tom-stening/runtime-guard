@@ -826,6 +826,21 @@ python scripts/validate_integration_fleet.py \
 This runs in offline mode when all three report flags are provided, and hybrid
 mode when only a subset is supplied.
 
+Enable automatic fallback to cached reports when RuntimeGuard detects pressure:
+
+```bash
+python scripts/validate_integration_fleet.py \
+    --json \
+    --fallback-on-pressure \
+    --fallback-report-dir reports \
+    --output reports/integration_fleet_status.json
+```
+
+With fallback enabled, the validator probes current memory pressure once and
+prefers `reports/polars_integration_status.json`,
+`reports/dask_integration_status.json`, and
+`reports/ray_integration_status.json` when pressure is present.
+
 ### Measuring success
 
 **Baseline metrics to track:**

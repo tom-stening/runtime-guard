@@ -110,3 +110,51 @@ def test_component_from_report_invalid_file(tmp_path: Path):
     assert comp["source"] == "report"
     assert comp["exit_code"] == 1
     assert any("unable to read report" in err for err in comp["errors"])
+
+
+def test_build_payload_uses_report_fallback_when_pressure_detected(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_module()
+
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir(parents=True)
+
+    (reports_dir / "polars_integration_status.json").write_text(
+        '{"ok": true, "api_importable": true, "scan_budget_api": {"available": true}}',
+        encoding="utf-8",
+    )
+    (reports_dir / "dask_integration_status.json").write_text(
+        '{"ok": true, "api_importable": true, '
+        '"task_graph_guard_api": {"available": true}, '
+        '"scheduler_callback_api": {"available": true}}',
+        encoding="utf-8",
+    )
+    (reports_dir / "ray_integration_status.json").write_text(
+        '{"ok": true, "api_importable": true, "actor_monitoring_api": {"available": true}}',
+        encoding="utf-8",
+    )
+
+    def _fail_run(*_args, **_kwargs):
+        raise AssertionError("live validator should not run in fallback offline mode")
+
+    monkeypatch.setattr(module, "_run_validator", _fail_run)
+
+    payload = module._build_payload(
+        tmp_path,
+        timeout_s=1,
+        include_wsl_diagnosis=False,
+        polars_report=None,
+        dask_report=None,
+        ray_report=None,
+        fallback_on_pressure=True,
+        fallback_report_dir="reports",
+        pressure_detected_override=True,
+    )
+
+    assert payload["execution_mode"] == "offline"
+    assert payload["pressure_fallback"]["enabled"] is True
+    assert payload["pressure_fallback"]["pressure_detected"] is True
+    assert payload["summary"]["overall_healthy"] is True
+    assert [c["source"] for c in payload["components"]] == ["report", "report", "report"]

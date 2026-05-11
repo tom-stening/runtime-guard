@@ -56,6 +56,22 @@ def _build_parser() -> argparse.ArgumentParser:
         "--ray-report",
         help="Use an existing JSON report from validate_ray_integration.py instead of running it",
     )
+    parser.add_argument(
+        "--fallback-on-pressure",
+        action="store_true",
+        help=(
+            "When runtime pressure is detected, use per-component reports from "
+            "--fallback-report-dir if available"
+        ),
+    )
+    parser.add_argument(
+        "--fallback-report-dir",
+        default="reports",
+        help=(
+            "Directory used with --fallback-on-pressure to discover component "
+            "reports (default: reports)"
+        ),
+    )
     return parser
 
 
@@ -155,6 +171,24 @@ def _load_report_payload(path: Path) -> tuple[dict[str, Any] | None, str | None]
     return parsed, None
 
 
+def _default_component_report_name(tool_name: str) -> str:
+    return f"{tool_name}_integration_status.json"
+
+
+def _detect_runtime_pressure() -> tuple[bool, str | None]:
+    """Return whether RuntimeGuard currently detects memory pressure."""
+    try:
+        from runtime_guard import RuntimeGuard
+
+        guard = RuntimeGuard()
+        report = guard.check(stage="integration-fleet:auto-fallback")
+        if report is None:
+            return False, None
+        return True, str(getattr(report, "cause", "runtime pressure detected"))
+    except Exception as exc:
+        return False, f"pressure probe unavailable: {exc}"
+
+
 def _run_validator(repo_root: Path, tool_name: str, script_name: str, extra_args: list[str], timeout_s: int) -> dict[str, Any]:
     cmd = [
         sys.executable,
@@ -239,7 +273,22 @@ def _build_payload(
     polars_report: str | None,
     dask_report: str | None,
     ray_report: str | None,
+    fallback_on_pressure: bool,
+    fallback_report_dir: str,
+    pressure_detected_override: bool | None = None,
 ) -> dict[str, Any]:
+    pressure_detected = False
+    pressure_probe_note: str | None = None
+    if fallback_on_pressure:
+        if pressure_detected_override is None:
+            pressure_detected, pressure_probe_note = _detect_runtime_pressure()
+        else:
+            pressure_detected = bool(pressure_detected_override)
+
+    fallback_dir = Path(fallback_report_dir)
+    if not fallback_dir.is_absolute():
+        fallback_dir = repo_root / fallback_dir
+
     component_specs = [
         (
             "polars",
@@ -262,9 +311,24 @@ def _build_payload(
     ]
 
     components: list[dict[str, Any]] = []
+    fleet_warnings: list[str] = []
     for tool, script_name, extra_args, report_path in component_specs:
-        if report_path:
-            path = Path(report_path)
+        effective_report_path = report_path
+        if (
+            not effective_report_path
+            and fallback_on_pressure
+            and pressure_detected
+        ):
+            discovered = fallback_dir / _default_component_report_name(tool)
+            if discovered.exists():
+                effective_report_path = str(discovered)
+            else:
+                fleet_warnings.append(
+                    f"pressure fallback enabled but report missing for {tool}: {discovered}"
+                )
+
+        if effective_report_path:
+            path = Path(effective_report_path)
             if not path.is_absolute():
                 path = repo_root / path
             components.append(_component_from_report(tool, path))
@@ -289,6 +353,13 @@ def _build_payload(
             if any(c.get("source") == "report" for c in components)
             else "live"
         ),
+        "pressure_fallback": {
+            "enabled": bool(fallback_on_pressure),
+            "pressure_detected": bool(pressure_detected),
+            "fallback_report_dir": str(fallback_dir),
+            "note": pressure_probe_note,
+        },
+        "warnings": fleet_warnings,
         "summary": summary,
         "components": components,
     }
@@ -315,6 +386,8 @@ def main() -> int:
         polars_report=args.polars_report,
         dask_report=args.dask_report,
         ray_report=args.ray_report,
+        fallback_on_pressure=bool(args.fallback_on_pressure),
+        fallback_report_dir=str(args.fallback_report_dir),
     )
 
     rendered = json.dumps(payload, indent=2, sort_keys=True)

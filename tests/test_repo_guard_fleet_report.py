@@ -88,3 +88,20 @@ def test_includes_wsl_diagnosis_when_requested(tmp_path: Path) -> None:
     assert "wsl_running_distro_count" in runtime["summary"]
     assert isinstance(runtime["recommendations"], list)
     assert runtime["summary"]["recommendation_count"] == len(runtime["recommendations"])
+
+
+def test_recommendations_are_deduplicated(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ]
+    }
+
+    result = _run_script(tmp_path, payload, "--no-proc-scan", "--include-wsl-diagnosis")
+    assert result.returncode == 0, result.stderr
+
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    recs = runtime.get("recommendations", [])
+    assert len(recs) == len({(" ".join(str(r).lower().strip().rstrip(".").split())) for r in recs})
+    docker_rows = [r for r in recs if "docker-desktop" in str(r).lower()]
+    assert len(docker_rows) <= 1

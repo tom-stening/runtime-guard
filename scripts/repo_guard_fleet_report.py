@@ -141,12 +141,38 @@ def _build_recommendations(
             if text:
                 recommendations.append(text)
 
+    def _norm(text: str) -> str:
+        out = text.strip().lower()
+        if out.endswith("."):
+            out = out[:-1]
+        out = " ".join(out.split())
+        return out
+
+    def _signature(text: str) -> str:
+        normalized = _norm(text)
+        if "docker-desktop" in normalized:
+            return "sig:docker-desktop"
+        if "vscode" in normalized or "extension host" in normalized:
+            return "sig:vscode-extension-host"
+        if "pylance" in normalized:
+            return "sig:pylance"
+        if "python jobs" in normalized or "python job" in normalized:
+            return "sig:python-jobs"
+        if "wsl risk is elevated" in normalized:
+            return "sig:wsl-risk"
+        if "enforce_runtime_guard_all_repos.py" in normalized:
+            return "sig:enforcement-gap"
+        if "validate_integration_fleet.py" in normalized:
+            return "sig:integration-health"
+        return "txt:" + normalized
+
     deduped: list[str] = []
     seen: set[str] = set()
     for row in recommendations:
-        if row in seen:
+        sig = _signature(row)
+        if sig in seen:
             continue
-        seen.add(row)
+        seen.add(sig)
         deduped.append(row)
 
     if not deduped:

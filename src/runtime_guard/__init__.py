@@ -5545,6 +5545,63 @@ def _read_linux_memory_psi() -> dict[str, float]:
     return data
 
 
+def _derive_guest_pressure_offender_hints(metrics: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Derive actionable causes/prevention hints from top guest RSS offenders."""
+    causes: list[str] = []
+    prevention: list[str] = []
+
+    rows_raw = metrics.get("guest_top_memory_processes", [])
+    if not isinstance(rows_raw, list):
+        return causes, prevention
+
+    rows: list[dict[str, Any]] = []
+    for item in rows_raw:
+        if isinstance(item, dict):
+            rows.append(item)
+
+    if not rows:
+        return causes, prevention
+
+    pressure_like = (
+        int(metrics.get("guest_mem_available_mb", 0) or 0) < 2048
+        or int(metrics.get("guest_swap_used_pct", 0) or 0) >= 70
+        or float(metrics.get("psi_full_avg10", 0.0) or 0.0) >= 5
+        or float(metrics.get("psi_some_avg10", 0.0) or 0.0) >= 10
+    )
+    if not pressure_like:
+        return causes, prevention
+
+    top_rows = rows[:3]
+    offenders = []
+    for row in top_rows:
+        try:
+            pid = int(row.get("pid", 0) or 0)
+            rss_mb = int(row.get("rss_mb", 0) or 0)
+        except Exception:
+            continue
+        cmd = str(row.get("command", "")).strip()
+        if not cmd:
+            continue
+        if len(cmd) > 96:
+            cmd = cmd[:96] + "..."
+        offenders.append(f"pid={pid} rss={rss_mb}MB cmd={cmd}")
+
+    if offenders:
+        causes.append("top guest RSS offenders are consuming significant memory: " + "; ".join(offenders))
+
+    commands = "\n".join(str(r.get("command", "")).lower() for r in top_rows)
+    if "vscode-server" in commands or "extensionhost" in commands:
+        prevention.append("close idle VS Code windows/workspaces to reduce extension host memory pressure")
+    if "pylance" in commands or "server.bundle.js" in commands:
+        prevention.append("reduce Pylance indexing scope (exclude large folders/workspaces) during heavy runs")
+    if "tsserver" in commands or "typescript" in commands:
+        prevention.append("restart idle TypeScript servers or reduce concurrent JS/TS workspaces during memory spikes")
+    if "python" in commands:
+        prevention.append("pause non-essential long-running Python jobs while memory pressure is elevated")
+
+    return causes, prevention
+
+
 def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], list[str]]:
     """Return (risk_level, score, likely_causes, prevention_actions)."""
     score = 0
@@ -5596,6 +5653,10 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
     elif host_error_event_count > 0:
         causes.append("host warning/error events were detected (low relevance to WSL)")
         prevention.append("review host events, but prioritize guest memory pressure signals first")
+
+    offender_causes, offender_prevention = _derive_guest_pressure_offender_hints(metrics)
+    causes.extend(offender_causes)
+    prevention.extend(offender_prevention)
 
     if score >= 5:
         level = "critical"

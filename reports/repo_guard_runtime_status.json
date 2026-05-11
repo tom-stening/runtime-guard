@@ -1,0 +1,1102 @@
+{
+  "repos": [
+    {
+      "active_pid_count": 91,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": true,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "thomas_stening",
+      "repo_path": "/home/thomas_stening",
+      "sitecustomize_path": "/home/thomas_stening/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "plugins",
+      "repo_path": "/home/thomas_stening/.codex/.tmp/plugins",
+      "sitecustomize_path": "/home/thomas_stening/.codex/.tmp/plugins/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": ".nvm",
+      "repo_path": "/home/thomas_stening/.nvm",
+      "sitecustomize_path": "/home/thomas_stening/.nvm/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 13,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": true,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "Airlines Manager Optimiser",
+      "repo_path": "/home/thomas_stening/Airlines Manager Optimiser",
+      "sitecustomize_path": "/home/thomas_stening/Airlines Manager Optimiser/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 12,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": true,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "ApexLogic",
+      "repo_path": "/home/thomas_stening/ApexLogic",
+      "sitecustomize_path": "/home/thomas_stening/ApexLogic/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "AudioMesh",
+      "repo_path": "/home/thomas_stening/AudioMesh",
+      "sitecustomize_path": "/home/thomas_stening/AudioMesh/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 11,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": true,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "AxiomTrace",
+      "repo_path": "/home/thomas_stening/AxiomTrace",
+      "sitecustomize_path": "/home/thomas_stening/AxiomTrace/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "BIP-Electrical-Inductions-Website",
+      "repo_path": "/home/thomas_stening/BIP-Electrical-Inductions-Website",
+      "sitecustomize_path": "/home/thomas_stening/BIP-Electrical-Inductions-Website/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "BIP-Induction-Website",
+      "repo_path": "/home/thomas_stening/BIP-Induction-Website",
+      "sitecustomize_path": "/home/thomas_stening/BIP-Induction-Website/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "BondGraph",
+      "repo_path": "/home/thomas_stening/BondGraph",
+      "sitecustomize_path": "/home/thomas_stening/BondGraph/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "BushPalate",
+      "repo_path": "/home/thomas_stening/BushPalate",
+      "sitecustomize_path": "/home/thomas_stening/BushPalate/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "CargoVector",
+      "repo_path": "/home/thomas_stening/CargoVector",
+      "sitecustomize_path": "/home/thomas_stening/CargoVector/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "CivicNode",
+      "repo_path": "/home/thomas_stening/CivicNode",
+      "sitecustomize_path": "/home/thomas_stening/CivicNode/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "EcoMesh",
+      "repo_path": "/home/thomas_stening/EcoMesh",
+      "sitecustomize_path": "/home/thomas_stening/EcoMesh/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "EquityMesh",
+      "repo_path": "/home/thomas_stening/EquityMesh",
+      "sitecustomize_path": "/home/thomas_stening/EquityMesh/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "EquityTrace",
+      "repo_path": "/home/thomas_stening/EquityTrace",
+      "sitecustomize_path": "/home/thomas_stening/EquityTrace/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "FieldSpace",
+      "repo_path": "/home/thomas_stening/FieldSpace",
+      "sitecustomize_path": "/home/thomas_stening/FieldSpace/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "FiscalMesh",
+      "repo_path": "/home/thomas_stening/FiscalMesh",
+      "sitecustomize_path": "/home/thomas_stening/FiscalMesh/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "FluxSign",
+      "repo_path": "/home/thomas_stening/FluxSign",
+      "sitecustomize_path": "/home/thomas_stening/FluxSign/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "ForgeMetric",
+      "repo_path": "/home/thomas_stening/ForgeMetric",
+      "sitecustomize_path": "/home/thomas_stening/ForgeMetric/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "FoundryLogic",
+      "repo_path": "/home/thomas_stening/FoundryLogic",
+      "sitecustomize_path": "/home/thomas_stening/FoundryLogic/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "KinBase",
+      "repo_path": "/home/thomas_stening/KinBase",
+      "sitecustomize_path": "/home/thomas_stening/KinBase/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "LeafLogic",
+      "repo_path": "/home/thomas_stening/LeafLogic",
+      "sitecustomize_path": "/home/thomas_stening/LeafLogic/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 10,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": true,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "ML-Trading",
+      "repo_path": "/home/thomas_stening/ML-Trading",
+      "sitecustomize_path": "/home/thomas_stening/ML-Trading/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "Movie-Finder",
+      "repo_path": "/home/thomas_stening/Movie-Finder",
+      "sitecustomize_path": "/home/thomas_stening/Movie-Finder/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "NexusCAD",
+      "repo_path": "/home/thomas_stening/NexusCAD",
+      "sitecustomize_path": "/home/thomas_stening/NexusCAD/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "OctaneLogic",
+      "repo_path": "/home/thomas_stening/OctaneLogic",
+      "sitecustomize_path": "/home/thomas_stening/OctaneLogic/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 11,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": true,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "OmniPrompt",
+      "repo_path": "/home/thomas_stening/OmniPrompt",
+      "sitecustomize_path": "/home/thomas_stening/OmniPrompt/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "eks",
+      "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks",
+      "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks/sitecustomize.py",
+      "status": "enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "eks.kms",
+      "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms",
+      "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms/sitecustomize.py",
+      "status": "enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "lb_controller_irsa",
+      "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa",
+      "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa/sitecustomize.py",
+      "status": "enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "vpc",
+      "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc",
+      "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc/sitecustomize.py",
+      "status": "enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "Plant_Database",
+      "repo_path": "/home/thomas_stening/Plant_Database",
+      "sitecustomize_path": "/home/thomas_stening/Plant_Database/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "PrimeForge",
+      "repo_path": "/home/thomas_stening/PrimeForge",
+      "sitecustomize_path": "/home/thomas_stening/PrimeForge/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "RangeMind",
+      "repo_path": "/home/thomas_stening/RangeMind",
+      "sitecustomize_path": "/home/thomas_stening/RangeMind/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "RipGrid",
+      "repo_path": "/home/thomas_stening/RipGrid",
+      "sitecustomize_path": "/home/thomas_stening/RipGrid/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "RuleSet",
+      "repo_path": "/home/thomas_stening/RuleSet",
+      "sitecustomize_path": "/home/thomas_stening/RuleSet/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 10,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": true,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "SovereignFlow",
+      "repo_path": "/home/thomas_stening/SovereignFlow",
+      "sitecustomize_path": "/home/thomas_stening/SovereignFlow/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "SynapseLogic",
+      "repo_path": "/home/thomas_stening/SynapseLogic",
+      "sitecustomize_path": "/home/thomas_stening/SynapseLogic/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "TraceSync",
+      "repo_path": "/home/thomas_stening/TraceSync",
+      "sitecustomize_path": "/home/thomas_stening/TraceSync/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "TrueLedger",
+      "repo_path": "/home/thomas_stening/TrueLedger",
+      "sitecustomize_path": "/home/thomas_stening/TrueLedger/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "TrunkLine",
+      "repo_path": "/home/thomas_stening/TrunkLine",
+      "sitecustomize_path": "/home/thomas_stening/TrunkLine/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "UnitPulse",
+      "repo_path": "/home/thomas_stening/UnitPulse",
+      "sitecustomize_path": "/home/thomas_stening/UnitPulse/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "UrbanTrace",
+      "repo_path": "/home/thomas_stening/UrbanTrace",
+      "sitecustomize_path": "/home/thomas_stening/UrbanTrace/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "VaneFlow",
+      "repo_path": "/home/thomas_stening/VaneFlow",
+      "sitecustomize_path": "/home/thomas_stening/VaneFlow/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": ".history",
+      "repo_path": "/home/thomas_stening/VaneFlow/.history",
+      "sitecustomize_path": "/home/thomas_stening/VaneFlow/.history/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "VaultPath",
+      "repo_path": "/home/thomas_stening/VaultPath",
+      "sitecustomize_path": "/home/thomas_stening/VaultPath/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "VividPath",
+      "repo_path": "/home/thomas_stening/VividPath",
+      "sitecustomize_path": "/home/thomas_stening/VividPath/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "VoltForge",
+      "repo_path": "/home/thomas_stening/VoltForge",
+      "sitecustomize_path": "/home/thomas_stening/VoltForge/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "Wine_Bottle_Storage_Optimiser",
+      "repo_path": "/home/thomas_stening/Wine_Bottle_Storage_Optimiser",
+      "sitecustomize_path": "/home/thomas_stening/Wine_Bottle_Storage_Optimiser/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 16,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": true,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "runtime-guard",
+      "repo_path": "/home/thomas_stening/runtime-guard",
+      "sitecustomize_path": "/home/thomas_stening/runtime-guard/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "tax-legislation",
+      "repo_path": "/home/thomas_stening/tax-legislation",
+      "sitecustomize_path": "/home/thomas_stening/tax-legislation/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "tax-legislation-scraper",
+      "repo_path": "/home/thomas_stening/tax-legislation-scraper",
+      "sitecustomize_path": "/home/thomas_stening/tax-legislation-scraper/sitecustomize.py",
+      "status": "already_enforced"
+    },
+    {
+      "active_pid_count": 0,
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
+      "is_active": false,
+      "is_enforced": true,
+      "is_python_repo": true,
+      "repo_name": "wsl-system-guard",
+      "repo_path": "/home/thomas_stening/wsl-system-guard",
+      "sitecustomize_path": "/home/thomas_stening/wsl-system-guard/sitecustomize.py",
+      "status": "already_enforced"
+    }
+  ],
+  "source_enforcement_report": {
+    "dry_run": false,
+    "env_prefix": "RUNTIME_GUARD",
+    "posture": "wsl_dev",
+    "repos": [
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "thomas_stening",
+        "repo_path": "/home/thomas_stening",
+        "sitecustomize_path": "/home/thomas_stening/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "plugins",
+        "repo_path": "/home/thomas_stening/.codex/.tmp/plugins",
+        "sitecustomize_path": "/home/thomas_stening/.codex/.tmp/plugins/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": ".nvm",
+        "repo_path": "/home/thomas_stening/.nvm",
+        "sitecustomize_path": "/home/thomas_stening/.nvm/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "Airlines Manager Optimiser",
+        "repo_path": "/home/thomas_stening/Airlines Manager Optimiser",
+        "sitecustomize_path": "/home/thomas_stening/Airlines Manager Optimiser/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "ApexLogic",
+        "repo_path": "/home/thomas_stening/ApexLogic",
+        "sitecustomize_path": "/home/thomas_stening/ApexLogic/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "AudioMesh",
+        "repo_path": "/home/thomas_stening/AudioMesh",
+        "sitecustomize_path": "/home/thomas_stening/AudioMesh/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "AxiomTrace",
+        "repo_path": "/home/thomas_stening/AxiomTrace",
+        "sitecustomize_path": "/home/thomas_stening/AxiomTrace/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "BIP-Electrical-Inductions-Website",
+        "repo_path": "/home/thomas_stening/BIP-Electrical-Inductions-Website",
+        "sitecustomize_path": "/home/thomas_stening/BIP-Electrical-Inductions-Website/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "BIP-Induction-Website",
+        "repo_path": "/home/thomas_stening/BIP-Induction-Website",
+        "sitecustomize_path": "/home/thomas_stening/BIP-Induction-Website/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "BondGraph",
+        "repo_path": "/home/thomas_stening/BondGraph",
+        "sitecustomize_path": "/home/thomas_stening/BondGraph/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "BushPalate",
+        "repo_path": "/home/thomas_stening/BushPalate",
+        "sitecustomize_path": "/home/thomas_stening/BushPalate/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "CargoVector",
+        "repo_path": "/home/thomas_stening/CargoVector",
+        "sitecustomize_path": "/home/thomas_stening/CargoVector/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "CivicNode",
+        "repo_path": "/home/thomas_stening/CivicNode",
+        "sitecustomize_path": "/home/thomas_stening/CivicNode/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "EcoMesh",
+        "repo_path": "/home/thomas_stening/EcoMesh",
+        "sitecustomize_path": "/home/thomas_stening/EcoMesh/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "EquityMesh",
+        "repo_path": "/home/thomas_stening/EquityMesh",
+        "sitecustomize_path": "/home/thomas_stening/EquityMesh/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "EquityTrace",
+        "repo_path": "/home/thomas_stening/EquityTrace",
+        "sitecustomize_path": "/home/thomas_stening/EquityTrace/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "FieldSpace",
+        "repo_path": "/home/thomas_stening/FieldSpace",
+        "sitecustomize_path": "/home/thomas_stening/FieldSpace/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "FiscalMesh",
+        "repo_path": "/home/thomas_stening/FiscalMesh",
+        "sitecustomize_path": "/home/thomas_stening/FiscalMesh/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "FluxSign",
+        "repo_path": "/home/thomas_stening/FluxSign",
+        "sitecustomize_path": "/home/thomas_stening/FluxSign/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "ForgeMetric",
+        "repo_path": "/home/thomas_stening/ForgeMetric",
+        "sitecustomize_path": "/home/thomas_stening/ForgeMetric/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "FoundryLogic",
+        "repo_path": "/home/thomas_stening/FoundryLogic",
+        "sitecustomize_path": "/home/thomas_stening/FoundryLogic/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "KinBase",
+        "repo_path": "/home/thomas_stening/KinBase",
+        "sitecustomize_path": "/home/thomas_stening/KinBase/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "LeafLogic",
+        "repo_path": "/home/thomas_stening/LeafLogic",
+        "sitecustomize_path": "/home/thomas_stening/LeafLogic/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "ML-Trading",
+        "repo_path": "/home/thomas_stening/ML-Trading",
+        "sitecustomize_path": "/home/thomas_stening/ML-Trading/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "Movie-Finder",
+        "repo_path": "/home/thomas_stening/Movie-Finder",
+        "sitecustomize_path": "/home/thomas_stening/Movie-Finder/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "NexusCAD",
+        "repo_path": "/home/thomas_stening/NexusCAD",
+        "sitecustomize_path": "/home/thomas_stening/NexusCAD/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "OctaneLogic",
+        "repo_path": "/home/thomas_stening/OctaneLogic",
+        "sitecustomize_path": "/home/thomas_stening/OctaneLogic/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "OmniPrompt",
+        "repo_path": "/home/thomas_stening/OmniPrompt",
+        "sitecustomize_path": "/home/thomas_stening/OmniPrompt/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "Created RuntimeGuard-managed sitecustomize.py",
+        "is_python_repo": true,
+        "repo_name": "eks",
+        "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks",
+        "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks/sitecustomize.py",
+        "status": "enforced"
+      },
+      {
+        "details": "Created RuntimeGuard-managed sitecustomize.py",
+        "is_python_repo": true,
+        "repo_name": "eks.kms",
+        "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms",
+        "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms/sitecustomize.py",
+        "status": "enforced"
+      },
+      {
+        "details": "Created RuntimeGuard-managed sitecustomize.py",
+        "is_python_repo": true,
+        "repo_name": "lb_controller_irsa",
+        "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa",
+        "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa/sitecustomize.py",
+        "status": "enforced"
+      },
+      {
+        "details": "Created RuntimeGuard-managed sitecustomize.py",
+        "is_python_repo": true,
+        "repo_name": "vpc",
+        "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc",
+        "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc/sitecustomize.py",
+        "status": "enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "Plant_Database",
+        "repo_path": "/home/thomas_stening/Plant_Database",
+        "sitecustomize_path": "/home/thomas_stening/Plant_Database/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "PrimeForge",
+        "repo_path": "/home/thomas_stening/PrimeForge",
+        "sitecustomize_path": "/home/thomas_stening/PrimeForge/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "RangeMind",
+        "repo_path": "/home/thomas_stening/RangeMind",
+        "sitecustomize_path": "/home/thomas_stening/RangeMind/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "RipGrid",
+        "repo_path": "/home/thomas_stening/RipGrid",
+        "sitecustomize_path": "/home/thomas_stening/RipGrid/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "RuleSet",
+        "repo_path": "/home/thomas_stening/RuleSet",
+        "sitecustomize_path": "/home/thomas_stening/RuleSet/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "SovereignFlow",
+        "repo_path": "/home/thomas_stening/SovereignFlow",
+        "sitecustomize_path": "/home/thomas_stening/SovereignFlow/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "SynapseLogic",
+        "repo_path": "/home/thomas_stening/SynapseLogic",
+        "sitecustomize_path": "/home/thomas_stening/SynapseLogic/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "TraceSync",
+        "repo_path": "/home/thomas_stening/TraceSync",
+        "sitecustomize_path": "/home/thomas_stening/TraceSync/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "TrueLedger",
+        "repo_path": "/home/thomas_stening/TrueLedger",
+        "sitecustomize_path": "/home/thomas_stening/TrueLedger/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "TrunkLine",
+        "repo_path": "/home/thomas_stening/TrunkLine",
+        "sitecustomize_path": "/home/thomas_stening/TrunkLine/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "UnitPulse",
+        "repo_path": "/home/thomas_stening/UnitPulse",
+        "sitecustomize_path": "/home/thomas_stening/UnitPulse/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "UrbanTrace",
+        "repo_path": "/home/thomas_stening/UrbanTrace",
+        "sitecustomize_path": "/home/thomas_stening/UrbanTrace/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "VaneFlow",
+        "repo_path": "/home/thomas_stening/VaneFlow",
+        "sitecustomize_path": "/home/thomas_stening/VaneFlow/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": ".history",
+        "repo_path": "/home/thomas_stening/VaneFlow/.history",
+        "sitecustomize_path": "/home/thomas_stening/VaneFlow/.history/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "VaultPath",
+        "repo_path": "/home/thomas_stening/VaultPath",
+        "sitecustomize_path": "/home/thomas_stening/VaultPath/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "VividPath",
+        "repo_path": "/home/thomas_stening/VividPath",
+        "sitecustomize_path": "/home/thomas_stening/VividPath/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "VoltForge",
+        "repo_path": "/home/thomas_stening/VoltForge",
+        "sitecustomize_path": "/home/thomas_stening/VoltForge/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "Wine_Bottle_Storage_Optimiser",
+        "repo_path": "/home/thomas_stening/Wine_Bottle_Storage_Optimiser",
+        "sitecustomize_path": "/home/thomas_stening/Wine_Bottle_Storage_Optimiser/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "runtime-guard",
+        "repo_path": "/home/thomas_stening/runtime-guard",
+        "sitecustomize_path": "/home/thomas_stening/runtime-guard/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "tax-legislation",
+        "repo_path": "/home/thomas_stening/tax-legislation",
+        "sitecustomize_path": "/home/thomas_stening/tax-legislation/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "tax-legislation-scraper",
+        "repo_path": "/home/thomas_stening/tax-legislation-scraper",
+        "sitecustomize_path": "/home/thomas_stening/tax-legislation-scraper/sitecustomize.py",
+        "status": "already_enforced"
+      },
+      {
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
+        "is_python_repo": true,
+        "repo_name": "wsl-system-guard",
+        "repo_path": "/home/thomas_stening/wsl-system-guard",
+        "sitecustomize_path": "/home/thomas_stening/wsl-system-guard/sitecustomize.py",
+        "status": "already_enforced"
+      }
+    ],
+    "root": "/home/thomas_stening",
+    "stage": "repo-autostart",
+    "summary": {
+      "already_enforced": 50,
+      "blocked_existing_sitecustomize": 0,
+      "dry_run_candidates": 0,
+      "enforced": 4,
+      "non_python_repos": 0,
+      "python_repos": 54,
+      "total_repos": 54,
+      "watcher_only_candidates": 0
+    }
+  },
+  "summary": {
+    "active_repos": 8,
+    "enforced_repos": 54,
+    "fully_enforced": true,
+    "proc_scan_enabled": true,
+    "total_repos": 54,
+    "unenforced_repos": 0
+  },
+  "wsl_diagnosis": {
+    "drift_mem_available_mb": -29235,
+    "drift_mem_total_mb": -53485,
+    "drift_swap_used_pct": 43,
+    "guest_mem_available_mb": 2112,
+    "guest_mem_total_mb": 11963,
+    "guest_swap_free_mb": 694,
+    "guest_swap_total_mb": 6144,
+    "guest_swap_used_pct": 88,
+    "host_error_event_count": 1,
+    "host_error_events": [
+      {
+        "id": 16,
+        "level": "Error",
+        "log": "System",
+        "message": "The mutual authentication between the local Bluetooth adapter and a device with Bluetooth adapter address (80:07:94:20:48:f0) failed.",
+        "provider": "BTHUSB",
+        "relevance": "low",
+        "time": "/Date(1778510085801)/"
+      }
+    ],
+    "host_event_logs_checked": [
+      "Microsoft-Windows-Hyper-V-Compute-Operational",
+      "Microsoft-Windows-Hyper-V-Worker-Operational",
+      "System"
+    ],
+    "host_high_relevance_event_count": 0,
+    "host_mem_free_mb": 31347,
+    "host_mem_total_mb": 65448,
+    "host_vm_free_mb": 55125,
+    "host_vm_total_mb": 100448,
+    "host_vm_used_pct": 45,
+    "likely_causes": [
+      "host warning/error events were detected (low relevance to WSL)"
+    ],
+    "prevention_actions": [
+      "review host events, but prioritize guest memory pressure signals first"
+    ],
+    "psi_full_avg10": 0.08,
+    "psi_full_avg60": 0.04,
+    "psi_some_avg10": 0.31,
+    "psi_some_avg60": 0.1,
+    "risk_level": "low",
+    "risk_score": 0
+  }
+}

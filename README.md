@@ -845,6 +845,22 @@ prefers `reports/polars_integration_status.json`,
 `reports/dask_integration_status.json`, and
 `reports/ray_integration_status.json` when pressure is present.
 
+Run full fleet governance in one command (enforcement -> integration -> runtime gates):
+
+```bash
+python scripts/run_fleet_guard_cycle.py \
+    --root /home/thomas_stening \
+    --include-wsl-diagnosis \
+    --integration-fallback-on-pressure \
+    --fail-on-unenforced \
+    --fail-on-integration-unhealthy \
+    --fail-on-wsl-risk high
+```
+
+This orchestrator produces refreshed `repo_guard_enforcement.json`,
+`integration_fleet_status.json`, and `repo_guard_runtime_status.json` in one
+run and exits non-zero on selected policy failures.
+
 ### Measuring success
 
 **Baseline metrics to track:**

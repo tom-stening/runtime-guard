@@ -41,6 +41,7 @@ def test_diagnose_wsl_crash_includes_risk_and_metrics(monkeypatch: pytest.Monkey
         lambda: {
             "host_event_logs_checked": ["System"],
             "host_error_event_count": 1,
+            "host_high_relevance_event_count": 0,
             "host_error_events": [
                 {
                     "log": "System",
@@ -48,6 +49,7 @@ def test_diagnose_wsl_crash_includes_risk_and_metrics(monkeypatch: pytest.Monkey
                     "level": "Warning",
                     "provider": "TestProvider",
                     "message": "sample",
+                    "relevance": "low",
                     "time": "2026-05-11T00:00:00",
                 }
             ],
@@ -59,6 +61,7 @@ def test_diagnose_wsl_crash_includes_risk_and_metrics(monkeypatch: pytest.Monkey
     assert out["guest_mem_available_mb"] == 800
     assert out["host_mem_total_mb"] == 64000
     assert out["host_error_event_count"] == 1
+    assert out["host_high_relevance_event_count"] == 0
     assert out["host_error_events"]
     assert out["risk_level"] in {"high", "critical"}
     assert out["risk_score"] >= 3
@@ -124,10 +127,30 @@ def test_classify_wsl_risk_includes_host_event_signal():
             "psi_full_avg10": 0.0,
             "host_vm_used_pct": 40,
             "host_error_event_count": 2,
+            "host_high_relevance_event_count": 1,
         }
     )
 
     assert level in {"moderate", "high", "critical"}
     assert score >= 1
-    assert any("host Hyper-V/System" in c for c in causes)
-    assert any("Hyper-V/System events" in a for a in actions)
+    assert any("host WSL/Hyper-V relevant" in c for c in causes)
+    assert any("Hyper-V/WSL-related events" in a for a in actions)
+
+
+def test_classify_wsl_risk_keeps_low_relevance_host_events_informational_only():
+    level, score, causes, actions = rg._classify_wsl_crash_risk(
+        {
+            "guest_mem_available_mb": 5000,
+            "guest_swap_used_pct": 20,
+            "psi_some_avg10": 0.0,
+            "psi_full_avg10": 0.0,
+            "host_vm_used_pct": 40,
+            "host_error_event_count": 3,
+            "host_high_relevance_event_count": 0,
+        }
+    )
+
+    assert level == "low"
+    assert score == 0
+    assert any("low relevance" in c for c in causes)
+    assert any("prioritize guest memory pressure" in a for a in actions)

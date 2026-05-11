@@ -5215,6 +5215,7 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
     psi_full_avg10 = float(metrics.get("psi_full_avg10", 0.0) or 0.0)
     host_vm_used_pct = int(metrics.get("host_vm_used_pct", 0) or 0)
     host_error_event_count = int(metrics.get("host_error_event_count", 0) or 0)
+    host_high_relevance_event_count = int(metrics.get("host_high_relevance_event_count", 0) or 0)
 
     if guest_mem_available_mb < 1024:
         score += 2
@@ -5236,10 +5237,13 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
         score += 1
         causes.append("host virtual memory usage is high")
         prevention.append("free host memory/pagefile pressure and verify Windows pagefile is system-managed")
-    if host_error_event_count > 0:
+    if host_high_relevance_event_count > 0:
         score += 1
-        causes.append("host Hyper-V/System warning or error events were detected")
-        prevention.append("inspect recent Hyper-V/System events for VM resets or integration faults")
+        causes.append("host WSL/Hyper-V relevant warning or error events were detected")
+        prevention.append("inspect recent Hyper-V/WSL-related events for VM resets or integration faults")
+    elif host_error_event_count > 0:
+        causes.append("host warning/error events were detected (low relevance to WSL)")
+        prevention.append("review host events, but prioritize guest memory pressure signals first")
 
     if score >= 5:
         level = "critical"
@@ -5268,6 +5272,7 @@ def _read_windows_wsl_event_hints(max_events: int = 6) -> dict[str, Any]:
             "System",
         ],
         "host_error_event_count": 0,
+        "host_high_relevance_event_count": 0,
         "host_error_events": [],
     }
 
@@ -5338,10 +5343,31 @@ def _read_windows_wsl_event_hints(max_events: int = 6) -> dict[str, Any]:
                 }
             )
 
-    # Most recent first, bounded output size
+    def _event_relevance(ev: dict[str, Any]) -> str:
+        log_name = str(ev.get("log", "") or "").lower()
+        provider = str(ev.get("provider", "") or "").lower()
+        message = str(ev.get("message", "") or "").lower()
+
+        if "hyper-v" in log_name or "hyper-v" in provider:
+            return "high"
+        if "lxss" in provider or "wsl" in provider or "wsl" in message:
+            return "high"
+        if "vmcompute" in provider or "hcs" in provider:
+            return "high"
+        if "vmm" in provider or "virtual machine" in message:
+            return "medium"
+        return "low"
+
+    for ev in events:
+        ev["relevance"] = _event_relevance(ev)
+
+    events.sort(key=lambda e: {"high": 0, "medium": 1, "low": 2}.get(str(e.get("relevance", "low")), 3))
     events = events[:max_events]
+
+    high_count = sum(1 for e in events if e.get("relevance") == "high")
     out["host_error_events"] = events
     out["host_error_event_count"] = len(events)
+    out["host_high_relevance_event_count"] = high_count
     return out
 
 
@@ -5372,6 +5398,7 @@ def diagnose_wsl_crash() -> dict[str, Any]:
         "drift_mem_total_mb": snap.drift_mem_total_mb,
         "drift_mem_available_mb": snap.drift_mem_available_mb,
         "drift_swap_used_pct": snap.drift_swap_used_pct,
+        "host_high_relevance_event_count": 0,
     }
     metrics.update(psi)
     metrics.update(_read_windows_wsl_event_hints())

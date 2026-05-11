@@ -72,6 +72,7 @@ __all__ = [
     "recommend_kernel_params",
     "apply_kernel_params",
     "wsl_system_report",
+    "diagnose_wsl_crash",
     "make_conftest_content",
     "make_sitecustomize_content",
     "attach_polars_guard",
@@ -1165,70 +1166,6 @@ def _read_snapshot() -> MemSnapshot:
 
 
 def _read_linux(snap: MemSnapshot) -> None:
-    # If running under WSL, also snapshot host (Windows) metrics
-    if _is_wsl():
-        _read_windows_host_from_wsl(snap)
-        # Compute drift fields
-        if snap.host_mem_total_mb:
-            snap.drift_mem_total_mb = snap.mem_total_mb - snap.host_mem_total_mb
-        if snap.host_mem_available_mb:
-            snap.drift_mem_available_mb = snap.mem_available_mb - snap.host_mem_available_mb
-        if snap.host_swap_used_pct:
-            snap.drift_swap_used_pct = snap.swap_used_pct - snap.host_swap_used_pct
-
-# -- WSL Host (Windows) snapshot from WSL -------------------------------
-def _read_windows_host_from_wsl(snap: MemSnapshot) -> None:
-    """Populate host_* fields on snap by calling PowerShell from WSL."""
-    try:
-        out = subprocess.check_output([
-            "powershell.exe",
-            "-NoProfile",
-            "-Command",
-            "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize,FreePhysicalMemory,TotalVirtualMemorySize,FreeVirtualMemory,TotalSwapSpaceSize | ConvertTo-Csv -NoTypeInformation"
-        ], stderr=subprocess.DEVNULL, timeout=8, text=True)
-        lines = [ln.strip().strip('"') for ln in out.splitlines() if ln.strip()]
-        if len(lines) >= 2:
-            headers = [h.strip('"') for h in lines[0].split(",")]
-            values = [v.strip('"') for v in lines[1].split(",")]
-            row = dict(zip(headers, values))
-            snap.host_mem_total_mb = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
-            snap.host_mem_available_mb = int(row.get("FreePhysicalMemory", 0) or 0) // 1024
-            # Swap: Windows reports swap as part of virtual memory; try to estimate
-            swap_total_kb = int(row.get("TotalVirtualMemorySize", 0) or 0)
-            swap_free_kb = int(row.get("FreeVirtualMemory", 0) or 0)
-            snap.host_swap_total_mb = swap_total_kb // 1024
-            snap.host_swap_free_mb = swap_free_kb // 1024
-            if snap.host_swap_total_mb > 0:
-                snap.host_swap_used_pct = int(100 * (snap.host_swap_total_mb - snap.host_swap_free_mb) / snap.host_swap_total_mb)
-    except Exception:
-        pass
-
-    # -- WSL Host (Windows) snapshot from WSL -------------------------------
-    def _read_windows_host_from_wsl(snap: MemSnapshot) -> None:
-        """Populate host_* fields on snap by calling PowerShell from WSL."""
-        try:
-            out = subprocess.check_output([
-                "powershell.exe",
-                "-NoProfile",
-                "-Command",
-                "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize,FreePhysicalMemory,TotalVirtualMemorySize,FreeVirtualMemory,TotalSwapSpaceSize | ConvertTo-Csv -NoTypeInformation"
-            ], stderr=subprocess.DEVNULL, timeout=8, text=True)
-            lines = [ln.strip().strip('"') for ln in out.splitlines() if ln.strip()]
-            if len(lines) >= 2:
-                headers = [h.strip('"') for h in lines[0].split(",")]
-                values = [v.strip('"') for v in lines[1].split(",")]
-                row = dict(zip(headers, values))
-                snap.host_mem_total_mb = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
-                snap.host_mem_available_mb = int(row.get("FreePhysicalMemory", 0) or 0) // 1024
-                # Swap: Windows reports swap as part of virtual memory; try to estimate
-                swap_total_kb = int(row.get("TotalVirtualMemorySize", 0) or 0)
-                swap_free_kb = int(row.get("FreeVirtualMemory", 0) or 0)
-                snap.host_swap_total_mb = swap_total_kb // 1024
-                snap.host_swap_free_mb = swap_free_kb // 1024
-                if snap.host_swap_total_mb > 0:
-                    snap.host_swap_used_pct = int(100 * (snap.host_swap_total_mb - snap.host_swap_free_mb) / snap.host_swap_total_mb)
-        except Exception:
-            pass
     try:
         meminfo: dict[str, int] = {}
         with open("/proc/meminfo", encoding="utf-8") as fh:
@@ -1271,6 +1208,57 @@ def _read_windows_host_from_wsl(snap: MemSnapshot) -> None:
         snap.rss_mb = _kb("VmRSS") // 1024
         snap.vm_swap_mb = _kb("VmSwap") // 1024
     except OSError:
+        pass
+
+    # If running under WSL, also snapshot host (Windows) metrics and drift.
+    if _is_wsl():
+        _read_windows_host_from_wsl(snap)
+        if snap.host_mem_total_mb:
+            snap.drift_mem_total_mb = snap.mem_total_mb - snap.host_mem_total_mb
+        if snap.host_mem_available_mb:
+            snap.drift_mem_available_mb = snap.mem_available_mb - snap.host_mem_available_mb
+        if snap.host_swap_used_pct:
+            snap.drift_swap_used_pct = snap.swap_used_pct - snap.host_swap_used_pct
+
+
+# -- WSL Host (Windows) snapshot from WSL -----------------------------------
+
+
+def _read_windows_host_from_wsl(snap: MemSnapshot) -> None:
+    """Populate host_* fields on snap by calling PowerShell from WSL."""
+    try:
+        out = subprocess.check_output(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_OperatingSystem | "
+                "Select-Object TotalVisibleMemorySize,FreePhysicalMemory,"
+                "TotalVirtualMemorySize,FreeVirtualMemory | "
+                "ConvertTo-Csv -NoTypeInformation",
+            ],
+            stderr=subprocess.DEVNULL,
+            timeout=8,
+            text=True,
+        )
+        lines = [ln.strip().strip('"') for ln in out.splitlines() if ln.strip()]
+        if len(lines) >= 2:
+            headers = [h.strip('"') for h in lines[0].split(",")]
+            values = [v.strip('"') for v in lines[1].split(",")]
+            row = dict(zip(headers, values))
+            snap.host_mem_total_mb = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
+            snap.host_mem_available_mb = int(row.get("FreePhysicalMemory", 0) or 0) // 1024
+            swap_total_kb = int(row.get("TotalVirtualMemorySize", 0) or 0)
+            swap_free_kb = int(row.get("FreeVirtualMemory", 0) or 0)
+            snap.host_swap_total_mb = swap_total_kb // 1024
+            snap.host_swap_free_mb = swap_free_kb // 1024
+            if snap.host_swap_total_mb > 0:
+                snap.host_swap_used_pct = int(
+                    100
+                    * (snap.host_swap_total_mb - snap.host_swap_free_mb)
+                    / snap.host_swap_total_mb
+                )
+    except Exception:
         pass
 
 
@@ -5072,6 +5060,129 @@ def wsl_system_report() -> str:
     return "\n".join(lines)
 
 
+def _read_linux_memory_psi() -> dict[str, float]:
+    """Read Linux memory PSI metrics from /proc/pressure/memory when present."""
+    data = {
+        "psi_some_avg10": 0.0,
+        "psi_some_avg60": 0.0,
+        "psi_full_avg10": 0.0,
+        "psi_full_avg60": 0.0,
+    }
+    try:
+        with open("/proc/pressure/memory", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) < 2:
+                    continue
+                scope = parts[0]
+                kv: dict[str, str] = {}
+                for token in parts[1:]:
+                    if "=" not in token:
+                        continue
+                    k, v = token.split("=", 1)
+                    kv[k] = v
+                if scope == "some":
+                    data["psi_some_avg10"] = float(kv.get("avg10", "0") or 0)
+                    data["psi_some_avg60"] = float(kv.get("avg60", "0") or 0)
+                elif scope == "full":
+                    data["psi_full_avg10"] = float(kv.get("avg10", "0") or 0)
+                    data["psi_full_avg60"] = float(kv.get("avg60", "0") or 0)
+    except OSError:
+        return data
+    except ValueError:
+        return data
+    return data
+
+
+def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], list[str]]:
+    """Return (risk_level, score, likely_causes, prevention_actions)."""
+    score = 0
+    causes: list[str] = []
+    prevention: list[str] = []
+
+    guest_mem_available_mb = int(metrics.get("guest_mem_available_mb", 0) or 0)
+    guest_swap_used_pct = int(metrics.get("guest_swap_used_pct", 0) or 0)
+    psi_some_avg10 = float(metrics.get("psi_some_avg10", 0.0) or 0.0)
+    psi_full_avg10 = float(metrics.get("psi_full_avg10", 0.0) or 0.0)
+    host_vm_used_pct = int(metrics.get("host_vm_used_pct", 0) or 0)
+
+    if guest_mem_available_mb < 1024:
+        score += 2
+        causes.append("guest available memory is below 1 GiB")
+        prevention.append("reduce concurrent heavy processes in WSL and VS Code extension hosts")
+    if guest_swap_used_pct >= 90:
+        score += 2
+        causes.append("guest swap usage is at or above 90%")
+        prevention.append("increase .wslconfig swap and reduce memory spikes before heavy launches")
+    if psi_full_avg10 >= 10:
+        score += 2
+        causes.append("guest full memory PSI avg10 is high (frequent stalls)")
+        prevention.append("stagger memory-heavy tasks; avoid concurrent mypy/pylance/test bursts")
+    if psi_some_avg10 >= 20:
+        score += 1
+        causes.append("guest some memory PSI avg10 indicates sustained contention")
+        prevention.append("limit extension host count and long-running indexers during heavy jobs")
+    if host_vm_used_pct >= 85:
+        score += 1
+        causes.append("host virtual memory usage is high")
+        prevention.append("free host memory/pagefile pressure and verify Windows pagefile is system-managed")
+
+    if score >= 5:
+        level = "critical"
+    elif score >= 3:
+        level = "high"
+    elif score >= 1:
+        level = "moderate"
+    else:
+        level = "low"
+
+    if not prevention:
+        prevention.append("current pressure is low; keep WSL capped and monitor before heavy subprocess launches")
+
+    return level, score, causes, prevention
+
+
+def diagnose_wsl_crash() -> dict[str, Any]:
+    """Collect host+guest diagnostics and classify WSL crash risk.
+
+    Returns a dictionary suitable for JSON serialization and CI gating.
+    """
+    snap = _read_snapshot()
+    psi = _read_linux_memory_psi() if sys.platform.startswith("linux") else {
+        "psi_some_avg10": 0.0,
+        "psi_some_avg60": 0.0,
+        "psi_full_avg10": 0.0,
+        "psi_full_avg60": 0.0,
+    }
+
+    metrics: dict[str, Any] = {
+        "guest_mem_total_mb": snap.mem_total_mb,
+        "guest_mem_available_mb": snap.mem_available_mb,
+        "guest_swap_total_mb": snap.swap_total_mb,
+        "guest_swap_free_mb": snap.swap_free_mb,
+        "guest_swap_used_pct": snap.swap_used_pct,
+        "host_mem_total_mb": snap.host_mem_total_mb,
+        "host_mem_free_mb": snap.host_mem_available_mb,
+        "host_vm_total_mb": snap.host_swap_total_mb,
+        "host_vm_free_mb": snap.host_swap_free_mb,
+        "host_vm_used_pct": snap.host_swap_used_pct,
+        "drift_mem_total_mb": snap.drift_mem_total_mb,
+        "drift_mem_available_mb": snap.drift_mem_available_mb,
+        "drift_swap_used_pct": snap.drift_swap_used_pct,
+    }
+    metrics.update(psi)
+
+    level, score, causes, prevention = _classify_wsl_crash_risk(metrics)
+    metrics["risk_level"] = level
+    metrics["risk_score"] = score
+    metrics["likely_causes"] = causes
+    metrics["prevention_actions"] = prevention
+    return metrics
+
+
 def make_conftest_content(
     *,
     repo_name: str,
@@ -5310,6 +5421,11 @@ def _cli() -> None:  # pragma: no cover
         help="Print a full WSL2 / system health report.",
     )
     group.add_argument(
+        "--diagnose-wsl-crash",
+        action="store_true",
+        help="Collect host+guest diagnostics and classify WSL crash risk.",
+    )
+    group.add_argument(
         "--generate-wslconfig",
         metavar="MEM_GB",
         type=int,
@@ -5347,6 +5463,17 @@ def _cli() -> None:  # pragma: no cover
         action="store_true",
         help="Print the package version and exit.",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON output where applicable (e.g., --diagnose-wsl-crash).",
+    )
+    parser.add_argument(
+        "--fail-on-risk",
+        choices=["none", "high", "critical"],
+        default="none",
+        help="With --diagnose-wsl-crash, exit non-zero when risk meets threshold.",
+    )
 
     args = parser.parse_args()
 
@@ -5364,6 +5491,37 @@ def _cli() -> None:  # pragma: no cover
     if args.report:
         print(wsl_system_report())
         return
+
+    if args.diagnose_wsl_crash:
+        diag = diagnose_wsl_crash()
+        if args.json:
+            print(json.dumps(diag, sort_keys=True))
+        else:
+            print(
+                "[RuntimeGuard] WSL crash diagnosis "
+                f"risk={diag['risk_level']} score={diag['risk_score']} "
+                f"guest_mem_available={diag['guest_mem_available_mb']}MB "
+                f"guest_swap_used={diag['guest_swap_used_pct']}%"
+            )
+            if diag.get("host_mem_total_mb"):
+                print(
+                    "  host: "
+                    f"mem_free={diag['host_mem_free_mb']}MB "
+                    f"vm_used={diag['host_vm_used_pct']}%"
+                )
+            if diag.get("likely_causes"):
+                print("  likely causes:")
+                for cause in diag["likely_causes"]:
+                    print(f"    - {cause}")
+            print("  prevention actions:")
+            for action in diag["prevention_actions"]:
+                print(f"    - {action}")
+
+        if args.fail_on_risk == "critical":
+            sys.exit(1 if diag["risk_level"] == "critical" else 0)
+        if args.fail_on_risk == "high":
+            sys.exit(1 if diag["risk_level"] in {"high", "critical"} else 0)
+        sys.exit(0)
 
     if args.verify_audit_log:
         result = verify_audit_log_chain(args.verify_audit_log)

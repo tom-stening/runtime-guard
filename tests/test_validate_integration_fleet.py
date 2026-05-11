@@ -74,3 +74,39 @@ def test_risk_level_rules():
         ]
     )
     assert medium == "medium"
+
+
+def test_component_from_payload_marks_healthy_with_required_checks():
+    module = _load_module()
+    comp = module._component_from_payload(
+        "dask",
+        {
+            "ok": True,
+            "api_importable": True,
+            "task_graph_guard_api": {"available": True},
+            "scheduler_callback_api": {"available": True},
+            "errors": ["runtime warning"],
+        },
+        source="report",
+        command=None,
+        exit_code=0,
+        hard_errors=[],
+        warnings=["stderr warning"],
+    )
+    assert comp["healthy"] is True
+    assert comp["source"] == "report"
+    assert comp["errors"] == []
+    assert "stderr warning" in comp["warnings"]
+    assert "runtime warning" in comp["warnings"]
+
+
+def test_component_from_report_invalid_file(tmp_path: Path):
+    module = _load_module()
+    bad = tmp_path / "bad.json"
+    bad.write_text("not-json", encoding="utf-8")
+
+    comp = module._component_from_report("ray", bad)
+    assert comp["healthy"] is False
+    assert comp["source"] == "report"
+    assert comp["exit_code"] == 1
+    assert any("unable to read report" in err for err in comp["errors"])

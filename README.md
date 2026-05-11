@@ -811,6 +811,21 @@ python scripts/validate_integration_fleet.py \
 This aggregated validator executes each framework validator with its capability
 checks and emits one consolidated health verdict for CI/reporting.
 
+If the environment is already under memory pressure, reuse existing validator
+JSON artifacts instead of re-running all checks:
+
+```bash
+python scripts/validate_integration_fleet.py \
+    --json \
+    --polars-report reports/polars_integration_status.json \
+    --dask-report reports/dask_integration_status.json \
+    --ray-report reports/ray_integration_status.json \
+    --require-healthy
+```
+
+This runs in offline mode when all three report flags are provided, and hybrid
+mode when only a subset is supplied.
+
 ### Measuring success
 
 **Baseline metrics to track:**

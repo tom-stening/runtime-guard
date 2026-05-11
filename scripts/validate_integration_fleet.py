@@ -44,6 +44,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=120,
         help="Per-validator timeout in seconds (default: 120)",
     )
+    parser.add_argument(
+        "--polars-report",
+        help="Use an existing JSON report from validate_polars_integration.py instead of running it",
+    )
+    parser.add_argument(
+        "--dask-report",
+        help="Use an existing JSON report from validate_dask_integration.py instead of running it",
+    )
+    parser.add_argument(
+        "--ray-report",
+        help="Use an existing JSON report from validate_ray_integration.py instead of running it",
+    )
     return parser
 
 
@@ -87,6 +99,62 @@ def _required_checks_for(tool_name: str, payload: dict[str, Any]) -> tuple[bool,
     return len(errors) == 0, errors
 
 
+def _component_from_payload(
+    tool_name: str,
+    payload: dict[str, Any],
+    *,
+    source: str,
+    command: list[str] | None = None,
+    exit_code: int | None = None,
+    hard_errors: list[str] | None = None,
+    warnings: list[str] | None = None,
+) -> dict[str, Any]:
+    errors = list(hard_errors or [])
+    warning_rows = list(warnings or [])
+
+    validator_ok = bool(payload.get("ok", False))
+    api_importable = bool(payload.get("api_importable", False))
+    checks_ok, check_errors = _required_checks_for(tool_name, payload)
+    errors.extend(check_errors)
+
+    payload_errors = payload.get("errors", [])
+    if isinstance(payload_errors, list):
+        warning_rows.extend(str(item) for item in payload_errors if str(item).strip())
+
+    effective_exit_code = 0 if exit_code is None else int(exit_code)
+    if effective_exit_code != 0:
+        errors.append(f"validator exited non-zero: {effective_exit_code}")
+
+    healthy = validator_ok and api_importable and checks_ok and effective_exit_code == 0
+
+    return {
+        "tool": tool_name,
+        "source": source,
+        "command": command,
+        "healthy": healthy,
+        "validator_ok": validator_ok,
+        "api_importable": api_importable,
+        "required_checks_ok": checks_ok,
+        "required_check_errors": check_errors,
+        "exit_code": effective_exit_code,
+        "errors": errors,
+        "warnings": warning_rows,
+        "report": payload,
+    }
+
+
+def _load_report_payload(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return None, str(exc)
+
+    if not isinstance(parsed, dict):
+        return None, "report payload must be a JSON object"
+
+    return parsed, None
+
+
 def _run_validator(repo_root: Path, tool_name: str, script_name: str, extra_args: list[str], timeout_s: int) -> dict[str, Any]:
     cmd = [
         sys.executable,
@@ -111,36 +179,42 @@ def _run_validator(repo_root: Path, tool_name: str, script_name: str, extra_args
         errors.append("validator JSON payload was not parseable")
         payload = {}
 
-    validator_ok = bool(payload.get("ok", False))
-    api_importable = bool(payload.get("api_importable", False))
-    checks_ok, check_errors = _required_checks_for(tool_name, payload)
-    errors.extend(check_errors)
-
-    if proc.returncode != 0:
-        errors.append(f"validator exited non-zero: {proc.returncode}")
-
     if proc.stderr.strip():
         warnings.append(proc.stderr.strip())
 
-    payload_errors = payload.get("errors", [])
-    if isinstance(payload_errors, list):
-        warnings.extend(str(item) for item in payload_errors if str(item).strip())
+    return _component_from_payload(
+        tool_name,
+        payload,
+        source="live",
+        command=cmd,
+        exit_code=proc.returncode,
+        hard_errors=errors,
+        warnings=warnings,
+    )
 
-    healthy = validator_ok and api_importable and checks_ok and proc.returncode == 0
 
-    return {
-        "tool": tool_name,
-        "command": cmd,
-        "healthy": healthy,
-        "validator_ok": validator_ok,
-        "api_importable": api_importable,
-        "required_checks_ok": checks_ok,
-        "required_check_errors": check_errors,
-        "exit_code": proc.returncode,
-        "errors": errors,
-        "warnings": warnings,
-        "report": payload,
-    }
+def _component_from_report(tool_name: str, report_path: Path) -> dict[str, Any]:
+    payload, load_error = _load_report_payload(report_path)
+    if load_error is not None:
+        return _component_from_payload(
+            tool_name,
+            {},
+            source="report",
+            command=None,
+            exit_code=1,
+            hard_errors=[f"unable to read report {report_path}: {load_error}"],
+            warnings=[],
+        )
+
+    return _component_from_payload(
+        tool_name,
+        payload or {},
+        source="report",
+        command=None,
+        exit_code=0,
+        hard_errors=[],
+        warnings=[],
+    )
 
 
 def _risk_level(components: list[dict[str, Any]]) -> str:
@@ -157,29 +231,45 @@ def _risk_level(components: list[dict[str, Any]]) -> str:
     return "medium"
 
 
-def _build_payload(repo_root: Path, timeout_s: int, include_wsl_diagnosis: bool) -> dict[str, Any]:
+def _build_payload(
+    repo_root: Path,
+    timeout_s: int,
+    include_wsl_diagnosis: bool,
+    *,
+    polars_report: str | None,
+    dask_report: str | None,
+    ray_report: str | None,
+) -> dict[str, Any]:
     component_specs = [
         (
             "polars",
             "validate_polars_integration.py",
             ["--check-budget-api"],
+            polars_report,
         ),
         (
             "dask",
             "validate_dask_integration.py",
             ["--check-guard-api", "--check-scheduler-api"],
+            dask_report,
         ),
         (
             "ray",
             "validate_ray_integration.py",
             ["--check-actor-api"],
+            ray_report,
         ),
     ]
 
-    components = [
-        _run_validator(repo_root, tool, script_name, extra_args, timeout_s)
-        for tool, script_name, extra_args in component_specs
-    ]
+    components: list[dict[str, Any]] = []
+    for tool, script_name, extra_args, report_path in component_specs:
+        if report_path:
+            path = Path(report_path)
+            if not path.is_absolute():
+                path = repo_root / path
+            components.append(_component_from_report(tool, path))
+            continue
+        components.append(_run_validator(repo_root, tool, script_name, extra_args, timeout_s))
 
     summary = {
         "components_total": len(components),
@@ -192,6 +282,13 @@ def _build_payload(repo_root: Path, timeout_s: int, include_wsl_diagnosis: bool)
     payload: dict[str, Any] = {
         "tool": "validate_integration_fleet",
         "milestone": "M1-integration",
+        "execution_mode": (
+            "offline"
+            if all(c.get("source") == "report" for c in components)
+            else "hybrid"
+            if any(c.get("source") == "report" for c in components)
+            else "live"
+        ),
         "summary": summary,
         "components": components,
     }
@@ -215,6 +312,9 @@ def main() -> int:
         repo_root,
         timeout_s=int(args.timeout_s),
         include_wsl_diagnosis=bool(args.include_wsl_diagnosis),
+        polars_report=args.polars_report,
+        dask_report=args.dask_report,
+        ray_report=args.ray_report,
     )
 
     rendered = json.dumps(payload, indent=2, sort_keys=True)

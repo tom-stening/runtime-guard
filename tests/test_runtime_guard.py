@@ -1008,6 +1008,80 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_chains_native_collect_callback(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    multiplier: int = 1,
+                    post_opt_callback: Any | None = None,
+                ) -> int:
+                    if callable(post_opt_callback):
+                        post_opt_callback("logical-plan")
+                    return 21 * multiplier
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_callback_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                multiplier=2,
+                post_opt_callback=lambda plan: user_callback_calls.append(plan),
+            )
+            assert result == 42
+            assert calls == ["polars-native", "polars-native-native-callback"]
+            assert user_callback_calls == ["logical-plan"]
+        finally:
+            restore()
+
+    def test_validate_polars_reports_native_callback_support(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    multiplier: int = 1,
+                    post_opt_callback: Any | None = None,
+                ) -> int:
+                    if callable(post_opt_callback):
+                        post_opt_callback("plan")
+                    return 21 * multiplier
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_polars_guard(guard, module=CallbackPolars)
+        try:
+            result = validate_polars_integration(guard, module=CallbackPolars)
+            assert result["native_callback_supported"] is True
+            assert result["native_callback_wrapped"] is True
+            assert "post_opt_callback" in result["native_callback_kwargs"]
+        finally:
+            restore()
+
+    def test_collect_polars_evidence_includes_native_callback_markers(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    multiplier: int = 1,
+                    post_opt_callback: Any | None = None,
+                ) -> int:
+                    if callable(post_opt_callback):
+                        post_opt_callback("plan")
+                    return 21 * multiplier
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_polars_guard(guard, module=CallbackPolars)
+        try:
+            evidence = collect_polars_integration_evidence(guard, module=CallbackPolars)
+            assert "polars_native_callback_supported" in evidence["evidence_items"]
+            assert "polars_native_callback_wrapped" in evidence["evidence_items"]
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask integration hook

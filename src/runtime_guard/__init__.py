@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import inspect
 import logging
 import os
 import subprocess
@@ -126,6 +127,11 @@ _json_logger = logging.getLogger("runtime_guard.events")
 
 _active_guards: list[weakref.ref] = []
 _atfork_registered: bool = False
+_POLARS_NATIVE_CALLBACK_KWARGS: tuple[str, ...] = (
+    "post_opt_callback",
+    "post_optimization_callback",
+    "collect_callback",
+)
 _FIPS_HASH_ALGOS: set[str] = {"sha256", "sha384", "sha512"}
 _AUDIT_POLICY_SEVERITIES: set[str] = {"info", "warning", "critical"}
 _AUDIT_POLICY_CATEGORIES: set[str] = {
@@ -1864,13 +1870,52 @@ def attach_polars_guard(
         return _restore
 
     def _wrap_lazyframe_method(name: str, fn: Any) -> Any:
+        callback_kw_names: tuple[str, ...] = ()
+        try:
+            signature = inspect.signature(fn)
+            callback_kw_names = tuple(
+                kw_name
+                for kw_name in _POLARS_NATIVE_CALLBACK_KWARGS
+                if kw_name in signature.parameters
+            )
+        except Exception:
+            callback_kw_names = ()
+
+        native_callback_stage = f"{stage}-native-callback"
+
+        def _chain_native_callback(user_callback: Any | None = None) -> Callable[..., Any]:
+            def _wrapped_callback(*cb_args: Any, **cb_kwargs: Any) -> Any:
+                guard.check_and_log(stage=native_callback_stage)
+                if callable(user_callback):
+                    return user_callback(*cb_args, **cb_kwargs)
+                return None
+
+            return _wrapped_callback
+
         def _guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
+            if callback_kw_names:
+                selected_kw_name: str | None = None
+                for kw_name in callback_kw_names:
+                    if kw_name in kwargs:
+                        selected_kw_name = kw_name
+                        break
+
+                if selected_kw_name is None:
+                    selected_kw_name = callback_kw_names[0]
+                    kwargs[selected_kw_name] = _chain_native_callback()
+                else:
+                    user_callback = kwargs.get(selected_kw_name)
+                    if user_callback is None or callable(user_callback):
+                        kwargs[selected_kw_name] = _chain_native_callback(user_callback)
             return fn(self, *args, **kwargs)
 
         setattr(_guarded, "_runtime_guard_wrapped", True)
         setattr(_guarded, "_runtime_guard_original", fn)
         setattr(_guarded, "_runtime_guard_method", name)
+        setattr(_guarded, "_runtime_guard_native_callback_supported", bool(callback_kw_names))
+        setattr(_guarded, "_runtime_guard_native_callback_wrapped", bool(callback_kw_names))
+        setattr(_guarded, "_runtime_guard_native_callback_kwargs", callback_kw_names)
         return _guarded
 
     for name, fn in original_methods.items():
@@ -2927,6 +2972,9 @@ def validate_polars_integration(
     methods_wrapped = False
     scan_budget_api_available = False
     explain_plan_available = False
+    native_callback_supported = False
+    native_callback_wrapped = False
+    native_callback_kwargs: list[str] = []
 
     try:
         polars_mod = module
@@ -2964,6 +3012,15 @@ def validate_polars_integration(
 
         scan_budget_api_available = callable(install_polars_scan_budget)
         explain_plan_available = callable(explain_method)
+        native_callback_supported = bool(
+            getattr(collect_method, "_runtime_guard_native_callback_supported", False)
+        )
+        native_callback_wrapped = bool(
+            getattr(collect_method, "_runtime_guard_native_callback_wrapped", False)
+        )
+        native_callback_raw = getattr(collect_method, "_runtime_guard_native_callback_kwargs", ())
+        if isinstance(native_callback_raw, tuple):
+            native_callback_kwargs = [str(x) for x in native_callback_raw]
 
         methods_wrapped = bool(getattr(collect_method, "_runtime_guard_wrapped", False))
 
@@ -2993,6 +3050,9 @@ def validate_polars_integration(
             "sink_ndjson_present": sink_ndjson_method is not None,
             "scan_budget_api_available": scan_budget_api_available,
             "explain_plan_available": explain_plan_available,
+            "native_callback_supported": native_callback_supported,
+            "native_callback_wrapped": native_callback_wrapped,
+            "native_callback_kwargs": native_callback_kwargs,
             "wrapped_methods": wrapped_methods,
             "errors": errors,
         }
@@ -3004,6 +3064,9 @@ def validate_polars_integration(
             "methods_wrapped": methods_wrapped,
             "scan_budget_api_available": scan_budget_api_available,
             "explain_plan_available": explain_plan_available,
+            "native_callback_supported": native_callback_supported,
+            "native_callback_wrapped": native_callback_wrapped,
+            "native_callback_kwargs": native_callback_kwargs,
             "errors": errors,
         }
 
@@ -3056,6 +3119,12 @@ def collect_polars_integration_evidence(
 
     if validation.get("explain_plan_available"):
         evidence_items.append("polars_explain_plan_available")
+
+    if validation.get("native_callback_supported"):
+        evidence_items.append("polars_native_callback_supported")
+
+    if validation.get("native_callback_wrapped"):
+        evidence_items.append("polars_native_callback_wrapped")
 
     runtime_guard_version = "0.3.0"
     try:

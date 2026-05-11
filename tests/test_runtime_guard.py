@@ -1220,6 +1220,54 @@ class TestPolarsScanBudget:
             restore_b()
             restore_a()
 
+    def test_scan_budget_uses_explain_fallback_when_scan_attr_missing(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+
+        class _ExplainDummyPolars:
+            class LazyFrame:
+                schema = {"a": "Int64"}
+
+                def explain(self) -> str:
+                    return """
+                    SELECT
+                      SCAN parquet file_a
+                      FILTER
+                      SCAN parquet file_b
+                    """
+
+                def collect(self) -> list[int]:
+                    return [1]
+
+        restore = install_polars_scan_budget(
+            guard,
+            module=_ExplainDummyPolars,
+            warn_scans=1,
+        )
+        try:
+            assert _ExplainDummyPolars.LazyFrame().collect() == [1]
+            assert any("polars-budget:scans:2>1" in s for s in logged)
+        finally:
+            restore()
+
+    def test_scan_budget_uses_custom_scan_count_fn(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+
+        restore = install_polars_scan_budget(
+            guard,
+            module=self._DummyPolars,
+            warn_scans=2,
+            scan_count_fn=lambda frame: 5,
+        )
+        try:
+            self._DummyPolars.LazyFrame().collect()
+            assert any("polars-budget:scans:5>2" in s for s in logged)
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask task-graph size guard

@@ -4836,6 +4836,7 @@ def install_polars_scan_budget(
     warn_columns: int | None = None,
     max_scans: int | None = None,
     warn_scans: int | None = None,
+    scan_count_fn: Callable[[Any], int] | None = None,
     schema_attr: str = "schema",
 ) -> Callable[[], None]:
     """Install a query-plan budget check on Polars LazyFrame execution.
@@ -4863,6 +4864,10 @@ def install_polars_scan_budget(
         Hard cap on scan node count (``_scan_count`` attribute).
     warn_scans:
         Soft cap on scan node count.
+    scan_count_fn:
+        Optional ``(lazy_frame) -> int`` override used to derive scan count.
+        When omitted, RuntimeGuard first checks ``_scan_count`` then falls
+        back to parsing ``lazy_frame.explain()`` for native ``SCAN`` nodes.
     schema_attr:
         Attribute name on LazyFrame that holds the schema dict/object.
         Defaults to ``"schema"``; override for mock modules.
@@ -4920,12 +4925,28 @@ def install_polars_scan_budget(
                     stage=f"polars-budget:columns:{col_count}>{warn_columns}"
                 )
 
-        scan_count = getattr(frame, "_scan_count", None)
-        if scan_count is not None:
+        sc = 0
+        if scan_count_fn is not None:
             try:
-                sc = int(scan_count)
+                sc = int(scan_count_fn(frame))
             except Exception:
                 sc = 0
+        else:
+            scan_count = getattr(frame, "_scan_count", None)
+            if scan_count is not None:
+                try:
+                    sc = int(scan_count)
+                except Exception:
+                    sc = 0
+            elif callable(getattr(frame, "explain", None)):
+                # Native Polars fallback: count SCAN nodes from explain output.
+                try:
+                    explain_out = str(frame.explain())
+                    sc = sum(1 for line in explain_out.splitlines() if "SCAN" in line.upper())
+                except Exception:
+                    sc = 0
+
+        if sc > 0:
             if max_scans is not None and sc > max_scans:
                 raise RuntimeError(
                     f"[runtime-guard] Polars LazyFrame scan budget exceeded: "

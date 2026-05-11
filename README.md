@@ -799,6 +799,18 @@ print(f"Hook methods available: {evidence['evidence_items']}")
 - Dask: [.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml](.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml)
 - Ray: [INTEGRATION_RAY.md](INTEGRATION_RAY.md)
 
+Run a single machine-verifiable gate across all three integrations:
+
+```bash
+python scripts/validate_integration_fleet.py \
+    --json \
+    --require-healthy \
+    --output reports/integration_fleet_status.json
+```
+
+This aggregated validator executes each framework validator with its capability
+checks and emits one consolidated health verdict for CI/reporting.
+
 ### Measuring success
 
 **Baseline metrics to track:**

@@ -2115,6 +2115,19 @@ class TestSitecustomizeContent:
         assert "12.5" in text
         assert "7.0" in text
 
+    def test_posture_sets_env_when_missing(self):
+        text = make_sitecustomize_content(
+            repo_name="myrepo",
+            env_prefix="MYAPP",
+            posture="ci",
+        )
+        assert '_posture_key = "MYAPP_POSTURE"' in text
+        assert 'os.environ[_posture_key] = "ci"' in text
+
+    def test_posture_is_validated(self):
+        with pytest.raises(ValueError, match="Invalid posture"):
+            make_sitecustomize_content(repo_name="myrepo", posture="fast")
+
 
 # ---------------------------------------------------------------------------
 # M1-C08 — Async phase context manager scaffold

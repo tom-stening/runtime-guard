@@ -5508,6 +5508,7 @@ def make_sitecustomize_content(
     interval_s: float = 30.0,
     cooldown_s: float = 30.0,
     env_prefix: str = "RUNTIME_GUARD",
+    posture: str | None = None,
 ) -> str:
     """Return a ``sitecustomize.py`` string that auto-starts RuntimeGuard.
 
@@ -5515,6 +5516,22 @@ def make_sitecustomize_content(
     RuntimeGuard begins background checks automatically when Python starts.
     Set ``<ENV_PREFIX>_AUTOSTART=0`` to disable without deleting the file.
     """
+    posture_value: str | None = None
+    if posture is not None:
+        posture_cfg = validate_runtime_guard_config(
+            {"posture": posture},
+            use_pydantic=False,
+        )
+        posture_value = str(posture_cfg["posture"])
+
+    posture_lines: list[str] = []
+    if posture_value is not None:
+        posture_lines = [
+            f'        _posture_key = "{env_prefix}_POSTURE"',
+            '        if not os.environ.get(_posture_key, "").strip():',
+            f'            os.environ[_posture_key] = "{posture_value}"',
+        ]
+
     lines: list[str] = [
         f'"""sitecustomize.py - RuntimeGuard autostart for {repo_name}.',
         "",
@@ -5537,6 +5554,7 @@ def make_sitecustomize_content(
         "",
         "if RuntimeGuard is not None and _enabled:",
         "    try:",
+        *posture_lines,
         "        _guard = RuntimeGuard(",
         f"            env_prefix={env_prefix!r},",
         f"            log_tag={repo_name!r},",

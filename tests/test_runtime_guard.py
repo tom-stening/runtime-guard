@@ -14,6 +14,7 @@ import io
 import json
 import logging
 import asyncio
+import os
 import sys
 import time
 import unittest.mock as mock
@@ -25,6 +26,7 @@ from runtime_guard import (
     MemSnapshot,
     PressureReport,
     RuntimeGuard,
+    make_pytest_guard,
     attach_dask_guard,
     attach_signal_recovery,
     install_signal_recovery_from_policy,
@@ -152,6 +154,22 @@ class TestThresholdPresets:
         monkeypatch.setenv("MYAPP_POSTURE", "ci")
         g = RuntimeGuard(env_prefix="MYAPP")
         assert g._resolve_thresholds()[0] == 1024  # ci min_mem_mb
+
+
+class TestMakePytestGuard:
+    def test_posture_applies_when_env_not_set(self, monkeypatch):
+        monkeypatch.delenv("MY_REPO_GUARD_POSTURE", raising=False)
+        _ = make_pytest_guard(repo_name="My Repo", posture="ci")
+        assert os.environ.get("MY_REPO_GUARD_POSTURE") == "ci"
+
+    def test_posture_does_not_override_existing_env(self, monkeypatch):
+        monkeypatch.setenv("MY_REPO_GUARD_POSTURE", "tight")
+        _ = make_pytest_guard(repo_name="My Repo", posture="relaxed")
+        assert os.environ.get("MY_REPO_GUARD_POSTURE") == "tight"
+
+    def test_invalid_posture_raises(self):
+        with pytest.raises(ValueError, match="Invalid posture"):
+            make_pytest_guard(repo_name="My Repo", posture="fast")
 
 
 # ---------------------------------------------------------------------------

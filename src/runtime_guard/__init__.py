@@ -4261,6 +4261,7 @@ def make_pytest_guard(
     env_prefix: str | None = None,
     hints: list[str] | None = None,
     cooldown_s: float = 30.0,
+    posture: str | None = None,
 ) -> "RuntimeGuard":
     """Return a ``RuntimeGuard`` instance pre-configured for pytest use.
 
@@ -4301,12 +4302,25 @@ def make_pytest_guard(
         "Repo-specific actions" section when pressure is detected.
     cooldown_s:
         Seconds between successive log emissions.  Defaults to 30.
+    posture:
+        Optional threshold preset (``tight|relaxed|ci``) applied through
+        ``<ENV_PREFIX>_POSTURE`` when that env var is not already set.
     """
     derived_prefix = (
         env_prefix
         if env_prefix is not None
         else repo_name.upper().replace(" ", "_").replace("-", "_") + "_GUARD"
     )
+
+    if posture is not None:
+        posture_cfg = validate_runtime_guard_config(
+            {"posture": posture},
+            use_pydantic=False,
+        )
+        env_key = f"{derived_prefix}_POSTURE"
+        if not os.environ.get(env_key, "").strip():
+            os.environ[env_key] = str(posture_cfg["posture"])
+
     return RuntimeGuard(
         env_prefix=derived_prefix,
         log_tag=repo_name,

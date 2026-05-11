@@ -61,12 +61,9 @@ from runtime_guard import (
     install_polars_scan_budget,
     install_dask_task_graph_guard,
     install_otel_memory_exporter,
+    install_prometheus_endpoint,
+    install_distributed_trace_propagator,
 )
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _make_report(*, is_critical: bool = False, stage: str = "") -> PressureReport:
     snap = MemSnapshot(
@@ -3621,3 +3618,203 @@ class TestWorkerTransport:
         for i, report in enumerate(loaded):
             assert report["worker_id"] == i
             assert report["pressure"] is False
+
+
+# ---------------------------------------------------------------------------
+# M1-C05 — Prometheus ASGI endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestPrometheusEndpoint:
+    """Tests for install_prometheus_endpoint() ASGI factory (M1-C05)."""
+
+    def _make_guard(self) -> RuntimeGuard:
+        return RuntimeGuard(env_prefix="TEST_PROM")
+
+    def _run_asgi(self, app, method: str = "GET") -> tuple[int, bytes]:
+        """Drive the ASGI app synchronously, return (status, body)."""
+        import asyncio
+
+        responses = []
+
+        async def _send(msg):
+            responses.append(msg)
+
+        scope = {"type": "http", "method": method}
+        asyncio.run(app(scope, None, _send))
+        start = next((r for r in responses if r["type"] == "http.response.start"), {})
+        body_msg = next((r for r in responses if r["type"] == "http.response.body"), {})
+        return start.get("status", 0), body_msg.get("body", b"")
+
+    def test_returns_callable_and_restore(self):
+        guard = self._make_guard()
+        app, restore = install_prometheus_endpoint(guard)
+        assert callable(app)
+        assert callable(restore)
+
+    def test_get_returns_200_and_metrics_text(self):
+        import unittest.mock as mock
+        guard = self._make_guard()
+        with mock.patch.object(guard, "check", return_value=None):
+            app, _ = install_prometheus_endpoint(guard)
+            status, body = self._run_asgi(app, "GET")
+        assert status == 200
+        assert b"runtime_guard_mem_available_mb" in body
+
+    def test_post_returns_405(self):
+        guard = self._make_guard()
+        app, _ = install_prometheus_endpoint(guard)
+        status, body = self._run_asgi(app, "POST")
+        assert status == 405
+
+    def test_custom_prefix_applied(self):
+        import unittest.mock as mock
+        guard = self._make_guard()
+        with mock.patch.object(guard, "check", return_value=None):
+            app, _ = install_prometheus_endpoint(guard, prefix="myapp")
+            status, body = self._run_asgi(app, "GET")
+        assert status == 200
+        assert b"myapp_mem_available_mb" in body
+        assert b"runtime_guard_mem_available_mb" not in body
+
+    def test_503_on_critical_pressure(self):
+        import unittest.mock as mock
+
+        guard = self._make_guard()
+        fake_report = _make_report(is_critical=True, stage="prometheus")
+        with mock.patch.object(guard, "check", return_value=fake_report):
+            app, _ = install_prometheus_endpoint(guard)
+            status, body = self._run_asgi(app, "GET")
+        assert status == 503
+        assert b"runtime_guard_is_critical 1" in body
+
+    def test_200_on_healthy(self):
+        import unittest.mock as mock
+        guard = self._make_guard()
+        with mock.patch.object(guard, "check", return_value=None):
+            app, _ = install_prometheus_endpoint(guard)
+            status, _ = self._run_asgi(app, "GET")
+        assert status == 200
+
+    def test_non_http_scope_ignored(self):
+        import asyncio
+
+        guard = self._make_guard()
+        app, _ = install_prometheus_endpoint(guard)
+        responses = []
+
+        async def _send(msg):
+            responses.append(msg)
+
+        asyncio.run(app({"type": "lifespan"}, None, _send))
+        assert responses == []  # Nothing sent for non-HTTP scopes
+
+    def test_restore_is_noop(self):
+        guard = self._make_guard()
+        _, restore = install_prometheus_endpoint(guard)
+        restore()  # Must not raise
+
+    def test_path_attribute_recorded(self):
+        guard = self._make_guard()
+        app, _ = install_prometheus_endpoint(guard, path="/custom-metrics")
+        assert getattr(app, "_runtime_guard_prometheus_path") == "/custom-metrics"
+
+
+# ---------------------------------------------------------------------------
+# M1-C06 — Distributed trace propagator
+# ---------------------------------------------------------------------------
+
+
+class TestDistributedTracePropagator:
+    """Tests for install_distributed_trace_propagator() (M1-C06)."""
+
+    def _make_guard(self) -> RuntimeGuard:
+        return RuntimeGuard(env_prefix="TEST_TRACE")
+
+    def test_returns_dict_with_required_keys(self):
+        guard = self._make_guard()
+        result = install_distributed_trace_propagator(guard)
+        assert callable(result["extract"])
+        assert callable(result["inject"])
+        assert callable(result["restore"])
+        assert result["header_name"] == "traceparent"
+
+    def test_extract_valid_traceparent(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+        tp_value = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        ctx = tp["extract"]({"traceparent": tp_value})
+        assert ctx["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
+        assert ctx["span_id"] == "00f067aa0ba902b7"
+        assert ctx["flags"] == "01"
+        assert ctx["traceparent"] == tp_value
+
+    def test_extract_missing_header_returns_empty(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+        ctx = tp["extract"]({"content-type": "application/json"})
+        assert ctx == {}
+
+    def test_extract_malformed_header_returns_empty(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+        ctx = tp["extract"]({"traceparent": "bad-value"})
+        assert ctx == {}
+
+    def test_extract_case_insensitive_header_key(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+        tp_value = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        ctx = tp["extract"]({"Traceparent": tp_value})
+        assert ctx["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
+
+    def test_inject_with_no_otel_returns_unchanged(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard, module=object())  # no OTEL
+        headers = {"content-type": "application/json"}
+        out = tp["inject"](headers)
+        # No traceparent added because no span available
+        assert "traceparent" not in out
+        assert out.get("content-type") == "application/json"
+
+    def test_inject_with_mock_span(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _Flags:
+            sampled = True
+
+        class _SpanCtx:
+            trace_id = 0x4BF92F3577B34DA6A3CE929D0E0E4736
+            span_id = 0x00F067AA0BA902B7
+            trace_flags = _Flags()
+
+        class _Span:
+            def get_span_context(self):
+                return _SpanCtx()
+
+        out = tp["inject"]({}, span=_Span())
+        assert "traceparent" in out
+        assert out["traceparent"].startswith("00-")
+        assert "4bf92f3577b34da6a3ce929d0e0e4736" in out["traceparent"]
+
+    def test_inject_preserves_existing_headers(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard, module=object())
+        headers = {"authorization": "Bearer token123", "x-request-id": "abc"}
+        out = tp["inject"](headers)
+        assert out.get("authorization") == "Bearer token123"  # value preserved; key lowercased
+        assert out.get("x-request-id") == "abc"
+
+    def test_custom_header_name(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard, header_name="x-amzn-trace-id")
+        assert tp["header_name"] == "x-amzn-trace-id"
+        tp_val = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        ctx = tp["extract"]({"x-amzn-trace-id": tp_val})
+        assert ctx["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
+
+    def test_restore_is_noop(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+        tp["restore"]()  # Must not raise

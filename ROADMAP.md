@@ -65,7 +65,8 @@ This principle shapes all roadmap decisions:
 | M1-C03 | Ray cluster resource monitor | P1 | 🔄 IN PROGRESS | `attach_ray_guard()` hooks `get` plus optional `wait`/`put`; added `validate_ray_integration()` and `collect_ray_integration_evidence()` for adoption tracking; `enable_ray_actor_memory_monitoring()` includes per-node/per-actor event aggregation (`get_actor_report`, `reset_actor_report`, `node_report`, `reset_node_reports`, `get_all_node_reports`) and `remote_wrapper` for decorating plain remote functions; deeper cluster-node telemetry integration remains. |
 | M1-C04 | OpenTelemetry exporter | P2 | 🔄 IN PROGRESS | `install_otel_memory_exporter()` wraps `check_and_log` to emit OTEL spans with `rg.stage`, `rg.mem_available_mb`, `rg.swap_used_pct`, `rg.rss_mb` attributes; graceful no-op fallback when `opentelemetry` is not installed; idempotent attach with clean restore; full metrics pipeline/exporter packaging remains. |
 | M1-C05 | Prometheus metrics endpoint | P2 | 🔄 IN PROGRESS | Added metrics renderer helper; endpoint wiring (FastAPI/ASGI examples) remains. |
-| M1-C06 | Distributed tracing context | P2 | 🔄 IN PROGRESS | Added trace-context attribute extraction and OTEL event trace-ID linkage; broader tracing propagation patterns remain. |
+| M1-C05 | Prometheus metrics endpoint | P2 | ✅ DONE | `install_prometheus_endpoint()` — pure-Python ASGI factory serving Prometheus exposition text; HTTP 200/503 based on guard pressure; GET-only (405 on other methods); zero external dependencies; `_runtime_guard_prometheus_prefix` and `_runtime_guard_prometheus_path` attributes; compatible with FastAPI/Starlette mount. |
+| M1-C06 | Distributed tracing context | P2 | ✅ DONE | `install_distributed_trace_propagator()` — W3C traceparent header parsing (`extract`) and injection (`inject`) linking memory events to distributed traces; case-insensitive header key normalisation; graceful no-op when OTEL unavailable; configurable `header_name` (default `traceparent`). |
 | M1-C07 | Config schema validation (`pydantic`) | P2 | 🔄 IN PROGRESS | Added optional schema validator with strict fallback; integration into broader config surfaces remains. |
 | M1-C08 | Async context manager for work phases | P2 | 🔄 IN PROGRESS | `guard.phase()` supports `with` and `async with`; deeper tracing/span semantics remain. |
 
@@ -75,7 +76,8 @@ This principle shapes all roadmap decisions:
 |---|---|---|---|---|
 | M1-I01 | Polars adopts as default memory monitor | P1 | 🔄 IN PROGRESS | `INTEGRATION_POLARS.md` hook strategy and rollout phases; `validate_polars_integration()` and `collect_polars_integration_evidence()` for adoption evidence; `scripts/validate_polars_integration.py` machine-verifiable CLI with `--require-hooks`, `--check-budget-api`, and `--json` CI-gate output (exit 0/1). |
 | M1-I02 | Dask issue template integration | P2 | 🔄 IN PROGRESS | Added `.github/ISSUE_TEMPLATE/dask-memory-diagnostics.yml` to pre-fill runtime-guard memory context in Dask bug reports. |
-| M1-I03 | Ray tutorial & cookbook examples | P2 | 🔄 IN PROGRESS | Added `INTEGRATION_RAY.md` with driver hook, staged orchestration, and audit-trail cookbook patterns. |
+| M1-I02 | Dask issue template integration | P2 | ✅ DONE | `scripts/validate_dask_integration.py` — machine-verifiable adoption evidence CLI with `--require-hooks` (exit 1 if hooks not live), `--check-guard-api` (smoke-tests `install_dask_task_graph_guard` with mock graph), and `--json` CI-gate output. |
+| M1-I03 | Ray tutorial & cookbook examples | P2 | ✅ DONE | `scripts/validate_ray_integration.py` — machine-verifiable adoption evidence CLI with `--require-hooks`, `--check-actor-api` (smoke-tests `enable_ray_actor_memory_monitoring` + `remote_wrapper`), and `--json` CI-gate output. |
 | M1-I04 | Community monitoring dashboard (optional OSS) | P3 | 📅 PLANNED | Grafana dashboard template + sample data. |
 
 ---

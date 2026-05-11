@@ -113,12 +113,12 @@ __all__ = [
     "install_polars_scan_budget",
     "install_dask_task_graph_guard",
     "install_otel_memory_exporter",
+    "install_prometheus_endpoint",
+    "install_distributed_trace_propagator",
 ]
 
 logger = logging.getLogger(__name__)
 _json_logger = logging.getLogger("runtime_guard.events")
-
-# ---------------------------------------------------------------------------
 # Fork-safety: reset background-check thread state in child processes (KI-003)
 # ---------------------------------------------------------------------------
 
@@ -2798,6 +2798,247 @@ def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtim
         f'{prefix}_vm_swap_mb{{stage="{stage}"}} {snap.vm_swap_mb}',
     ]
     return "\n".join(lines) + "\n"
+
+
+
+def install_prometheus_endpoint(
+    guard: "RuntimeGuard",
+    *,
+    prefix: str = "runtime_guard",
+    path: str = "/metrics",
+    stage: str = "prometheus",
+) -> "tuple[Any, Callable[[], None]]":
+    """Create a standalone ASGI application that serves Prometheus metrics.
+
+    The returned app implements the ASGI HTTP interface and can be:
+
+    * **Mounted on FastAPI / Starlette**::
+
+        from fastapi import FastAPI
+        from runtime_guard import install_prometheus_endpoint
+
+        guard = RuntimeGuard()
+        app = FastAPI()
+        metrics_app, _ = install_prometheus_endpoint(guard)
+        app.mount("/metrics", metrics_app)
+
+    * **Served standalone** (e.g. via ``uvicorn``)::
+
+        metrics_app, _ = install_prometheus_endpoint(guard)
+        # uvicorn.run(metrics_app, host="0.0.0.0", port=9090)
+
+    Parameters
+    ----------
+    guard:
+        Guard instance whose live memory snapshot is exposed on each scrape.
+    prefix:
+        Prometheus metric name prefix (default ``runtime_guard``).
+    path:
+        URL path the app will be mounted at (documentation only).
+    stage:
+        Stage label forwarded to ``guard.check()`` on every scrape.
+
+    Returns
+    -------
+    tuple[asgi_app, restore_fn]
+        ``asgi_app`` — async ASGI callable.
+        ``restore_fn`` — no-op for API symmetry.
+
+    Notes
+    -----
+    * HTTP 200 when memory is healthy; 503 when ``guard.check()`` reports critical.
+    * Responds 405 to any method other than GET.
+    * Zero external dependencies.
+    """
+    _CONTENT_TYPE = b"text/plain; version=0.0.4; charset=utf-8"
+    _ALLOW_HEADER = b"GET"
+
+    async def _asgi_metrics_app(scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") != "http":
+            return
+
+        method = scope.get("method", "GET").upper()
+        if method != "GET":
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 405,
+                    "headers": [
+                        (b"content-length", b"0"),
+                        (b"allow", _ALLOW_HEADER),
+                    ],
+                }
+            )
+            await send({"type": "http.response.body", "body": b""})
+            return
+
+        report = guard.check(stage=stage)
+
+        if report is None:
+            snap = _read_snapshot()
+            report_for_render = PressureReport(
+                snapshot=snap,
+                is_critical=False,
+                cause="",
+                self_inflicted=False,
+                self_pct=snap.rss_mb * 100 // max(snap.mem_total_mb, 1),
+                stage=stage,
+                pid=os.getpid(),
+            )
+            status = 200
+        else:
+            report_for_render = report
+            status = 503 if report.is_critical else 200
+
+        body = render_prometheus_metrics(report_for_render, prefix=prefix).encode("utf-8")
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": [
+                    (b"content-type", _CONTENT_TYPE),
+                    (b"content-length", str(len(body)).encode()),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
+    def _restore() -> None:
+        pass
+
+    setattr(_asgi_metrics_app, "_runtime_guard_prometheus_prefix", prefix)
+    setattr(_asgi_metrics_app, "_runtime_guard_prometheus_path", path)
+    return _asgi_metrics_app, _restore
+
+
+def install_distributed_trace_propagator(
+    guard: "RuntimeGuard",
+    *,
+    header_name: str = "traceparent",
+    module: Any | None = None,
+    warn_on_missing: bool = False,
+) -> dict[str, Any]:
+    """Install a W3C Trace Context propagator for distributed memory tracing.
+
+    Provides two callable helpers that link runtime-guard memory events to a
+    distributed trace across service boundaries using the W3C ``traceparent``
+    header format (``00-<trace_id>-<parent_id>-<flags>``).
+
+    No hard dependency on the OpenTelemetry SDK is required.
+
+    Parameters
+    ----------
+    guard:
+        Guard instance (reserved for future span-annotation integration).
+    header_name:
+        HTTP header name to read/write (default ``traceparent``).
+    module:
+        Optional OpenTelemetry ``trace`` module for span context reading.
+    warn_on_missing:
+        If ``True``, log a warning when the header is absent in ``extract()``.
+
+    Returns
+    -------
+    dict with keys:
+
+    ``extract(headers) -> dict``
+        Parse ``header_name`` from *headers* (case-insensitive).
+        Returns ``{trace_id, span_id, flags, traceparent}`` or ``{}``.
+
+    ``inject(headers, *, span=None) -> dict``
+        Enrich a copy of *headers* with the current span's traceparent.
+        Returns *headers* unchanged when OTEL is unavailable.
+
+    ``restore()``
+        No-op for API symmetry.
+
+    ``header_name``
+        The configured header name.
+    """
+    import re as _re_mod
+    _TRACEPARENT_RE = _re_mod.compile(
+        r"^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$"
+    )
+
+    def _normalise_headers(headers: Any) -> dict[str, str]:
+        if isinstance(headers, dict):
+            return {k.lower(): str(v) for k, v in headers.items()}
+        try:
+            return {k.lower(): str(v) for k, v in headers}
+        except (TypeError, ValueError):
+            return {}
+
+    def extract(headers: Any) -> dict[str, Any]:
+        normalised = _normalise_headers(headers)
+        raw = normalised.get(header_name.lower(), "").strip()
+        if not raw:
+            if warn_on_missing:
+                logger.warning(
+                    "[RuntimeGuard] Distributed trace header %r not found in request.",
+                    header_name,
+                )
+            return {}
+        m = _TRACEPARENT_RE.match(raw)
+        if m is None:
+            logger.debug(
+                "[RuntimeGuard] Malformed %r header value: %r", header_name, raw[:64]
+            )
+            return {}
+        return {
+            "trace_id": m.group(1),
+            "span_id": m.group(2),
+            "flags": m.group(3),
+            "traceparent": raw,
+        }
+
+    def inject(headers: Any, *, span: Any = None) -> dict[str, str]:
+        out = dict(_normalise_headers(headers))
+
+        target_span = span
+        if target_span is None:
+            trace_mod = module
+            if trace_mod is None:
+                try:
+                    from opentelemetry import trace as trace_mod  # type: ignore
+                except Exception:
+                    return out
+            get_current_span = getattr(trace_mod, "get_current_span", None)
+            if callable(get_current_span):
+                target_span = get_current_span()
+
+        if target_span is None:
+            return out
+
+        get_span_context = getattr(target_span, "get_span_context", None)
+        if not callable(get_span_context):
+            return out
+        span_context = get_span_context()
+        if span_context is None:
+            return out
+
+        trace_id = getattr(span_context, "trace_id", 0)
+        span_id = getattr(span_context, "span_id", 0)
+        if not (isinstance(trace_id, int) and isinstance(span_id, int)):
+            return out
+        if trace_id <= 0 or span_id <= 0:
+            return out
+
+        trace_flags = getattr(span_context, "trace_flags", None)
+        sampled = getattr(trace_flags, "sampled", None)
+        flags = "01" if sampled else "00"
+
+        out[header_name.lower()] = f"00-{trace_id:032x}-{span_id:016x}-{flags}"
+        return out
+
+    def _restore() -> None:
+        pass
+
+    return {
+        "extract": extract,
+        "inject": inject,
+        "restore": _restore,
+        "header_name": header_name,
+    }
 
 
 def validate_runtime_guard_config(

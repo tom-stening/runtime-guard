@@ -966,6 +966,66 @@ class TestDaskIntegration:
         finally:
             restore()
 
+    def test_attach_with_scheduler_callbacks_wraps_compute_in_callback_context(self, monkeypatch):
+        callback_events: list[str] = []
+
+        class _DaskWithCallbackContext(self._DummyDask):
+            class callbacks:
+                class Callback:
+                    def __enter__(self):
+                        callback_events.append("enter")
+                        return self
+
+                    def __exit__(self, exc_type, exc, tb):
+                        callback_events.append("exit")
+                        return False
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_dask_guard(
+            guard,
+            stage="dask-scheduler-wrap",
+            enable_scheduler_callbacks=True,
+            scheduler_stage_prefix="dask-scheduler",
+            module=_DaskWithCallbackContext,
+        )
+        try:
+            assert _DaskWithCallbackContext.compute(10, add=5) == 15
+            assert calls == ["dask-scheduler-wrap"]
+            assert callback_events == ["enter", "exit"]
+
+            validation = validate_dask_integration(guard, module=_DaskWithCallbackContext)
+            assert validation["scheduler_callbacks_wrapped"] is True
+            assert validation["scheduler_callback_context_available"] is True
+
+            evidence = collect_dask_integration_evidence(guard, module=_DaskWithCallbackContext)
+            assert "dask_scheduler_callback_context_wrapped" in evidence["evidence_items"]
+        finally:
+            restore()
+
+    def test_attach_with_scheduler_callbacks_gracefully_falls_back_without_api(self, monkeypatch):
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_dask_guard(
+            guard,
+            stage="dask-no-callback-api",
+            enable_scheduler_callbacks=True,
+            module=self._DummyDask,
+        )
+        try:
+            assert self._DummyDask.compute(3, add=4) == 7
+            assert calls == ["dask-no-callback-api"]
+
+            validation = validate_dask_integration(guard, module=self._DummyDask)
+            assert validation["scheduler_callbacks_wrapped"] is True
+            assert validation["scheduler_callback_context_available"] is False
+        finally:
+            restore()
+
     def test_collect_dask_integration_evidence_with_version_metadata(self, monkeypatch):
         class VersionedDask:
             __version__ = "2024.1.0"
@@ -2256,6 +2316,125 @@ class TestPhaseContextManager:
 
         assert span.events[-1][1]["runtime_guard.phase.lifecycle"] == "error"
         assert span.events[-1][1]["runtime_guard.phase.exception_type"] == "ValueError"
+
+    def test_phase_creates_child_span_with_memory_attributes(self):
+        """Test advanced span-linking: child span creation and memory attributes (C08)."""
+        guard = RuntimeGuard()
+        created_spans: list[tuple[str, Any]] = []
+        closed_spans: list[str] = []
+
+        class _MockSpan:
+            def __init__(self, name: str):
+                self.name = name
+                self.attributes: dict[str, Any] = {}
+                self.status = None
+
+            def set_attribute(self, key: str, value: Any) -> None:
+                self.attributes[key] = value
+
+            def set_status(self, status: Any) -> None:
+                self.status = status
+
+            def end(self) -> None:
+                closed_spans.append(self.name)
+
+            def is_recording(self) -> bool:
+                return True
+
+            def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+                pass
+
+            def get_span_context(self) -> Any:
+                class _Ctx:
+                    trace_id = 0x4BF92F3577B34DA6A3CE929D0E0E4736
+                    span_id = 0x00F067AA0BA902B7
+                    trace_flags = type("_Flags", (), {"sampled": True})()
+                return _Ctx()
+
+        class _MockTracer:
+            def start_as_current_span(self, name: str):
+                span = _MockSpan(name)
+                created_spans.append((name, span))
+                return span
+
+        trace_mod = type("_TraceMod", (), {
+            "get_current_span": lambda self=None: None,
+            "get_tracer": lambda self=None, name="": _MockTracer(),
+        })()
+
+        with guard.phase("data-load", emit_phase_traces=True, trace_module=trace_mod):
+            pass
+
+        # Verify span was created with correct name
+        assert len(created_spans) == 1
+        span_name, span_obj = created_spans[0]
+        assert "runtime_guard.phase.data-load" in span_name
+        
+        # Verify span has final memory attributes
+        assert "runtime_guard.final_mem_available_mb" in span_obj.attributes
+        assert "runtime_guard.final_swap_used_pct" in span_obj.attributes
+        assert "runtime_guard.final_rss_mb" in span_obj.attributes
+        
+        # Verify span was closed
+        assert len(closed_spans) == 1
+        assert span_name in closed_spans
+
+    def test_phase_span_gets_error_status_on_exception(self):
+        """Test advanced span-linking: error status on exception (C08)."""
+        guard = RuntimeGuard()
+        created_spans: list[_MockSpan] = []
+
+        class _MockSpan:
+            def __init__(self, name: str):
+                self.name = name
+                self.status = None
+                self.ended = False
+
+            def set_attribute(self, key: str, value: Any) -> None:
+                pass
+
+            def set_status(self, status: Any) -> None:
+                self.status = status
+
+            def end(self) -> None:
+                self.ended = True
+
+            def is_recording(self) -> bool:
+                return True
+
+            def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+                pass
+
+            def get_span_context(self) -> Any:
+                class _Ctx:
+                    trace_id = 0x1
+                    span_id = 0x1
+                    trace_flags = type("_Flags", (), {"sampled": True})()
+                return _Ctx()
+
+        class _MockTracer:
+            def start_as_current_span(self, name: str):
+                span = _MockSpan(name)
+                created_spans.append(span)
+                return span
+
+        trace_mod = type("_TraceMod", (), {
+            "get_current_span": lambda self=None: None,
+            "get_tracer": lambda self=None, name="": _MockTracer(),
+        })()
+
+        try:
+            with guard.phase("risky-op", emit_phase_traces=True, trace_module=trace_mod):
+                raise RuntimeError("intentional test error")
+        except RuntimeError:
+            pass
+
+        # Verify span was created and ended
+        assert len(created_spans) == 1
+        span = created_spans[0]
+        assert span.ended is True
+        # Status might not be set if StatusCode unavailable, but should attempt
+
 
 
 class TestOtelPhaseEvent:

@@ -357,7 +357,10 @@ class PressureReport:
 
 
 class _GuardPhaseContext:
-    """Sync/async context manager for phase-scoped RuntimeGuard checks."""
+    """Sync/async context manager for phase-scoped RuntimeGuard checks.
+    
+    Supports advanced span-linking (C08) via child span creation and memory attributes.
+    """
 
     def __init__(
         self,
@@ -375,8 +378,14 @@ class _GuardPhaseContext:
         self._check_on_exit = check_on_exit
         self._emit_phase_traces = emit_phase_traces
         self._trace_module = trace_module
+        self._phase_span: Any | None = None
+        self._span_context_entered: bool = False
 
     def __enter__(self) -> "_GuardPhaseContext":
+        # Create a child span for the phase (advanced span-linking C08)
+        if self._emit_phase_traces:
+            self._create_phase_span()
+
         if self._emit_phase_traces:
             emit_otel_phase_event(
                 self._stage,
@@ -399,9 +408,17 @@ class _GuardPhaseContext:
             )
         if self._check_on_exit:
             self._guard.check_and_log(stage=f"{self._stage}:exit")
+        
+        # Close the phase span with final memory snapshot (C08 advanced linking)
+        if self._emit_phase_traces:
+            self._close_phase_span(with_error=exc_type is not None)
         return False
 
     async def __aenter__(self) -> "_GuardPhaseContext":
+        # Create a child span for the phase (advanced span-linking C08)
+        if self._emit_phase_traces:
+            self._create_phase_span()
+
         if self._emit_phase_traces:
             emit_otel_phase_event(
                 self._stage,
@@ -424,10 +441,68 @@ class _GuardPhaseContext:
             )
         if self._check_on_exit:
             self._guard.check_and_log(stage=f"{self._stage}:exit")
+        
+        # Close the phase span with final memory snapshot (C08 advanced linking)
+        if self._emit_phase_traces:
+            self._close_phase_span(with_error=exc_type is not None)
         return False
 
 
-# ---------------------------------------------------------------------------
+    def _create_phase_span(self) -> None:
+        """Create a child span for this phase (advanced span-linking C08)."""
+        trace_mod = self._trace_module
+        if trace_mod is None:
+            try:
+                from opentelemetry import trace as trace_mod  # type: ignore
+            except Exception:
+                return
+        
+        tracer_factory = getattr(trace_mod, "get_tracer", None)
+        if not callable(tracer_factory):
+            return
+        
+        try:
+            tracer = tracer_factory(__name__)
+            start_as_current = getattr(tracer, "start_as_current_span", None)
+            if callable(start_as_current):
+                span_name = f"runtime_guard.phase.{self._stage}"
+                self._phase_span = start_as_current(span_name)
+                self._span_context_entered = True
+        except Exception:
+            pass
+
+    def _close_phase_span(self, with_error: bool = False) -> None:
+        """Close the phase span and add final memory snapshot (C08 advanced linking)."""
+        if self._phase_span is None or not self._span_context_entered:
+            return
+        
+        try:
+            # Add final memory snapshot to span
+            final_snap = _read_snapshot()
+            set_attr = getattr(self._phase_span, "set_attribute", None)
+            if callable(set_attr):
+                set_attr("runtime_guard.final_mem_available_mb", final_snap.mem_available_mb)
+                set_attr("runtime_guard.final_swap_used_pct", final_snap.swap_used_pct)
+                set_attr("runtime_guard.final_rss_mb", final_snap.rss_mb)
+
+            # Set final span status if error occurred
+            if with_error:
+                set_status = getattr(self._phase_span, "set_status", None)
+                if callable(set_status):
+                    try:
+                        from opentelemetry.trace import Status, StatusCode
+                        set_status(Status(StatusCode.ERROR, description="phase exited with exception"))
+                    except Exception:
+                        pass
+
+            # End the span
+            end = getattr(self._phase_span, "end", None)
+            if callable(end):
+                end()
+            self._phase_span = None
+        except Exception:
+            pass
+
 # Core class
 # ---------------------------------------------------------------------------
 
@@ -1734,6 +1809,8 @@ def attach_dask_guard(
     guard: "RuntimeGuard",
     *,
     stage: str = "dask-compute",
+    enable_scheduler_callbacks: bool = False,
+    scheduler_stage_prefix: str = "dask",
     module: Any | None = None,
 ) -> Callable[[], None]:
     """Attach RuntimeGuard checks to Dask compute/persist entry points.
@@ -1746,6 +1823,16 @@ def attach_dask_guard(
     -------
     Callable[[], None]
         Restore function that undoes the monkeypatch.
+
+    Parameters
+    ----------
+    enable_scheduler_callbacks:
+        When True, attempts to wrap compute/persist calls in a
+        ``dask.callbacks.Callback`` context from
+        ``install_dask_scheduler_callbacks`` for deeper scheduler integration.
+    scheduler_stage_prefix:
+        Stage prefix for scheduler callback checks when
+        ``enable_scheduler_callbacks`` is enabled.
     """
     if module is None:
         try:
@@ -1799,42 +1886,79 @@ def attach_dask_guard(
     original_base_compute = base_compute_fn
     original_base_persist = base_persist_fn
 
+    callback_api_available = False
+    callback_context_factory: Callable[[], Any] | None = None
+    if enable_scheduler_callbacks:
+        callback_reporter = install_dask_scheduler_callbacks(
+            guard,
+            stage_prefix=scheduler_stage_prefix,
+            module=module,
+        )
+        callback_api_available = bool(getattr(callback_reporter, "callback_api_available", False))
+        maybe_factory = getattr(callback_reporter, "create_callback_context", None)
+        if callable(maybe_factory):
+            callback_context_factory = maybe_factory
+
+    def _with_scheduler_context(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        if not enable_scheduler_callbacks or callback_context_factory is None:
+            return fn(*args, **kwargs)
+        if not callback_api_available:
+            return fn(*args, **kwargs)
+        try:
+            ctx = callback_context_factory()
+        except Exception:
+            return fn(*args, **kwargs)
+        enter = getattr(ctx, "__enter__", None)
+        exit_ = getattr(ctx, "__exit__", None)
+        if not callable(enter) or not callable(exit_):
+            return fn(*args, **kwargs)
+        with ctx:
+            return fn(*args, **kwargs)
+
     def _guarded_compute(*args: Any, **kwargs: Any) -> Any:
         guard.check_and_log(stage=stage)
-        return original_compute(*args, **kwargs)
+        return _with_scheduler_context(original_compute, *args, **kwargs)
 
     setattr(_guarded_compute, "_runtime_guard_wrapped", True)
     setattr(_guarded_compute, "_runtime_guard_original", original_compute)
+    setattr(_guarded_compute, "_runtime_guard_scheduler_callbacks_enabled", enable_scheduler_callbacks)
+    setattr(_guarded_compute, "_runtime_guard_scheduler_callback_api_available", callback_api_available)
     setattr(module, "compute", _guarded_compute)
 
     if callable(original_persist):
 
         def _guarded_persist(*args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
-            return original_persist(*args, **kwargs)
+            return _with_scheduler_context(original_persist, *args, **kwargs)
 
         setattr(_guarded_persist, "_runtime_guard_wrapped", True)
         setattr(_guarded_persist, "_runtime_guard_original", original_persist)
+        setattr(_guarded_persist, "_runtime_guard_scheduler_callbacks_enabled", enable_scheduler_callbacks)
+        setattr(_guarded_persist, "_runtime_guard_scheduler_callback_api_available", callback_api_available)
         setattr(module, "persist", _guarded_persist)
 
     if base_mod is not None and callable(original_base_compute):
 
         def _guarded_base_compute(*args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
-            return original_base_compute(*args, **kwargs)
+            return _with_scheduler_context(original_base_compute, *args, **kwargs)
 
         setattr(_guarded_base_compute, "_runtime_guard_wrapped", True)
         setattr(_guarded_base_compute, "_runtime_guard_original", original_base_compute)
+        setattr(_guarded_base_compute, "_runtime_guard_scheduler_callbacks_enabled", enable_scheduler_callbacks)
+        setattr(_guarded_base_compute, "_runtime_guard_scheduler_callback_api_available", callback_api_available)
         setattr(base_mod, "compute", _guarded_base_compute)
 
     if base_mod is not None and callable(original_base_persist):
 
         def _guarded_base_persist(*args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
-            return original_base_persist(*args, **kwargs)
+            return _with_scheduler_context(original_base_persist, *args, **kwargs)
 
         setattr(_guarded_base_persist, "_runtime_guard_wrapped", True)
         setattr(_guarded_base_persist, "_runtime_guard_original", original_base_persist)
+        setattr(_guarded_base_persist, "_runtime_guard_scheduler_callbacks_enabled", enable_scheduler_callbacks)
+        setattr(_guarded_base_persist, "_runtime_guard_scheduler_callback_api_available", callback_api_available)
         setattr(base_mod, "persist", _guarded_base_persist)
 
     def _restore() -> None:
@@ -2069,11 +2193,19 @@ def validate_dask_integration(
         callback_cls = getattr(callbacks_mod, "Callback", None) if callbacks_mod else None
 
         methods_wrapped = bool(getattr(compute_fn, "_runtime_guard_wrapped", False))
+        scheduler_callbacks_wrapped = bool(
+            getattr(compute_fn, "_runtime_guard_scheduler_callbacks_enabled", False)
+        )
+        scheduler_callback_context_available = bool(
+            getattr(compute_fn, "_runtime_guard_scheduler_callback_api_available", False)
+        )
 
         return {
             "ok": True,
             "dask_available": True,
             "methods_wrapped": methods_wrapped,
+            "scheduler_callbacks_wrapped": scheduler_callbacks_wrapped,
+            "scheduler_callback_context_available": scheduler_callback_context_available,
             "compute_present": compute_fn is not None,
             "persist_present": persist_fn is not None,
             "base_module_present": base_mod is not None,
@@ -2125,6 +2257,9 @@ def collect_dask_integration_evidence(
 
     if validation.get("scheduler_callback_api_present"):
         evidence_items.append("dask_scheduler_callback_api_available")
+
+    if validation.get("scheduler_callbacks_wrapped"):
+        evidence_items.append("dask_scheduler_callback_context_wrapped")
 
     runtime_guard_version = "0.3.0"
     try:

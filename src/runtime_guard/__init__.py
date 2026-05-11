@@ -83,6 +83,7 @@ __all__ = [
     "pressure_report_attributes",
     "trace_context_attributes",
     "emit_otel_event",
+    "emit_otel_phase_event",
     "render_prometheus_metrics",
     "validate_runtime_guard_config",
     "attach_signal_recovery",
@@ -363,28 +364,62 @@ class _GuardPhaseContext:
         *,
         check_on_enter: bool,
         check_on_exit: bool,
+        emit_phase_traces: bool,
+        trace_module: Any | None,
     ) -> None:
         self._guard = guard
         self._stage = stage
         self._check_on_enter = check_on_enter
         self._check_on_exit = check_on_exit
+        self._emit_phase_traces = emit_phase_traces
+        self._trace_module = trace_module
 
     def __enter__(self) -> "_GuardPhaseContext":
+        if self._emit_phase_traces:
+            emit_otel_phase_event(
+                self._stage,
+                lifecycle="enter",
+                module=self._trace_module,
+            )
         if self._check_on_enter:
             self._guard.check_and_log(stage=f"{self._stage}:enter")
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        if self._emit_phase_traces:
+            lifecycle = "error" if exc is not None else "exit"
+            attrs = {"runtime_guard.phase.exception_type": str(exc_type.__name__)} if exc_type else None
+            emit_otel_phase_event(
+                self._stage,
+                lifecycle=lifecycle,
+                module=self._trace_module,
+                attributes=attrs,
+            )
         if self._check_on_exit:
             self._guard.check_and_log(stage=f"{self._stage}:exit")
         return False
 
     async def __aenter__(self) -> "_GuardPhaseContext":
+        if self._emit_phase_traces:
+            emit_otel_phase_event(
+                self._stage,
+                lifecycle="enter",
+                module=self._trace_module,
+            )
         if self._check_on_enter:
             self._guard.check_and_log(stage=f"{self._stage}:enter")
         return self
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        if self._emit_phase_traces:
+            lifecycle = "error" if exc is not None else "exit"
+            attrs = {"runtime_guard.phase.exception_type": str(exc_type.__name__)} if exc_type else None
+            emit_otel_phase_event(
+                self._stage,
+                lifecycle=lifecycle,
+                module=self._trace_module,
+                attributes=attrs,
+            )
         if self._check_on_exit:
             self._guard.check_and_log(stage=f"{self._stage}:exit")
         return False
@@ -682,18 +717,26 @@ class RuntimeGuard:
         *,
         check_on_enter: bool = True,
         check_on_exit: bool = True,
+        emit_phase_traces: bool = False,
+        trace_module: Any | None = None,
     ) -> "_GuardPhaseContext":
         """Return a context manager that checks memory around a named phase.
 
         Supports both ``with`` and ``async with`` usage. By default, memory is
         checked on both enter and exit with stage labels ``<stage>:enter`` and
         ``<stage>:exit``.
+
+        When ``emit_phase_traces=True``, lightweight OpenTelemetry lifecycle
+        events are emitted with stage and lifecycle attributes
+        (``enter``, ``exit``, ``error``), without requiring pressure.
         """
         return _GuardPhaseContext(
             self,
             stage,
             check_on_enter=check_on_enter,
             check_on_exit=check_on_exit,
+            emit_phase_traces=emit_phase_traces,
+            trace_module=trace_module,
         )
 
     def install_signal_recovery(
@@ -2837,6 +2880,55 @@ def emit_otel_event(
 
     attrs = pressure_report_attributes(report)
     attrs.update(trace_context_attributes(span=target_span))
+    add_event(event_name, attributes=attrs)
+    return True
+
+
+def emit_otel_phase_event(
+    stage: str,
+    *,
+    lifecycle: str,
+    event_name: str = "runtime_guard.phase",
+    span: Any | None = None,
+    module: Any | None = None,
+    attributes: dict[str, Any] | None = None,
+) -> bool:
+    """Emit a phase lifecycle event on the current OpenTelemetry span.
+
+    Lifecycle is typically one of ``enter``, ``exit``, or ``error``.
+    Returns ``True`` when an event is emitted, otherwise ``False``.
+    """
+    target_span = span
+    if target_span is None:
+        trace_mod = module
+        if trace_mod is None:
+            try:
+                from opentelemetry import trace as trace_mod  # type: ignore
+            except Exception:
+                return False
+        get_current_span = getattr(trace_mod, "get_current_span", None)
+        if not callable(get_current_span):
+            return False
+        target_span = get_current_span()
+
+    if target_span is None:
+        return False
+
+    is_recording = getattr(target_span, "is_recording", None)
+    if callable(is_recording) and not is_recording():
+        return False
+
+    add_event = getattr(target_span, "add_event", None)
+    if not callable(add_event):
+        return False
+
+    attrs: dict[str, Any] = {
+        "runtime_guard.phase.stage": stage,
+        "runtime_guard.phase.lifecycle": str(lifecycle),
+    }
+    attrs.update(trace_context_attributes(span=target_span))
+    if attributes:
+        attrs.update(attributes)
     add_event(event_name, attributes=attrs)
     return True
 

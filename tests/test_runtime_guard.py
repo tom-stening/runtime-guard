@@ -33,6 +33,7 @@ from runtime_guard import (
     aggregate_worker_reports,
     build_adoption_scorecard,
     emit_otel_event,
+    emit_otel_phase_event,
     fips_event_hash,
     FipsDeduplicator,
     subprocess_safe,
@@ -2135,6 +2136,75 @@ class TestPhaseContextManager:
 
         asyncio.run(_run())
         assert calls == ["async-stage:enter", "async-stage:exit"]
+
+    def test_phase_emits_otel_lifecycle_events(self, monkeypatch):
+        guard = RuntimeGuard()
+
+        class _Span:
+            def __init__(self):
+                self.events: list[tuple[str, dict[str, Any]]] = []
+
+            def is_recording(self):
+                return True
+
+            def add_event(self, name: str, attributes: dict[str, Any] | None = None):
+                self.events.append((name, dict(attributes or {})))
+
+            def get_span_context(self):
+                class _Ctx:
+                    trace_id = 0x4BF92F3577B34DA6A3CE929D0E0E4736
+                    span_id = 0x00F067AA0BA902B7
+                    trace_flags = type("_Flags", (), {"sampled": True})()
+
+                return _Ctx()
+
+        span = _Span()
+        trace_mod = type("_TraceMod", (), {"get_current_span": lambda self=None: span})()
+
+        with guard.phase("etl-load", emit_phase_traces=True, trace_module=trace_mod):
+            pass
+
+        event_names = [name for name, _ in span.events]
+        assert event_names == ["runtime_guard.phase", "runtime_guard.phase"]
+        assert span.events[0][1]["runtime_guard.phase.lifecycle"] == "enter"
+        assert span.events[1][1]["runtime_guard.phase.lifecycle"] == "exit"
+        assert span.events[0][1]["runtime_guard.phase.stage"] == "etl-load"
+
+    def test_phase_emits_error_lifecycle_on_exception(self):
+        guard = RuntimeGuard()
+
+        class _Span:
+            def __init__(self):
+                self.events: list[tuple[str, dict[str, Any]]] = []
+
+            def is_recording(self):
+                return True
+
+            def add_event(self, name: str, attributes: dict[str, Any] | None = None):
+                self.events.append((name, dict(attributes or {})))
+
+            def get_span_context(self):
+                class _Ctx:
+                    trace_id = 0x4BF92F3577B34DA6A3CE929D0E0E4736
+                    span_id = 0x00F067AA0BA902B7
+                    trace_flags = type("_Flags", (), {"sampled": True})()
+
+                return _Ctx()
+
+        span = _Span()
+        trace_mod = type("_TraceMod", (), {"get_current_span": lambda self=None: span})()
+
+        with pytest.raises(ValueError):
+            with guard.phase("etl-fail", emit_phase_traces=True, trace_module=trace_mod):
+                raise ValueError("boom")
+
+        assert span.events[-1][1]["runtime_guard.phase.lifecycle"] == "error"
+        assert span.events[-1][1]["runtime_guard.phase.exception_type"] == "ValueError"
+
+
+class TestOtelPhaseEvent:
+    def test_emit_otel_phase_event_returns_false_without_otel(self):
+        assert emit_otel_phase_event("stage-a", lifecycle="enter", module=object()) is False
 
 
 # ---------------------------------------------------------------------------

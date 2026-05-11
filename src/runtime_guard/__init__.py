@@ -5214,6 +5214,7 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
     psi_some_avg10 = float(metrics.get("psi_some_avg10", 0.0) or 0.0)
     psi_full_avg10 = float(metrics.get("psi_full_avg10", 0.0) or 0.0)
     host_vm_used_pct = int(metrics.get("host_vm_used_pct", 0) or 0)
+    host_error_event_count = int(metrics.get("host_error_event_count", 0) or 0)
 
     if guest_mem_available_mb < 1024:
         score += 2
@@ -5235,6 +5236,10 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
         score += 1
         causes.append("host virtual memory usage is high")
         prevention.append("free host memory/pagefile pressure and verify Windows pagefile is system-managed")
+    if host_error_event_count > 0:
+        score += 1
+        causes.append("host Hyper-V/System warning or error events were detected")
+        prevention.append("inspect recent Hyper-V/System events for VM resets or integration faults")
 
     if score >= 5:
         level = "critical"
@@ -5249,6 +5254,95 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
         prevention.append("current pressure is low; keep WSL capped and monitor before heavy subprocess launches")
 
     return level, score, causes, prevention
+
+
+def _read_windows_wsl_event_hints(max_events: int = 6) -> dict[str, Any]:
+    """Read recent host-side warning/error events relevant to WSL/Hyper-V.
+
+    Returns a compact summary. Best-effort only; never raises.
+    """
+    out: dict[str, Any] = {
+        "host_event_logs_checked": [
+            "Microsoft-Windows-Hyper-V-Compute-Operational",
+            "Microsoft-Windows-Hyper-V-Worker-Operational",
+            "System",
+        ],
+        "host_error_event_count": 0,
+        "host_error_events": [],
+    }
+
+    if not _is_wsl():
+        return out
+
+    try:
+        raw = subprocess.check_output(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                "$logs=@('Microsoft-Windows-Hyper-V-Compute-Operational','Microsoft-Windows-Hyper-V-Worker-Operational','System');"
+                "$rows=@();"
+                "foreach($l in $logs){"
+                "  try {"
+                "    $ev=Get-WinEvent -LogName $l -MaxEvents 40 -ErrorAction Stop | "
+                "      Where-Object { $_.LevelDisplayName -in @('Error','Critical','Warning') } | "
+                "      Select-Object -First 4 TimeCreated,Id,LevelDisplayName,ProviderName,Message;"
+                "    foreach($e in $ev){"
+                "      $rows += [PSCustomObject]@{"
+                "        LogName=$l;"
+                "        TimeCreated=$e.TimeCreated;"
+                "        Id=$e.Id;"
+                "        Level=$e.LevelDisplayName;"
+                "        Provider=$e.ProviderName;"
+                "        Message=$e.Message"
+                "      }"
+                "    }"
+                "  } catch {}"
+                "}"
+                "$rows | ConvertTo-Json -Depth 4 -Compress",
+            ],
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            text=True,
+        )
+    except Exception:
+        return out
+
+    raw = raw.strip()
+    if not raw:
+        return out
+
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return out
+
+    events: list[dict[str, Any]] = []
+    if isinstance(parsed, dict):
+        parsed = [parsed]
+    if isinstance(parsed, list):
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            msg = str(item.get("Message", "") or "").replace("\r", " ").replace("\n", " ").strip()
+            if len(msg) > 220:
+                msg = msg[:220] + "..."
+            events.append(
+                {
+                    "log": str(item.get("LogName", "")),
+                    "time": str(item.get("TimeCreated", "")),
+                    "id": int(item.get("Id", 0) or 0),
+                    "level": str(item.get("Level", "")),
+                    "provider": str(item.get("Provider", "")),
+                    "message": msg,
+                }
+            )
+
+    # Most recent first, bounded output size
+    events = events[:max_events]
+    out["host_error_events"] = events
+    out["host_error_event_count"] = len(events)
+    return out
 
 
 def diagnose_wsl_crash() -> dict[str, Any]:
@@ -5280,6 +5374,7 @@ def diagnose_wsl_crash() -> dict[str, Any]:
         "drift_swap_used_pct": snap.drift_swap_used_pct,
     }
     metrics.update(psi)
+    metrics.update(_read_windows_wsl_event_hints())
 
     level, score, causes, prevention = _classify_wsl_crash_risk(metrics)
     metrics["risk_level"] = level

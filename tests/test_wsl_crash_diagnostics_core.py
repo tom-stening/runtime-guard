@@ -35,11 +35,31 @@ def test_diagnose_wsl_crash_includes_risk_and_metrics(monkeypatch: pytest.Monkey
             "psi_full_avg60": 5.0,
         },
     )
+    monkeypatch.setattr(
+        rg,
+        "_read_windows_wsl_event_hints",
+        lambda: {
+            "host_event_logs_checked": ["System"],
+            "host_error_event_count": 1,
+            "host_error_events": [
+                {
+                    "log": "System",
+                    "id": 1,
+                    "level": "Warning",
+                    "provider": "TestProvider",
+                    "message": "sample",
+                    "time": "2026-05-11T00:00:00",
+                }
+            ],
+        },
+    )
 
     out = rg.diagnose_wsl_crash()
 
     assert out["guest_mem_available_mb"] == 800
     assert out["host_mem_total_mb"] == 64000
+    assert out["host_error_event_count"] == 1
+    assert out["host_error_events"]
     assert out["risk_level"] in {"high", "critical"}
     assert out["risk_score"] >= 3
     assert out["likely_causes"]
@@ -93,3 +113,21 @@ def test_cli_diagnose_wsl_crash_fail_on_high(monkeypatch: pytest.MonkeyPatch):
         rg._cli()
 
     assert ex.value.code == 1
+
+
+def test_classify_wsl_risk_includes_host_event_signal():
+    level, score, causes, actions = rg._classify_wsl_crash_risk(
+        {
+            "guest_mem_available_mb": 5000,
+            "guest_swap_used_pct": 20,
+            "psi_some_avg10": 0.0,
+            "psi_full_avg10": 0.0,
+            "host_vm_used_pct": 40,
+            "host_error_event_count": 2,
+        }
+    )
+
+    assert level in {"moderate", "high", "critical"}
+    assert score >= 1
+    assert any("host Hyper-V/System" in c for c in causes)
+    assert any("Hyper-V/System events" in a for a in actions)

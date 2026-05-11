@@ -303,3 +303,44 @@ Benefits:
 - Shared, testable host+guest diagnostics in core package
 - Better operator UX for post-crash RCA and prevention automation
 
+---
+
+## Feedback from runtime-guard workspace (2026-05-11, host event integration)
+
+### Context
+
+Core crash diagnostics now include host-side event sampling from:
+
+- `Microsoft-Windows-Hyper-V-Compute-Operational`
+- `Microsoft-Windows-Hyper-V-Worker-Operational`
+- `System`
+
+During live validation, host event sampling returned mostly generic `System`
+warnings/errors (e.g., DCOM and unrelated service startup errors) that are not
+necessarily causal for WSL instability.
+
+### Local implementation attempt
+
+- Extended `diagnose_wsl_crash()` to include host event hints and fold them
+    into risk scoring as a weak signal (`+1`).
+- Added focused tests to cover host-event signal integration and risk impact.
+
+### Validation evidence
+
+- Focused tests: `7 passed`
+- Full suite: `271 passed, 1 warning`
+- Live run now emits `host_error_events` with sampled metadata.
+
+### Improvement suggestion to feed back into runtime-guard
+
+Add event-source filtering and confidence scoring so unrelated host events do
+not dominate RCA output:
+
+1. Maintain allow-list of likely WSL/VM providers/IDs (Hyper-V compute/worker,
+     vmcompute, LxssManager-related providers when present).
+2. Tag each sampled event as `relevance=high|medium|low`.
+3. Only increase crash risk for `high` relevance events, keep generic `System`
+     events as informational context.
+
+This keeps host diagnostics useful while reducing false-positive causal hints.
+

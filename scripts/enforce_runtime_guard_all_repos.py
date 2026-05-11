@@ -51,6 +51,7 @@ class ReportSummary:
     already_enforced: int
     blocked_existing_sitecustomize: int
     dry_run_candidates: int
+    watcher_only_candidates: int
 
 
 def _parse_args() -> argparse.Namespace:
@@ -66,6 +67,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--cooldown-s", type=float, default=30.0)
     parser.add_argument("--env-prefix", default="RUNTIME_GUARD")
     parser.add_argument("--posture", default="wsl_dev")
+    parser.add_argument(
+        "--enforce-all-repos",
+        action="store_true",
+        help="Apply RuntimeGuard sitecustomize.py to all repos, including non-Python repos.",
+    )
     parser.add_argument(
         "--force-runtime-guard-sitecustomize",
         action="store_true",
@@ -198,6 +204,7 @@ def _summarize(statuses: list[RepoStatus]) -> ReportSummary:
             1 for s in statuses if s.status == "blocked_existing_sitecustomize"
         ),
         dry_run_candidates=sum(1 for s in statuses if s.status == "dry_run_candidate"),
+        watcher_only_candidates=sum(1 for s in statuses if s.status == "watcher_only_candidate"),
     )
 
 
@@ -212,7 +219,7 @@ def main() -> int:
 
     for repo in repos:
         is_python = _is_python_repo(repo)
-        if is_python:
+        if is_python or args.enforce_all_repos:
             statuses.append(_enforce_sitecustomize(repo, args))
             continue
         statuses.append(

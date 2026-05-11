@@ -75,3 +75,21 @@ def test_dry_run_reports_candidates_without_writing(tmp_path: Path) -> None:
     assert not (py_repo / "sitecustomize.py").exists()
     report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
     assert report["summary"]["dry_run_candidates"] == 1
+
+
+def test_enforce_all_repos_writes_sitecustomize_for_non_python_repo(tmp_path: Path) -> None:
+    repo = tmp_path / "docs-repo"
+    repo.mkdir(parents=True)
+    (repo / ".git").mkdir()
+    (repo / "README.md").write_text("hello\n", encoding="utf-8")
+
+    result = _run_script(tmp_path, "--enforce-all-repos")
+    assert result.returncode == 0, result.stderr
+
+    sitecustomize = repo / "sitecustomize.py"
+    assert sitecustomize.exists()
+    content = sitecustomize.read_text(encoding="utf-8")
+    assert "RuntimeGuard autostart" in content
+
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    assert report["summary"]["watcher_only_candidates"] == 0

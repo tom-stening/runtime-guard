@@ -71,6 +71,9 @@ def _check_budget_api() -> dict[str, Any]:
         class _MockFrame:
             schema = {"col_a": "Int64", "col_b": "Utf8"}
 
+            def explain(self) -> str:
+                return "SCAN parquet a\nFILTER\nSCAN parquet b"
+
             def collect(self) -> list[int]:
                 return [1, 2]
 
@@ -84,6 +87,7 @@ def _check_budget_api() -> dict[str, Any]:
             guard,
             module=_MockPolars,
             warn_columns=1,
+            warn_scans=1,
             max_columns=50,
         )
         # Invoking collect() on a frame with 2 columns should warn (>1) but not raise.

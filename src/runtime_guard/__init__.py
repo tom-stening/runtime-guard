@@ -2825,6 +2825,8 @@ def validate_polars_integration(
     errors: list[str] = []
     polars_available = False
     methods_wrapped = False
+    scan_budget_api_available = False
+    explain_plan_available = False
 
     try:
         polars_mod = module
@@ -2858,6 +2860,10 @@ def validate_polars_integration(
         sink_csv_method = getattr(lazyframe_cls, "sink_csv", None)
         sink_ipc_method = getattr(lazyframe_cls, "sink_ipc", None)
         sink_ndjson_method = getattr(lazyframe_cls, "sink_ndjson", None)
+        explain_method = getattr(lazyframe_cls, "explain", None)
+
+        scan_budget_api_available = callable(install_polars_scan_budget)
+        explain_plan_available = callable(explain_method)
 
         methods_wrapped = bool(getattr(collect_method, "_runtime_guard_wrapped", False))
 
@@ -2885,6 +2891,8 @@ def validate_polars_integration(
             "sink_csv_present": sink_csv_method is not None,
             "sink_ipc_present": sink_ipc_method is not None,
             "sink_ndjson_present": sink_ndjson_method is not None,
+            "scan_budget_api_available": scan_budget_api_available,
+            "explain_plan_available": explain_plan_available,
             "wrapped_methods": wrapped_methods,
             "errors": errors,
         }
@@ -2894,6 +2902,8 @@ def validate_polars_integration(
             "ok": False,
             "polars_available": polars_available,
             "methods_wrapped": methods_wrapped,
+            "scan_budget_api_available": scan_budget_api_available,
+            "explain_plan_available": explain_plan_available,
             "errors": errors,
         }
 
@@ -2940,6 +2950,12 @@ def collect_polars_integration_evidence(
 
     if validation.get("sink_ndjson_present"):
         evidence_items.append("polars_sink_ndjson_available")
+
+    if validation.get("scan_budget_api_available"):
+        evidence_items.append("polars_scan_budget_api_available")
+
+    if validation.get("explain_plan_available"):
+        evidence_items.append("polars_explain_plan_available")
 
     runtime_guard_version = "0.3.0"
     try:

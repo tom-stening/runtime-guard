@@ -653,6 +653,9 @@ class TestPolarsIntegration:
             def sink_csv(self, path: str) -> str:
                 return f"csv:{path}"
 
+            def explain(self) -> str:
+                return "SCAN parquet source"
+
     def test_attach_calls_check_before_collect(self, monkeypatch):
         guard = RuntimeGuard()
         calls: list[str] = []
@@ -753,6 +756,8 @@ class TestPolarsIntegration:
             assert result["collect_async_present"] is True
             assert result["sink_parquet_present"] is True
             assert result["sink_csv_present"] is True
+            assert result["scan_budget_api_available"] is True
+            assert result["explain_plan_available"] is True
             assert "collect" in result["wrapped_methods"]
             assert "fetch" in result["wrapped_methods"]
             assert "collect_async" in result["wrapped_methods"]
@@ -782,6 +787,8 @@ class TestPolarsIntegration:
             assert "polars_collect_async_available" in evidence["evidence_items"]
             assert "polars_sink_parquet_available" in evidence["evidence_items"]
             assert "polars_sink_csv_available" in evidence["evidence_items"]
+            assert "polars_scan_budget_api_available" in evidence["evidence_items"]
+            assert "polars_explain_plan_available" in evidence["evidence_items"]
             # Dummy polars doesn't have __version__, so it will be 'unknown'
             assert evidence["polars_version"] == "unknown"
         finally:

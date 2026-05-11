@@ -5391,6 +5391,7 @@ def make_conftest_content(
     skip_on_critical: bool = True,
     intervene_on_warning: bool = True,
     kill_hogs_above_mb: int | None = None,
+    posture: str | None = None,
 ) -> str:
     """Return a complete ``conftest.py`` string for a repository.
 
@@ -5412,11 +5413,22 @@ def make_conftest_content(
         )
         with open("tests/conftest.py", "w") as fh:
             fh.write(content)
+
+    When ``posture`` is provided, the generated conftest will pass it through
+    to ``make_pytest_guard(...)`` so threshold presets are applied via the
+    same validated path as direct factory usage.
     """
     hints_repr = repr(hints or [])
     kill_repr = repr(kill_hogs_above_mb)
     skip_repr = repr(skip_on_critical)
     intervene_repr = repr(intervene_on_warning)
+    posture_repr = "None"
+    if posture is not None:
+        posture_cfg = validate_runtime_guard_config(
+            {"posture": posture},
+            use_pydantic=False,
+        )
+        posture_repr = repr(str(posture_cfg["posture"]))
 
     lines: list[str] = [
         f'"""conftest.py \u2014 RuntimeGuard integration for {repo_name}.',
@@ -5444,6 +5456,7 @@ def make_conftest_content(
         "    _GUARD = make_pytest_guard(",
         f"        repo_name={repo_name!r},",
         f"        hints={hints_repr},",
+        f"        posture={posture_repr},",
         "    )",
         "    _GUARD_AVAILABLE = True",
         "except ImportError:",

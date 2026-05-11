@@ -26,6 +26,7 @@ from runtime_guard import (
     MemSnapshot,
     PressureReport,
     RuntimeGuard,
+    make_conftest_content,
     make_pytest_guard,
     attach_dask_guard,
     attach_signal_recovery,
@@ -170,6 +171,17 @@ class TestMakePytestGuard:
     def test_invalid_posture_raises(self):
         with pytest.raises(ValueError, match="Invalid posture"):
             make_pytest_guard(repo_name="My Repo", posture="fast")
+
+
+class TestConftestContent:
+    def test_conftest_includes_posture_when_provided(self):
+        text = make_conftest_content(repo_name="myrepo", posture="ci")
+        assert "make_pytest_guard(" in text
+        assert "posture='ci'" in text
+
+    def test_conftest_validates_posture(self):
+        with pytest.raises(ValueError, match="Invalid posture"):
+            make_conftest_content(repo_name="myrepo", posture="fast")
 
 
 # ---------------------------------------------------------------------------

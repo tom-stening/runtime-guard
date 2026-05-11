@@ -88,6 +88,7 @@ def test_includes_wsl_diagnosis_when_requested(tmp_path: Path) -> None:
     assert "wsl_running_distro_count" in runtime["summary"]
     assert isinstance(runtime["recommendations"], list)
     assert runtime["summary"]["recommendation_count"] == len(runtime["recommendations"])
+    assert "overall_runtime_healthy" in runtime["summary"]
 
 
 def test_recommendations_are_deduplicated(tmp_path: Path) -> None:
@@ -105,3 +106,71 @@ def test_recommendations_are_deduplicated(tmp_path: Path) -> None:
     assert len(recs) == len({(" ".join(str(r).lower().strip().rstrip(".").split())) for r in recs})
     docker_rows = [r for r in recs if "docker-desktop" in str(r).lower()]
     assert len(docker_rows) <= 1
+
+
+def test_fail_on_unenforced_exits_nonzero(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "watcher_only_candidate"},
+        ]
+    }
+
+    result = _run_script(tmp_path, payload, "--no-proc-scan", "--fail-on-unenforced")
+    assert result.returncode == 1
+
+
+def test_fail_on_integration_unhealthy_exits_nonzero(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ]
+    }
+    integration_path = tmp_path / "integration.json"
+    integration_path.write_text(
+        json.dumps(
+            {
+                "summary": {
+                    "overall_healthy": False,
+                    "components_total": 3,
+                    "components_healthy": 2,
+                    "risk_level": "high",
+                },
+                "execution_mode": "live",
+                "pressure_fallback": {"enabled": False, "pressure_detected": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--integration-report",
+        str(integration_path),
+        "--fail-on-integration-unhealthy",
+    )
+    assert result.returncode == 1
+
+
+def test_fail_on_wsl_risk_requires_threshold_exits_nonzero(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ]
+    }
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--include-wsl-diagnosis",
+        "--fail-on-wsl-risk",
+        "moderate",
+    )
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    level = str(runtime["summary"].get("wsl_risk_level", "low"))
+    if level in {"moderate", "high", "critical"}:
+        assert result.returncode == 1
+    else:
+        assert result.returncode == 0

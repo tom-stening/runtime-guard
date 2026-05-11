@@ -53,6 +53,21 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include diagnose_wsl_crash() payload in report.",
     )
+    parser.add_argument(
+        "--fail-on-unenforced",
+        action="store_true",
+        help="Exit 1 when any repositories are unenforced.",
+    )
+    parser.add_argument(
+        "--fail-on-integration-unhealthy",
+        action="store_true",
+        help="Exit 1 when integration_overall_healthy is false in integration report.",
+    )
+    parser.add_argument(
+        "--fail-on-wsl-risk",
+        choices=["moderate", "high", "critical"],
+        help="Exit 1 when WSL risk level is at or above this threshold (requires --include-wsl-diagnosis).",
+    )
     return parser.parse_args()
 
 
@@ -181,6 +196,26 @@ def _build_recommendations(
     return deduped
 
 
+def _risk_rank(level: str) -> int:
+    table = {"low": 0, "moderate": 1, "high": 2, "critical": 3}
+    return table.get(level.strip().lower(), -1)
+
+
+def _compute_overall_runtime_healthy(summary: dict[str, Any]) -> bool:
+    if not bool(summary.get("fully_enforced", False)):
+        return False
+
+    integration_healthy = summary.get("integration_overall_healthy")
+    if integration_healthy is False:
+        return False
+
+    wsl_level = str(summary.get("wsl_risk_level", "low")).lower()
+    if _risk_rank(wsl_level) >= _risk_rank("high"):
+        return False
+
+    return True
+
+
 def _build_payload(
     enforcement: dict[str, Any],
     *,
@@ -275,6 +310,7 @@ def _build_payload(
         wsl_diag=wsl_diag,
     )
     summary["recommendation_count"] = len(payload["recommendations"])
+    summary["overall_runtime_healthy"] = _compute_overall_runtime_healthy(summary)
 
     if isinstance(integration_report, dict):
         payload["integration_status"] = integration_report
@@ -317,6 +353,22 @@ def main() -> int:
 
     print(json.dumps(payload["summary"], indent=2, sort_keys=True))
     print(f"report: {output_path}")
+
+    summary = payload.get("summary", {})
+    should_fail = False
+    if args.fail_on_unenforced and int(summary.get("unenforced_repos", 0) or 0) > 0:
+        should_fail = True
+    if args.fail_on_integration_unhealthy and summary.get("integration_overall_healthy") is False:
+        should_fail = True
+    if args.fail_on_wsl_risk:
+        threshold = str(args.fail_on_wsl_risk)
+        actual = str(summary.get("wsl_risk_level", "low"))
+        if _risk_rank(actual) >= _risk_rank(threshold):
+            should_fail = True
+
+    if should_fail:
+        return 1
+
     return 0
 
 

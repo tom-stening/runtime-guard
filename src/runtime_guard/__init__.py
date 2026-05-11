@@ -2677,6 +2677,8 @@ def validate_ray_integration(
     methods_wrapped = False
     actor_monitoring_api_available = False
     actor_monitoring_keys_present = False
+    actor_node_telemetry_api_available = False
+    actor_cluster_summary_api_available = False
 
     try:
         ray_mod = module
@@ -2721,6 +2723,11 @@ def validate_ray_integration(
         }
         actor_monitoring_api_available = callable(enable_ray_actor_memory_monitoring)
         actor_monitoring_keys_present = required_actor_keys.issubset(set(actor_cfg.keys()))
+        actor_node_telemetry_api_available = all(
+            callable(actor_cfg.get(k))
+            for k in ("node_report", "reset_node_reports", "get_all_node_reports")
+        )
+        actor_cluster_summary_api_available = callable(actor_cfg.get("cluster_summary"))
 
         return {
             "ok": True,
@@ -2728,6 +2735,8 @@ def validate_ray_integration(
             "methods_wrapped": methods_wrapped,
             "actor_monitoring_api_available": actor_monitoring_api_available,
             "actor_monitoring_keys_present": actor_monitoring_keys_present,
+            "actor_node_telemetry_api_available": actor_node_telemetry_api_available,
+            "actor_cluster_summary_api_available": actor_cluster_summary_api_available,
             "get_present": get_fn is not None,
             "wait_present": wait_fn is not None,
             "put_present": put_fn is not None,
@@ -2741,6 +2750,8 @@ def validate_ray_integration(
             "methods_wrapped": methods_wrapped,
             "actor_monitoring_api_available": actor_monitoring_api_available,
             "actor_monitoring_keys_present": actor_monitoring_keys_present,
+            "actor_node_telemetry_api_available": actor_node_telemetry_api_available,
+            "actor_cluster_summary_api_available": actor_cluster_summary_api_available,
             "errors": errors,
         }
 
@@ -2781,6 +2792,12 @@ def collect_ray_integration_evidence(
 
     if validation.get("actor_monitoring_keys_present"):
         evidence_items.append("ray_actor_node_telemetry_keys_available")
+
+    if validation.get("actor_node_telemetry_api_available"):
+        evidence_items.append("ray_actor_node_telemetry_api_available")
+
+    if validation.get("actor_cluster_summary_api_available"):
+        evidence_items.append("ray_actor_cluster_summary_api_available")
 
     runtime_guard_version = "0.3.0"
     try:

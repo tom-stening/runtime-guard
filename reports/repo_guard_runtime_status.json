@@ -1,7 +1,7 @@
 {
   "repos": [
     {
-      "active_pid_count": 91,
+      "active_pid_count": 96,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_active": true,
       "is_enforced": true,
@@ -67,7 +67,7 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 11,
+      "active_pid_count": 10,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_active": true,
       "is_enforced": true,
@@ -254,7 +254,7 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 10,
+      "active_pid_count": 12,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_active": true,
       "is_enforced": true,
@@ -298,7 +298,7 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 11,
+      "active_pid_count": 12,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_active": true,
       "is_enforced": true,
@@ -310,47 +310,47 @@
     },
     {
       "active_pid_count": 0,
-      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "eks",
       "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks",
       "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks/sitecustomize.py",
-      "status": "enforced"
+      "status": "already_enforced"
     },
     {
       "active_pid_count": 0,
-      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "eks.kms",
       "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms",
       "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms/sitecustomize.py",
-      "status": "enforced"
+      "status": "already_enforced"
     },
     {
       "active_pid_count": 0,
-      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "lb_controller_irsa",
       "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa",
       "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa/sitecustomize.py",
-      "status": "enforced"
+      "status": "already_enforced"
     },
     {
       "active_pid_count": 0,
-      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "vpc",
       "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc",
       "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc/sitecustomize.py",
-      "status": "enforced"
+      "status": "already_enforced"
     },
     {
       "active_pid_count": 0,
@@ -408,7 +408,7 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 10,
+      "active_pid_count": 12,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_active": true,
       "is_enforced": true,
@@ -825,36 +825,36 @@
         "status": "already_enforced"
       },
       {
-        "details": "Created RuntimeGuard-managed sitecustomize.py",
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
         "is_python_repo": true,
         "repo_name": "eks",
         "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks",
         "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks/sitecustomize.py",
-        "status": "enforced"
+        "status": "already_enforced"
       },
       {
-        "details": "Created RuntimeGuard-managed sitecustomize.py",
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
         "is_python_repo": true,
         "repo_name": "eks.kms",
         "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms",
         "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms/sitecustomize.py",
-        "status": "enforced"
+        "status": "already_enforced"
       },
       {
-        "details": "Created RuntimeGuard-managed sitecustomize.py",
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
         "is_python_repo": true,
         "repo_name": "lb_controller_irsa",
         "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa",
         "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa/sitecustomize.py",
-        "status": "enforced"
+        "status": "already_enforced"
       },
       {
-        "details": "Created RuntimeGuard-managed sitecustomize.py",
+        "details": "RuntimeGuard-managed sitecustomize.py already present",
         "is_python_repo": true,
         "repo_name": "vpc",
         "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc",
         "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc/sitecustomize.py",
-        "status": "enforced"
+        "status": "already_enforced"
       },
       {
         "details": "RuntimeGuard-managed sitecustomize.py already present",
@@ -1036,10 +1036,10 @@
     "root": "/home/thomas_stening",
     "stage": "repo-autostart",
     "summary": {
-      "already_enforced": 50,
+      "already_enforced": 54,
       "blocked_existing_sitecustomize": 0,
       "dry_run_candidates": 0,
-      "enforced": 4,
+      "enforced": 0,
       "non_python_repos": 0,
       "python_repos": 54,
       "total_repos": 54,
@@ -1055,24 +1055,24 @@
     "unenforced_repos": 0
   },
   "wsl_diagnosis": {
-    "drift_mem_available_mb": -29235,
+    "drift_mem_available_mb": -31961,
     "drift_mem_total_mb": -53485,
-    "drift_swap_used_pct": 43,
-    "guest_mem_available_mb": 2112,
+    "drift_swap_used_pct": 53,
+    "guest_mem_available_mb": 2757,
     "guest_mem_total_mb": 11963,
-    "guest_swap_free_mb": 694,
+    "guest_swap_free_mb": 536,
     "guest_swap_total_mb": 6144,
-    "guest_swap_used_pct": 88,
+    "guest_swap_used_pct": 91,
     "host_error_event_count": 1,
     "host_error_events": [
       {
-        "id": 16,
-        "level": "Error",
+        "id": 10016,
+        "level": "Warning",
         "log": "System",
-        "message": "The mutual authentication between the local Bluetooth adapter and a device with Bluetooth adapter address (80:07:94:20:48:f0) failed.",
-        "provider": "BTHUSB",
+        "message": "The application-specific permission settings do not grant Local Activation permission for the COM Server application with CLSID   {2593F8B9-4EAF-457C-B68A-50F6B8EA6B54}   and APPID   {15C20B67-12E7-4BB6-92BB-7AFF07997402...",
+        "provider": "Microsoft-Windows-DistributedCOM",
         "relevance": "low",
-        "time": "/Date(1778510085801)/"
+        "time": "/Date(1778511973977)/"
       }
     ],
     "host_event_logs_checked": [
@@ -1081,22 +1081,24 @@
       "System"
     ],
     "host_high_relevance_event_count": 0,
-    "host_mem_free_mb": 31347,
+    "host_mem_free_mb": 34718,
     "host_mem_total_mb": 65448,
-    "host_vm_free_mb": 55125,
+    "host_vm_free_mb": 61965,
     "host_vm_total_mb": 100448,
-    "host_vm_used_pct": 45,
+    "host_vm_used_pct": 38,
     "likely_causes": [
+      "guest swap usage is at or above 90%",
       "host warning/error events were detected (low relevance to WSL)"
     ],
     "prevention_actions": [
+      "increase .wslconfig swap and reduce memory spikes before heavy launches",
       "review host events, but prioritize guest memory pressure signals first"
     ],
-    "psi_full_avg10": 0.08,
-    "psi_full_avg60": 0.04,
-    "psi_some_avg10": 0.31,
-    "psi_some_avg60": 0.1,
-    "risk_level": "low",
-    "risk_score": 0
+    "psi_full_avg10": 0.55,
+    "psi_full_avg60": 2.68,
+    "psi_some_avg10": 0.71,
+    "psi_some_avg60": 4.51,
+    "risk_level": "moderate",
+    "risk_score": 2
   }
 }

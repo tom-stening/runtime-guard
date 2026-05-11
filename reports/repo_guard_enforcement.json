@@ -228,36 +228,36 @@
       "status": "already_enforced"
     },
     {
-      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_python_repo": true,
       "repo_name": "eks",
       "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks",
       "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks/sitecustomize.py",
-      "status": "enforced"
+      "status": "already_enforced"
     },
     {
-      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_python_repo": true,
       "repo_name": "eks.kms",
       "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms",
       "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/eks.kms/sitecustomize.py",
-      "status": "enforced"
+      "status": "already_enforced"
     },
     {
-      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_python_repo": true,
       "repo_name": "lb_controller_irsa",
       "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa",
       "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/lb_controller_irsa/sitecustomize.py",
-      "status": "enforced"
+      "status": "already_enforced"
     },
     {
-      "details": "Created RuntimeGuard-managed sitecustomize.py",
+      "details": "RuntimeGuard-managed sitecustomize.py already present",
       "is_python_repo": true,
       "repo_name": "vpc",
       "repo_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc",
       "sitecustomize_path": "/home/thomas_stening/OmniPrompt/infra/aws/.terraform/modules/vpc/sitecustomize.py",
-      "status": "enforced"
+      "status": "already_enforced"
     },
     {
       "details": "RuntimeGuard-managed sitecustomize.py already present",
@@ -439,10 +439,10 @@
   "root": "/home/thomas_stening",
   "stage": "repo-autostart",
   "summary": {
-    "already_enforced": 50,
+    "already_enforced": 54,
     "blocked_existing_sitecustomize": 0,
     "dry_run_candidates": 0,
-    "enforced": 4,
+    "enforced": 0,
     "non_python_repos": 0,
     "python_repos": 54,
     "total_repos": 54,

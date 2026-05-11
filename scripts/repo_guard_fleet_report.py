@@ -144,6 +144,17 @@ def _build_payload(
             summary["integration_components_healthy"] = int(
                 integ_summary.get("components_healthy", 0)
             )
+        summary["integration_execution_mode"] = str(
+            integration_report.get("execution_mode", "unknown")
+        )
+        pressure_meta = integration_report.get("pressure_fallback", {})
+        if isinstance(pressure_meta, dict):
+            summary["integration_pressure_fallback_enabled"] = bool(
+                pressure_meta.get("enabled", False)
+            )
+            summary["integration_pressure_detected"] = bool(
+                pressure_meta.get("pressure_detected", False)
+            )
 
     payload: dict[str, Any] = {
         "source_enforcement_report": enforcement,

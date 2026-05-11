@@ -110,6 +110,9 @@ __all__ = [
     "load_worker_reports_jsonl",
     "aggregate_worker_reports_jsonl",
     "subprocess_safe",
+    "install_polars_scan_budget",
+    "install_dask_task_graph_guard",
+    "install_otel_memory_exporter",
 ]
 
 logger = logging.getLogger(__name__)
@@ -4214,6 +4217,390 @@ def apply_kernel_params(
                     rec.sysctl_command,
                 )
     return applied
+
+
+# ---------------------------------------------------------------------------
+# M1-C01 — Polars scan budget enforcement
+# ---------------------------------------------------------------------------
+
+
+def install_polars_scan_budget(
+    guard: "RuntimeGuard",
+    *,
+    module: Any | None = None,
+    max_columns: int | None = None,
+    warn_columns: int | None = None,
+    max_scans: int | None = None,
+    warn_scans: int | None = None,
+    schema_attr: str = "schema",
+) -> Callable[[], None]:
+    """Install a query-plan budget check on Polars LazyFrame execution.
+
+    Before each ``.collect()`` / ``.fetch()`` / sink call the wrapper:
+
+    1. Inspects the LazyFrame's ``schema`` attribute (if available) to count
+       projected columns.
+    2. Inspects a ``_scan_count`` attribute (if present on the frame) to count
+       pending data source scans.
+    3. Emits a ``check_and_log`` warning when either metric exceeds the warn
+       threshold, and raises ``RuntimeError`` when the hard cap is exceeded.
+
+    Parameters
+    ----------
+    guard:
+        The :class:`RuntimeGuard` instance to use for memory pressure checks.
+    module:
+        Polars module to patch.  Imported lazily if ``None``.
+    max_columns:
+        Hard cap on projected columns.  Raises ``RuntimeError`` if exceeded.
+    warn_columns:
+        Soft cap on projected columns.  Emits ``check_and_log`` and continues.
+    max_scans:
+        Hard cap on scan node count (``_scan_count`` attribute).
+    warn_scans:
+        Soft cap on scan node count.
+    schema_attr:
+        Attribute name on LazyFrame that holds the schema dict/object.
+        Defaults to ``"schema"``; override for mock modules.
+
+    Returns
+    -------
+    Callable[[], None]
+        Restore function that removes the budget wrapper.
+    """
+    if module is None:
+        try:
+            import polars as module  # type: ignore
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeError(
+                "Polars is not installed. Install polars or pass module=<polars module>."
+            ) from exc
+
+    lazyframe_cls = getattr(module, "LazyFrame", None)
+    if lazyframe_cls is None:
+        raise RuntimeError("The provided module does not expose polars.LazyFrame.")
+
+    candidate_methods = (
+        "collect",
+        "fetch",
+        "collect_async",
+        "sink_parquet",
+        "sink_csv",
+        "sink_ipc",
+        "sink_ndjson",
+    )
+    original_methods: dict[str, Any] = {
+        name: getattr(lazyframe_cls, name, None) for name in candidate_methods
+    }
+
+    # Idempotent: if already budget-wrapped, replace in-place.
+    _BUDGET_ATTR = "_runtime_guard_budget_wrapped"
+
+    def _check_budget(frame: Any) -> None:
+        """Check column/scan budget and warn or raise."""
+        schema = getattr(frame, schema_attr, None)
+        if schema is not None:
+            try:
+                col_count = len(schema)
+            except Exception:
+                col_count = 0
+
+            if max_columns is not None and col_count > max_columns:
+                raise RuntimeError(
+                    f"[runtime-guard] Polars LazyFrame column budget exceeded: "
+                    f"{col_count} columns > max_columns={max_columns}. "
+                    "Narrow your select() or projection before collecting."
+                )
+            if warn_columns is not None and col_count > warn_columns:
+                guard.check_and_log(
+                    stage=f"polars-budget:columns:{col_count}>{warn_columns}"
+                )
+
+        scan_count = getattr(frame, "_scan_count", None)
+        if scan_count is not None:
+            try:
+                sc = int(scan_count)
+            except Exception:
+                sc = 0
+            if max_scans is not None and sc > max_scans:
+                raise RuntimeError(
+                    f"[runtime-guard] Polars LazyFrame scan budget exceeded: "
+                    f"{sc} scans > max_scans={max_scans}. "
+                    "Reduce scan sources or use streaming."
+                )
+            if warn_scans is not None and sc > warn_scans:
+                guard.check_and_log(stage=f"polars-budget:scans:{sc}>{warn_scans}")
+
+    def _wrap_with_budget(name: str, fn: Any) -> Any:
+        def _budgeted(self: Any, *args: Any, **kwargs: Any) -> Any:
+            _check_budget(self)
+            return fn(self, *args, **kwargs)
+
+        setattr(_budgeted, _BUDGET_ATTR, True)
+        setattr(_budgeted, "_runtime_guard_budget_original", fn)
+        setattr(_budgeted, "_runtime_guard_budget_method", name)
+        return _budgeted
+
+    for name, fn in original_methods.items():
+        if callable(fn):
+            # Strip existing budget wrapper before re-applying so we don't nest.
+            base_fn = getattr(fn, "_runtime_guard_budget_original", fn)
+            setattr(lazyframe_cls, name, _wrap_with_budget(name, base_fn))
+
+    def _restore() -> None:
+        for name, fn in original_methods.items():
+            if callable(fn):
+                # Restore the pre-budget version.
+                setattr(lazyframe_cls, name, fn)
+
+    return _restore
+
+
+# ---------------------------------------------------------------------------
+# M1-C02 — Dask task-graph size guard
+# ---------------------------------------------------------------------------
+
+
+def install_dask_task_graph_guard(
+    guard: "RuntimeGuard",
+    *,
+    module: Any | None = None,
+    max_tasks: int | None = None,
+    warn_tasks: int | None = None,
+    task_count_fn: Callable[..., int] | None = None,
+) -> Callable[[], None]:
+    """Install a task-graph size check on Dask compute/persist entry points.
+
+    Before each ``dask.compute()`` or ``dask.persist()`` call the wrapper:
+
+    1. Estimates the total task count by summing ``len(obj.__dask_graph__())``
+       across all positional arguments that implement the Dask graph protocol.
+    2. If ``task_count_fn`` is provided, calls it with the positional arguments
+       to obtain the count (useful for testing or custom schedulers).
+    3. Emits ``check_and_log`` when count exceeds *warn_tasks*, raises
+       ``RuntimeError`` when count exceeds *max_tasks*.
+
+    Parameters
+    ----------
+    guard:
+        The :class:`RuntimeGuard` instance.
+    module:
+        Dask module to patch.  Imported lazily if ``None``.
+    max_tasks:
+        Hard cap.  Raises ``RuntimeError`` if exceeded before scheduling.
+    warn_tasks:
+        Soft cap.  Emits ``check_and_log`` and continues.
+    task_count_fn:
+        Optional ``(*args) -> int`` override for counting tasks.  Receives the
+        positional arguments passed to ``compute``/``persist``.
+
+    Returns
+    -------
+    Callable[[], None]
+        Restore function.
+    """
+    if module is None:
+        try:
+            import dask as module  # type: ignore
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeError(
+                "Dask is not installed. Install dask or pass module=<dask module>."
+            ) from exc
+
+    compute_fn = getattr(module, "compute", None)
+    if compute_fn is None or not callable(compute_fn):
+        raise RuntimeError("The provided module does not expose callable dask.compute.")
+
+    base_mod = getattr(module, "base", None)
+    original_compute = compute_fn
+    original_base_compute = getattr(base_mod, "compute", None) if base_mod is not None else None
+    original_base_persist = getattr(base_mod, "persist", None) if base_mod is not None else None
+
+    _TGRAPH_ATTR = "_runtime_guard_tgraph_wrapped"
+
+    def _count_tasks(*args: Any) -> int:
+        if task_count_fn is not None:
+            return task_count_fn(*args)
+        total = 0
+        for obj in args:
+            graph_fn = getattr(obj, "__dask_graph__", None)
+            if callable(graph_fn):
+                try:
+                    g = graph_fn()
+                    total += len(g) if g is not None else 0
+                except Exception:
+                    pass
+        return total
+
+    def _check_graph(*args: Any, label: str = "dask-compute") -> None:
+        count = _count_tasks(*args)
+        if count == 0:
+            return
+        if max_tasks is not None and count > max_tasks:
+            raise RuntimeError(
+                f"[runtime-guard] Dask task-graph budget exceeded: "
+                f"{count} tasks > max_tasks={max_tasks}. "
+                "Reduce graph size, use dask.persist() with smaller partitions, "
+                "or increase max_tasks."
+            )
+        if warn_tasks is not None and count > warn_tasks:
+            guard.check_and_log(stage=f"{label}:tasks:{count}>{warn_tasks}")
+
+    def _guarded_compute(*args: Any, **kwargs: Any) -> Any:
+        _check_graph(*args, label="dask-compute")
+        return original_compute(*args, **kwargs)
+
+    setattr(_guarded_compute, _TGRAPH_ATTR, True)
+    setattr(_guarded_compute, "_runtime_guard_tgraph_original", original_compute)
+    setattr(module, "compute", _guarded_compute)
+
+    if base_mod is not None and callable(original_base_compute):
+
+        def _guarded_base_compute(*args: Any, **kwargs: Any) -> Any:
+            _check_graph(*args, label="dask-base-compute")
+            return original_base_compute(*args, **kwargs)
+
+        setattr(_guarded_base_compute, _TGRAPH_ATTR, True)
+        setattr(_guarded_base_compute, "_runtime_guard_tgraph_original", original_base_compute)
+        setattr(base_mod, "compute", _guarded_base_compute)
+
+    if base_mod is not None and callable(original_base_persist):
+
+        def _guarded_base_persist(*args: Any, **kwargs: Any) -> Any:
+            _check_graph(*args, label="dask-base-persist")
+            return original_base_persist(*args, **kwargs)
+
+        setattr(_guarded_base_persist, _TGRAPH_ATTR, True)
+        setattr(_guarded_base_persist, "_runtime_guard_tgraph_original", original_base_persist)
+        setattr(base_mod, "persist", _guarded_base_persist)
+
+    def _restore() -> None:
+        setattr(module, "compute", original_compute)
+        if base_mod is not None and callable(original_base_compute):
+            setattr(base_mod, "compute", original_base_compute)
+        if base_mod is not None and callable(original_base_persist):
+            setattr(base_mod, "persist", original_base_persist)
+
+    return _restore
+
+
+# ---------------------------------------------------------------------------
+# M1-C04 — OpenTelemetry memory span exporter
+# ---------------------------------------------------------------------------
+
+
+def install_otel_memory_exporter(
+    guard: "RuntimeGuard",
+    *,
+    tracer: Any | None = None,
+    tracer_provider: Any | None = None,
+    service_name: str = "runtime-guard",
+    span_name_prefix: str = "rg.memory",
+    include_rss: bool = True,
+    include_swap: bool = True,
+    include_available: bool = True,
+) -> Callable[[], None]:
+    """Install an OpenTelemetry span exporter that emits memory snapshots as spans.
+
+    Wraps :meth:`RuntimeGuard.check_and_log` to also create an OTEL span for
+    each check with memory attributes attached.  If ``opentelemetry`` is not
+    installed, falls back to a no-op that still allows ``check_and_log`` to
+    work normally.
+
+    Parameters
+    ----------
+    guard:
+        The :class:`RuntimeGuard` instance to instrument.
+    tracer:
+        Pre-built OTEL ``Tracer`` object.  If not provided, one is obtained
+        from ``tracer_provider`` or the global ``TracerProvider``.
+    tracer_provider:
+        OTEL ``TracerProvider`` to use when ``tracer`` is ``None``.
+    service_name:
+        Service name to use when obtaining a tracer from the global provider.
+    span_name_prefix:
+        Prefix for span names.  Spans are named ``{span_name_prefix}.check``.
+    include_rss:
+        Attach ``rss_mb`` attribute to spans.
+    include_swap:
+        Attach ``swap_used_pct`` attribute to spans.
+    include_available:
+        Attach ``mem_available_mb`` attribute to spans.
+
+    Returns
+    -------
+    Callable[[], None]
+        Restore function that removes the OTEL wrapper.
+    """
+    _OTEL_ATTR = "_runtime_guard_otel_wrapped"
+
+    original_check_and_log = guard.check_and_log
+
+    # Attempt to resolve a tracer.  Fail gracefully if OTEL is not installed.
+    _tracer: Any = None
+    _otel_available = False
+    if tracer is not None:
+        _tracer = tracer
+        _otel_available = True
+    else:
+        try:
+            from opentelemetry import trace as _otel_trace  # type: ignore
+
+            if tracer_provider is not None:
+                _tracer = tracer_provider.get_tracer(service_name)
+            else:
+                _tracer = _otel_trace.get_tracer(service_name)
+            _otel_available = True
+        except ImportError:
+            pass  # OTEL not installed; spans will be no-ops
+
+    def _otel_check_and_log(stage: str = "") -> None:
+        if not _otel_available or _tracer is None:
+            original_check_and_log(stage=stage)
+            return
+
+        span_name = f"{span_name_prefix}.check"
+        try:
+            with _tracer.start_as_current_span(span_name) as span:
+                if stage:
+                    span.set_attribute("rg.stage", stage)
+                if include_rss or include_swap or include_available:
+                    try:
+                        avail_mb, total_mb, swap_pct = guard.memory_snapshot_mb()
+                        if include_available:
+                            span.set_attribute("rg.mem_available_mb", avail_mb)
+                        if include_swap:
+                            span.set_attribute("rg.swap_used_pct", swap_pct)
+                        if include_rss:
+                            snap = _read_snapshot()
+                            span.set_attribute("rg.rss_mb", snap.rss_mb)
+                    except Exception:
+                        pass
+                original_check_and_log(stage=stage)
+        except Exception:
+            # If OTEL span creation fails, always fall back to original check.
+            original_check_and_log(stage=stage)
+
+    if getattr(original_check_and_log, _OTEL_ATTR, False):
+        # Already wrapped — return a no-op restore.
+        return lambda: None
+
+    _had_instance_attr = "check_and_log" in vars(guard)
+
+    setattr(_otel_check_and_log, _OTEL_ATTR, True)
+    setattr(_otel_check_and_log, "_runtime_guard_otel_original", original_check_and_log)
+    guard.check_and_log = _otel_check_and_log  # type: ignore[method-assign]
+
+    def _restore() -> None:
+        if _had_instance_attr:
+            guard.check_and_log = original_check_and_log  # type: ignore[method-assign]
+        else:
+            try:
+                del guard.__dict__["check_and_log"]
+            except KeyError:
+                pass
+
+    return _restore
 
 
 def subprocess_safe(

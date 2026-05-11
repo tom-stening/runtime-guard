@@ -58,6 +58,9 @@ from runtime_guard import (
     attach_ray_guard,
     _read_snapshot,
     attach_polars_guard,
+    install_polars_scan_budget,
+    install_dask_task_graph_guard,
+    install_otel_memory_exporter,
 )
 
 # ---------------------------------------------------------------------------
@@ -954,6 +957,436 @@ class TestDaskIntegration:
             )
             assert evidence["dask_version"] == "2024.1.0"
             assert evidence.get("environment") == "staging"
+        finally:
+            restore()
+
+
+# ---------------------------------------------------------------------------
+# M1-C01 — Polars scan budget enforcement
+# ---------------------------------------------------------------------------
+
+
+class TestPolarsScanBudget:
+    """Tests for install_polars_scan_budget()."""
+
+    class _DummyPolars:
+        class LazyFrame:
+            schema = {"col_a": "Int64", "col_b": "Utf8", "col_c": "Float64"}
+            _scan_count = 2
+
+            def collect(self) -> list[int]:
+                return [1, 2, 3]
+
+            def fetch(self, n: int = 1) -> list[int]:
+                return [n]
+
+            def sink_parquet(self, path: str) -> str:
+                return f"parquet:{path}"
+
+    def test_warn_columns_triggers_check_and_log(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+        restore = install_polars_scan_budget(
+            guard, module=self._DummyPolars, warn_columns=2
+        )
+        try:
+            result = self._DummyPolars.LazyFrame().collect()
+            assert result == [1, 2, 3]
+            # 3 columns > warn_columns=2 → check_and_log called
+            assert len(logged) == 1
+            assert "columns" in logged[0]
+        finally:
+            restore()
+
+    def test_max_columns_raises_runtime_error(self):
+        guard = RuntimeGuard()
+        restore = install_polars_scan_budget(
+            guard, module=self._DummyPolars, max_columns=1
+        )
+        try:
+            with pytest.raises(RuntimeError, match="column budget exceeded"):
+                self._DummyPolars.LazyFrame().collect()
+        finally:
+            restore()
+
+    def test_warn_scans_triggers_check_and_log(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+        restore = install_polars_scan_budget(
+            guard, module=self._DummyPolars, warn_scans=1
+        )
+        try:
+            self._DummyPolars.LazyFrame().collect()
+            assert any("scans" in s for s in logged)
+        finally:
+            restore()
+
+    def test_max_scans_raises_runtime_error(self):
+        guard = RuntimeGuard()
+        restore = install_polars_scan_budget(
+            guard, module=self._DummyPolars, max_scans=1
+        )
+        try:
+            with pytest.raises(RuntimeError, match="scan budget exceeded"):
+                self._DummyPolars.LazyFrame().collect()
+        finally:
+            restore()
+
+    def test_restore_removes_budget_wrapper(self):
+        guard = RuntimeGuard()
+        original_collect = self._DummyPolars.LazyFrame.collect
+        restore = install_polars_scan_budget(
+            guard, module=self._DummyPolars, max_columns=1
+        )
+        restore()
+        # After restore, should work without raising.
+        result = self._DummyPolars.LazyFrame().collect()
+        assert result == [1, 2, 3]
+        assert self._DummyPolars.LazyFrame.collect is original_collect
+
+    def test_no_warn_no_check_called_when_under_threshold(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+        restore = install_polars_scan_budget(
+            guard, module=self._DummyPolars, warn_columns=10
+        )
+        try:
+            self._DummyPolars.LazyFrame().collect()
+            assert logged == []
+        finally:
+            restore()
+
+    def test_frame_without_schema_is_safe(self, monkeypatch):
+        """LazyFrame with no schema attribute must not raise."""
+        guard = RuntimeGuard()
+
+        class _NoSchemaDummyPolars:
+            class LazyFrame:
+                def collect(self) -> int:
+                    return 99
+
+        restore = install_polars_scan_budget(
+            guard, module=_NoSchemaDummyPolars, max_columns=1
+        )
+        try:
+            assert _NoSchemaDummyPolars.LazyFrame().collect() == 99
+        finally:
+            restore()
+
+    def test_raises_when_no_lazyframe_on_module(self):
+        guard = RuntimeGuard()
+
+        class Empty:
+            pass
+
+        with pytest.raises(RuntimeError, match="LazyFrame"):
+            install_polars_scan_budget(guard, module=Empty)
+
+    def test_budget_wraps_fetch_and_sink_parquet(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+        restore = install_polars_scan_budget(
+            guard, module=self._DummyPolars, warn_columns=2
+        )
+        try:
+            self._DummyPolars.LazyFrame().fetch(3)
+            self._DummyPolars.LazyFrame().sink_parquet("out.parquet")
+            # Two method calls, each with 3 cols > 2 warn → two logs
+            assert len(logged) == 2
+        finally:
+            restore()
+
+    def test_budget_re_application_does_not_nest(self, monkeypatch):
+        """Applying budget twice wraps at most once."""
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+        restore_a = install_polars_scan_budget(
+            guard, module=self._DummyPolars, warn_columns=2
+        )
+        restore_b = install_polars_scan_budget(
+            guard, module=self._DummyPolars, warn_columns=2
+        )
+        try:
+            self._DummyPolars.LazyFrame().collect()
+            # Should only log once, not twice
+            assert len(logged) == 1
+        finally:
+            restore_b()
+            restore_a()
+
+
+# ---------------------------------------------------------------------------
+# M1-C02 — Dask task-graph size guard
+# ---------------------------------------------------------------------------
+
+
+class TestDaskTaskGraphGuard:
+    """Tests for install_dask_task_graph_guard()."""
+
+    class _DummyDask:
+        @staticmethod
+        def compute(*args: object, **kwargs: object) -> tuple[object, ...]:
+            return args
+
+    def test_warn_tasks_triggers_check_and_log(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+
+        class _BigGraph:
+            def __dask_graph__(self) -> dict[str, int]:
+                return {f"k{i}": i for i in range(100)}
+
+        restore = install_dask_task_graph_guard(
+            guard, module=self._DummyDask, warn_tasks=10
+        )
+        try:
+            self._DummyDask.compute(_BigGraph())
+            assert len(logged) == 1
+            assert "tasks" in logged[0]
+        finally:
+            restore()
+
+    def test_max_tasks_raises_runtime_error(self):
+        guard = RuntimeGuard()
+
+        class _HugeGraph:
+            def __dask_graph__(self) -> dict[str, int]:
+                return {f"k{i}": i for i in range(200)}
+
+        restore = install_dask_task_graph_guard(
+            guard, module=self._DummyDask, max_tasks=50
+        )
+        try:
+            with pytest.raises(RuntimeError, match="task-graph budget exceeded"):
+                self._DummyDask.compute(_HugeGraph())
+        finally:
+            restore()
+
+    def test_no_dask_graph_attr_skips_check(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+        restore = install_dask_task_graph_guard(
+            guard, module=self._DummyDask, warn_tasks=1
+        )
+        try:
+            # Plain int has no __dask_graph__ → task count = 0 → no log
+            self._DummyDask.compute(42)
+            assert logged == []
+        finally:
+            restore()
+
+    def test_custom_task_count_fn(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+
+        restore = install_dask_task_graph_guard(
+            guard,
+            module=self._DummyDask,
+            warn_tasks=5,
+            task_count_fn=lambda *args: 20,
+        )
+        try:
+            self._DummyDask.compute(99)
+            assert len(logged) == 1
+        finally:
+            restore()
+
+    def test_restore_removes_guard(self):
+        guard = RuntimeGuard()
+        original = self._DummyDask.compute
+        restore = install_dask_task_graph_guard(
+            guard, module=self._DummyDask, max_tasks=1,
+            task_count_fn=lambda *a: 0,
+        )
+        restore()
+        assert self._DummyDask.compute is original
+
+    def test_raises_when_module_lacks_compute(self):
+        guard = RuntimeGuard()
+
+        class Empty:
+            pass
+
+        with pytest.raises(RuntimeError, match="dask.compute"):
+            install_dask_task_graph_guard(guard, module=Empty)
+
+    def test_multiple_args_summed(self, monkeypatch):
+        guard = RuntimeGuard()
+        logged: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": logged.append(stage))
+
+        class _SmallGraph:
+            def __dask_graph__(self) -> dict[str, int]:
+                return {f"k{i}": i for i in range(6)}
+
+        restore = install_dask_task_graph_guard(
+            guard, module=self._DummyDask, warn_tasks=10
+        )
+        try:
+            # Two graphs × 6 tasks = 12 total → warn
+            self._DummyDask.compute(_SmallGraph(), _SmallGraph())
+            assert len(logged) == 1
+        finally:
+            restore()
+
+
+# ---------------------------------------------------------------------------
+# M1-C04 — OpenTelemetry memory span exporter
+# ---------------------------------------------------------------------------
+
+
+class TestOtelMemoryExporter:
+    """Tests for install_otel_memory_exporter()."""
+
+    def test_noop_when_otel_not_installed(self, monkeypatch):
+        """Falls back gracefully when opentelemetry is not importable."""
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        # Simulate OTEL not installed by providing no tracer.
+        restore = install_otel_memory_exporter(guard, tracer=None)
+        # Even without OTEL, check_and_log should still work via the wrapper.
+        guard.check_and_log(stage="test-stage")
+        assert "test-stage" in calls
+        restore()
+
+    def test_with_mock_tracer_creates_span(self):
+        """Span is created when a mock tracer is provided."""
+        guard = RuntimeGuard()
+        original_cal = guard.check_and_log
+        spans_started: list[str] = []
+        attrs: dict[str, object] = {}
+
+        class _MockSpan:
+            def set_attribute(self, key: str, val: object) -> None:
+                attrs[key] = val
+
+            def __enter__(self) -> "_MockSpan":
+                return self
+
+            def __exit__(self, *_: object) -> None:
+                pass
+
+        class _MockTracer:
+            def start_as_current_span(self, name: str) -> _MockSpan:
+                spans_started.append(name)
+                return _MockSpan()
+
+        restore = install_otel_memory_exporter(guard, tracer=_MockTracer())
+        try:
+            guard.check_and_log(stage="otel-test")
+            assert any("rg.memory" in s for s in spans_started)
+            assert attrs.get("rg.stage") == "otel-test"
+        finally:
+            restore()
+
+    def test_restore_reverts_check_and_log(self):
+        guard = RuntimeGuard()
+        calls_original: list[str] = []
+        calls_wrapped: list[str] = []
+
+        # Patch the class-level method to track original calls.
+        original_cal = guard.check_and_log
+
+        class _MockTracer:
+            def start_as_current_span(self, name: str) -> object:
+                class _Ctx:
+                    def set_attribute(self, *_: object) -> None:
+                        pass
+
+                    def __enter__(self) -> "_Ctx":
+                        return self
+
+                    def __exit__(self, *_: object) -> None:
+                        pass
+
+                return _Ctx()
+
+        restore = install_otel_memory_exporter(guard, tracer=_MockTracer())
+        # After install, check_and_log should be the OTEL wrapper.
+        assert getattr(guard.check_and_log, "_runtime_guard_otel_wrapped", False)
+        restore()
+        # After restore, the OTEL wrapper should be gone.
+        assert not getattr(guard.check_and_log, "_runtime_guard_otel_wrapped", False)
+
+    def test_idempotent_attach_returns_noop_restore(self):
+        guard = RuntimeGuard()
+
+        class _MockTracer:
+            def start_as_current_span(self, name: str) -> object:
+                class _Ctx:
+                    def set_attribute(self, *_: object) -> None:
+                        pass
+
+                    def __enter__(self) -> "_Ctx":
+                        return self
+
+                    def __exit__(self, *_: object) -> None:
+                        pass
+
+                return _Ctx()
+
+        restore_a = install_otel_memory_exporter(guard, tracer=_MockTracer())
+        restore_b = install_otel_memory_exporter(guard, tracer=_MockTracer())
+        # Second install is idempotent; restore_b is a no-op.
+        restore_b()
+        # Original wrapper still present after noop restore.
+        guard.check_and_log(stage="still-wrapped")
+        restore_a()
+
+    def test_span_attributes_include_memory_metrics(self):
+        guard = RuntimeGuard()
+        attrs: dict[str, object] = {}
+
+        class _MockSpan:
+            def set_attribute(self, key: str, val: object) -> None:
+                attrs[key] = val
+
+            def __enter__(self) -> "_MockSpan":
+                return self
+
+            def __exit__(self, *_: object) -> None:
+                pass
+
+        class _MockTracer:
+            def start_as_current_span(self, name: str) -> _MockSpan:
+                return _MockSpan()
+
+        restore = install_otel_memory_exporter(
+            guard, tracer=_MockTracer(), include_rss=True, include_swap=True, include_available=True
+        )
+        try:
+            guard.check_and_log(stage="metrics-test")
+            # Memory attributes should be present.
+            assert "rg.mem_available_mb" in attrs
+            assert "rg.swap_used_pct" in attrs
+            assert "rg.rss_mb" in attrs
+        finally:
+            restore()
+
+    def test_otel_failure_falls_back_to_original(self, monkeypatch):
+        """If span creation throws, original check_and_log still runs."""
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        class _BrokenTracer:
+            def start_as_current_span(self, name: str) -> object:
+                raise RuntimeError("span creation failed")
+
+        restore = install_otel_memory_exporter(guard, tracer=_BrokenTracer())
+        try:
+            guard.check_and_log(stage="fallback-test")
+            assert "fallback-test" in calls
         finally:
             restore()
 

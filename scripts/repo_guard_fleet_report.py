@@ -5,6 +5,7 @@ This script reads the JSON output from enforce_runtime_guard_all_repos.py and
 adds runtime visibility signals:
 - whether each repo is currently active in /proc (cwd-based)
 - aggregate enforcement and activity summary
+- optional integration summary from validate_integration_fleet.py
 - optional WSL crash diagnosis snapshot
 """
 
@@ -38,6 +39,14 @@ def _parse_args() -> argparse.Namespace:
         "--no-proc-scan",
         action="store_true",
         help="Skip /proc activity scan (useful for deterministic tests).",
+    )
+    parser.add_argument(
+        "--integration-report",
+        default="reports/integration_fleet_status.json",
+        help=(
+            "Optional path to integration fleet report from "
+            "validate_integration_fleet.py"
+        ),
     )
     parser.add_argument(
         "--include-wsl-diagnosis",
@@ -87,6 +96,7 @@ def _build_payload(
     *,
     include_proc_scan: bool,
     include_wsl_diagnosis: bool,
+    integration_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     repos = list(enforcement.get("repos", []))
     repo_paths = [str(r.get("repo_path", "")) for r in repos]
@@ -119,6 +129,22 @@ def _build_payload(
         "proc_scan_enabled": include_proc_scan,
     }
 
+    if isinstance(integration_report, dict):
+        integ_summary = integration_report.get("summary", {})
+        if isinstance(integ_summary, dict):
+            summary["integration_overall_healthy"] = bool(
+                integ_summary.get("overall_healthy", False)
+            )
+            summary["integration_risk_level"] = str(
+                integ_summary.get("risk_level", "unknown")
+            )
+            summary["integration_components_total"] = int(
+                integ_summary.get("components_total", 0)
+            )
+            summary["integration_components_healthy"] = int(
+                integ_summary.get("components_healthy", 0)
+            )
+
     payload: dict[str, Any] = {
         "source_enforcement_report": enforcement,
         "summary": summary,
@@ -127,6 +153,9 @@ def _build_payload(
 
     if include_wsl_diagnosis:
         payload["wsl_diagnosis"] = diagnose_wsl_crash()
+
+    if isinstance(integration_report, dict):
+        payload["integration_status"] = integration_report
 
     return payload
 
@@ -141,10 +170,21 @@ def main() -> int:
         raise SystemExit(f"error: enforcement report not found: {enforcement_path}")
 
     enforcement = _load_json(enforcement_path)
+
+    integration_payload: dict[str, Any] | None = None
+    integration_path = Path(args.integration_report)
+    if not integration_path.is_absolute():
+        integration_path = Path.cwd() / integration_path
+    if integration_path.exists():
+        loaded = _load_json(integration_path)
+        if isinstance(loaded, dict):
+            integration_payload = loaded
+
     payload = _build_payload(
         enforcement,
         include_proc_scan=not args.no_proc_scan,
         include_wsl_diagnosis=bool(args.include_wsl_diagnosis),
+        integration_report=integration_payload,
     )
 
     output_path = Path(args.output)

@@ -1,9 +1,170 @@
 {
+  "integration_status": {
+    "components": [
+      {
+        "api_importable": true,
+        "command": [
+          "/home/thomas_stening/runtime-guard/.venv/bin/python",
+          "/home/thomas_stening/runtime-guard/scripts/validate_polars_integration.py",
+          "--json",
+          "--check-budget-api"
+        ],
+        "errors": [],
+        "exit_code": 0,
+        "healthy": true,
+        "report": {
+          "api_importable": true,
+          "errors": [
+            "Polars not installed \u2014 hook live-attach skipped; structural validation only"
+          ],
+          "evidence_items": [],
+          "hooks_installed": false,
+          "milestone": "M1-I01",
+          "ok": true,
+          "polars_available": false,
+          "polars_version": "not-installed",
+          "runtime_guard_version": "unknown",
+          "scan_budget_api": {
+            "available": true,
+            "errors": []
+          },
+          "tool": "validate_polars_integration",
+          "validation": {
+            "errors": [
+              "Polars import failed: No module named 'polars'"
+            ],
+            "methods_wrapped": false,
+            "ok": false,
+            "polars_available": false
+          },
+          "wrapped_methods": []
+        },
+        "required_check_errors": [],
+        "required_checks_ok": true,
+        "source": "live",
+        "tool": "polars",
+        "validator_ok": true,
+        "warnings": [
+          "[RuntimeGuard] CRITICAL \u2014 resource pressure stage='polars-budget:columns:2>1'\n  Cause      : SwapUsed=99% (threshold: 85%)\n  Attribution: This process RSS is 21 MB (~0% of total 11,963 MB RAM). Pressure is most likely from another process on this host.\n  Process    : RSS=21 MB  VmSwap=0 MB  (pid=114217)\n  Swap excess: 14pp above swap threshold\n  \u2500\u2500 How to resolve \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  [External]     Find the process(es) consuming the missing RAM:\n                 ps aux --sort=-%mem | head -20\n                 smem -r | head -10  (if smem is available)\n  [Thresholds]   Raise env RUNTIME_GUARD_MIN_MEM_AVAILABLE_MB (currently 2048 MB) if the threshold is too aggressive.\n  \u2500\u2500 Top RSS consumers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n         PID     RSS   COMMAND\n        11888    1514 MB  node\n        30514     935 MB  node\n         7856     607 MB  node\n         6804     604 MB  node\n         6827     521 MB  node\n         6701     515 MB  node\n         3109     504 MB  node\n  [WSL2]     `memory=<N>GB` in %UserProfile%\\.wslconfig controls the VM\n             memory ceiling.  Increase it if you regularly see this warning.\n             After editing, run `wsl --shutdown` from PowerShell to apply.\n             Shutdown is a last resort \u2014 prefer freeing RAM within WSL first\n             (kill idle venvs / node servers, reduce test parallelism).\n  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n{\"event\":\"runtime_guard.pressure\",\"severity\":\"critical\",\"tag\":\"RuntimeGuard\",\"stage\":\"polars-budget:columns:2>1\",\"pid\":114217,\"cause\":\"SwapUsed=99% (threshold: 85%)\",\"self_inflicted\":false,\"self_pct\":0,\"is_critical\":true,\"mem_available_mb\":2233,\"mem_total_mb\":11963,\"swap_used_pct\":99,\"rss_mb\":21,\"vm_swap_mb\":0,\"missing_mem_mb\":0,\"swap_excess_pct\":14}\n[RuntimeGuard] CRITICAL \u2014 resource pressure stage='polars-budget:scans:2>1'\n  Cause      : SwapUsed=99% (threshold: 85%)\n  Attribution: This process RSS is 21 MB (~0% of total 11,963 MB RAM). Pressure is most likely from another process on this host.\n  Process    : RSS=21 MB  VmSwap=0 MB  (pid=114217)\n  Swap excess: 14pp above swap threshold\n  \u2500\u2500 How to resolve \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  [External]     Find the process(es) consuming the missing RAM:\n                 ps aux --sort=-%mem | head -20\n                 smem -r | head -10  (if smem is available)\n  [Thresholds]   Raise env RUNTIME_GUARD_MIN_MEM_AVAILABLE_MB (currently 2048 MB) if the threshold is too aggressive.\n  \u2500\u2500 Top RSS consumers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n         PID     RSS   COMMAND\n        11888    1523 MB  node\n        30514     935 MB  node\n         7856     607 MB  node\n         6804     604 MB  node\n         6827     521 MB  node\n         6701     515 MB  node\n         3109     504 MB  node\n  [WSL2]     `memory=<N>GB` in %UserProfile%\\.wslconfig controls the VM\n             memory ceiling.  Increase it if you regularly see this warning.\n             After editing, run `wsl --shutdown` from PowerShell to apply.\n             Shutdown is a last resort \u2014 prefer freeing RAM within WSL first\n             (kill idle venvs / node servers, reduce test parallelism).\n  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n{\"event\":\"runtime_guard.pressure\",\"severity\":\"critical\",\"tag\":\"RuntimeGuard\",\"stage\":\"polars-budget:scans:2>1\",\"pid\":114217,\"cause\":\"SwapUsed=99% (threshold: 85%)\",\"self_inflicted\":false,\"self_pct\":0,\"is_critical\":true,\"mem_available_mb\":2229,\"mem_total_mb\":11963,\"swap_used_pct\":99,\"rss_mb\":21,\"vm_swap_mb\":0,\"missing_mem_mb\":0,\"swap_excess_pct\":14}",
+          "Polars not installed \u2014 hook live-attach skipped; structural validation only"
+        ]
+      },
+      {
+        "api_importable": true,
+        "command": [
+          "/home/thomas_stening/runtime-guard/.venv/bin/python",
+          "/home/thomas_stening/runtime-guard/scripts/validate_dask_integration.py",
+          "--json",
+          "--check-guard-api",
+          "--check-scheduler-api"
+        ],
+        "errors": [],
+        "exit_code": 0,
+        "healthy": true,
+        "report": {
+          "api_importable": true,
+          "dask_available": false,
+          "dask_version": "not-installed",
+          "errors": [
+            "Dask not installed \u2014 hook live-attach skipped; structural validation only"
+          ],
+          "evidence_items": [],
+          "hooks_installed": false,
+          "milestone": "M1-I02",
+          "ok": true,
+          "runtime_guard_version": "unknown",
+          "scheduler_callback_api": {
+            "available": true,
+            "errors": []
+          },
+          "task_graph_guard_api": {
+            "available": true,
+            "errors": []
+          },
+          "tool": "validate_dask_integration",
+          "validation": {
+            "dask_available": false,
+            "errors": [
+              "Dask import failed: No module named 'dask'"
+            ],
+            "methods_wrapped": false,
+            "ok": false
+          }
+        },
+        "required_check_errors": [],
+        "required_checks_ok": true,
+        "source": "live",
+        "tool": "dask",
+        "validator_ok": true,
+        "warnings": [
+          "[RuntimeGuard] CRITICAL \u2014 resource pressure stage='dask-compute:tasks:2>1'\n  Cause      : SwapUsed=99% (threshold: 85%)\n  Attribution: This process RSS is 21 MB (~0% of total 11,963 MB RAM). Pressure is most likely from another process on this host.\n  Process    : RSS=21 MB  VmSwap=0 MB  (pid=114266)\n  Swap excess: 14pp above swap threshold\n  \u2500\u2500 How to resolve \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  [External]     Find the process(es) consuming the missing RAM:\n                 ps aux --sort=-%mem | head -20\n                 smem -r | head -10  (if smem is available)\n  [Thresholds]   Raise env RUNTIME_GUARD_MIN_MEM_AVAILABLE_MB (currently 2048 MB) if the threshold is too aggressive.\n  \u2500\u2500 Top RSS consumers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n         PID     RSS   COMMAND\n        11888    1524 MB  node\n        30514     935 MB  node\n         7856     607 MB  node\n         6804     604 MB  node\n         6827     521 MB  node\n         6701     515 MB  node\n         3109     504 MB  node\n  [WSL2]     `memory=<N>GB` in %UserProfile%\\.wslconfig controls the VM\n             memory ceiling.  Increase it if you regularly see this warning.\n             After editing, run `wsl --shutdown` from PowerShell to apply.\n             Shutdown is a last resort \u2014 prefer freeing RAM within WSL first\n             (kill idle venvs / node servers, reduce test parallelism).\n  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n{\"event\":\"runtime_guard.pressure\",\"severity\":\"critical\",\"tag\":\"RuntimeGuard\",\"stage\":\"dask-compute:tasks:2>1\",\"pid\":114266,\"cause\":\"SwapUsed=99% (threshold: 85%)\",\"self_inflicted\":false,\"self_pct\":0,\"is_critical\":true,\"mem_available_mb\":2214,\"mem_total_mb\":11963,\"swap_used_pct\":99,\"rss_mb\":21,\"vm_swap_mb\":0,\"missing_mem_mb\":0,\"swap_excess_pct\":14}",
+          "Dask not installed \u2014 hook live-attach skipped; structural validation only"
+        ]
+      },
+      {
+        "api_importable": true,
+        "command": [
+          "/home/thomas_stening/runtime-guard/.venv/bin/python",
+          "/home/thomas_stening/runtime-guard/scripts/validate_ray_integration.py",
+          "--json",
+          "--check-actor-api"
+        ],
+        "errors": [],
+        "exit_code": 0,
+        "healthy": true,
+        "report": {
+          "actor_monitoring_api": {
+            "available": true,
+            "errors": []
+          },
+          "api_importable": true,
+          "errors": [
+            "Ray not installed \u2014 hook live-attach skipped; structural validation only"
+          ],
+          "evidence_items": [],
+          "hooks_installed": false,
+          "milestone": "M1-I03",
+          "ok": true,
+          "ray_available": false,
+          "ray_version": "not-installed",
+          "runtime_guard_version": "unknown",
+          "tool": "validate_ray_integration",
+          "validation": {
+            "errors": [
+              "Ray import failed: No module named 'ray'"
+            ],
+            "methods_wrapped": false,
+            "ok": false,
+            "ray_available": false
+          }
+        },
+        "required_check_errors": [],
+        "required_checks_ok": true,
+        "source": "live",
+        "tool": "ray",
+        "validator_ok": true,
+        "warnings": [
+          "[RuntimeGuard] CRITICAL \u2014 resource pressure stage='ray-actor::_noop_fn:entry'\n  Cause      : SwapUsed=99% (threshold: 85%)\n  Attribution: This process RSS is 21 MB (~0% of total 11,963 MB RAM). Pressure is most likely from another process on this host.\n  Process    : RSS=21 MB  VmSwap=0 MB  (pid=114315)\n  Swap excess: 14pp above swap threshold\n  \u2500\u2500 How to resolve \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  [External]     Find the process(es) consuming the missing RAM:\n                 ps aux --sort=-%mem | head -20\n                 smem -r | head -10  (if smem is available)\n  [Thresholds]   Raise env RUNTIME_GUARD_MIN_MEM_AVAILABLE_MB (currently 2048 MB) if the threshold is too aggressive.\n  \u2500\u2500 Top RSS consumers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n         PID     RSS   COMMAND\n        11888    1524 MB  node\n        30514     935 MB  node\n         7856     607 MB  node\n         6804     604 MB  node\n         6827     521 MB  node\n         6701     515 MB  node\n         3109     504 MB  node\n  [WSL2]     `memory=<N>GB` in %UserProfile%\\.wslconfig controls the VM\n             memory ceiling.  Increase it if you regularly see this warning.\n             After editing, run `wsl --shutdown` from PowerShell to apply.\n             Shutdown is a last resort \u2014 prefer freeing RAM within WSL first\n             (kill idle venvs / node servers, reduce test parallelism).\n  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n{\"event\":\"runtime_guard.pressure\",\"severity\":\"critical\",\"tag\":\"RuntimeGuard\",\"stage\":\"ray-actor::_noop_fn:entry\",\"pid\":114315,\"cause\":\"SwapUsed=99% (threshold: 85%)\",\"self_inflicted\":false,\"self_pct\":0,\"is_critical\":true,\"mem_available_mb\":2219,\"mem_total_mb\":11963,\"swap_used_pct\":99,\"rss_mb\":21,\"vm_swap_mb\":0,\"missing_mem_mb\":0,\"swap_excess_pct\":14}",
+          "Ray not installed \u2014 hook live-attach skipped; structural validation only"
+        ]
+      }
+    ],
+    "execution_mode": "live",
+    "milestone": "M1-integration",
+    "summary": {
+      "components_healthy": 3,
+      "components_total": 3,
+      "components_unhealthy": 0,
+      "overall_healthy": true,
+      "risk_level": "low"
+    },
+    "tool": "validate_integration_fleet"
+  },
   "repos": [
     {
-      "active_pid_count": 96,
+      "active_pid_count": 0,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
-      "is_active": true,
+      "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "thomas_stening",
@@ -34,9 +195,9 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 13,
+      "active_pid_count": 0,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
-      "is_active": true,
+      "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "Airlines Manager Optimiser",
@@ -45,9 +206,9 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 12,
+      "active_pid_count": 0,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
-      "is_active": true,
+      "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "ApexLogic",
@@ -67,9 +228,9 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 10,
+      "active_pid_count": 0,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
-      "is_active": true,
+      "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "AxiomTrace",
@@ -254,9 +415,9 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 12,
+      "active_pid_count": 0,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
-      "is_active": true,
+      "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "ML-Trading",
@@ -298,9 +459,9 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 12,
+      "active_pid_count": 0,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
-      "is_active": true,
+      "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "OmniPrompt",
@@ -408,9 +569,9 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 12,
+      "active_pid_count": 0,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
-      "is_active": true,
+      "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "SovereignFlow",
@@ -551,9 +712,9 @@
       "status": "already_enforced"
     },
     {
-      "active_pid_count": 16,
+      "active_pid_count": 0,
       "details": "RuntimeGuard-managed sitecustomize.py already present",
-      "is_active": true,
+      "is_active": false,
       "is_enforced": true,
       "is_python_repo": true,
       "repo_name": "runtime-guard",
@@ -1047,46 +1208,15 @@
     }
   },
   "summary": {
-    "active_repos": 8,
+    "active_repos": 0,
     "enforced_repos": 54,
     "fully_enforced": true,
-    "proc_scan_enabled": true,
+    "integration_components_healthy": 3,
+    "integration_components_total": 3,
+    "integration_overall_healthy": true,
+    "integration_risk_level": "low",
+    "proc_scan_enabled": false,
     "total_repos": 54,
     "unenforced_repos": 0
-  },
-  "wsl_diagnosis": {
-    "drift_mem_available_mb": 0,
-    "drift_mem_total_mb": 0,
-    "drift_swap_used_pct": 0,
-    "guest_mem_available_mb": 2761,
-    "guest_mem_total_mb": 11963,
-    "guest_swap_free_mb": 342,
-    "guest_swap_total_mb": 6144,
-    "guest_swap_used_pct": 94,
-    "host_error_event_count": 0,
-    "host_error_events": [],
-    "host_event_logs_checked": [
-      "Microsoft-Windows-Hyper-V-Compute-Operational",
-      "Microsoft-Windows-Hyper-V-Worker-Operational",
-      "System"
-    ],
-    "host_high_relevance_event_count": 0,
-    "host_mem_free_mb": 0,
-    "host_mem_total_mb": 0,
-    "host_vm_free_mb": 0,
-    "host_vm_total_mb": 0,
-    "host_vm_used_pct": 0,
-    "likely_causes": [
-      "guest swap usage is at or above 90%"
-    ],
-    "prevention_actions": [
-      "increase .wslconfig swap and reduce memory spikes before heavy launches"
-    ],
-    "psi_full_avg10": 0.52,
-    "psi_full_avg60": 0.54,
-    "psi_some_avg10": 1.05,
-    "psi_some_avg60": 1.06,
-    "risk_level": "moderate",
-    "risk_score": 2
   }
 }

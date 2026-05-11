@@ -261,6 +261,8 @@ _PRESETS: dict[str, tuple[int, int, int, int, int]] = {
     "tight": (2048, 75, 1024, 90, 15),
     "relaxed": (512, 95, 256, 99, 25),
     "ci": (1024, 90, 512, 97, 20),
+    # IDE-heavy WSL2 developer sessions (VS Code/Pylance/etc.)
+    "wsl_dev": (256, 97, 128, 99, 10),
 }
 
 

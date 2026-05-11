@@ -134,6 +134,12 @@ class TestThresholdPresets:
         assert min_mem == 512
         assert max_swap == 95
 
+    def test_wsl_dev_preset_values(self, monkeypatch):
+        monkeypatch.setenv("RUNTIME_GUARD_POSTURE", "wsl_dev")
+        g = RuntimeGuard()
+        min_mem, max_swap, crit_mem, crit_swap, self_pct = g._resolve_thresholds()
+        assert (min_mem, max_swap, crit_mem, crit_swap, self_pct) == (256, 97, 128, 99, 10)
+
     def test_unknown_posture_falls_back_to_default(self, monkeypatch):
         monkeypatch.setenv("RUNTIME_GUARD_POSTURE", "nonexistent")
         g = RuntimeGuard()
@@ -150,6 +156,13 @@ class TestThresholdPresets:
         g = RuntimeGuard()
         min_mem, *_ = g._resolve_thresholds()
         assert min_mem == 512  # explicit var wins over ci preset value of 1024
+
+    def test_explicit_env_overrides_wsl_dev(self, monkeypatch):
+        monkeypatch.setenv("RUNTIME_GUARD_POSTURE", "wsl_dev")
+        monkeypatch.setenv("RUNTIME_GUARD_MAX_SWAP_USED_PCT", "96")
+        g = RuntimeGuard()
+        _, max_swap, *_ = g._resolve_thresholds()
+        assert max_swap == 96  # explicit var wins over wsl_dev preset value of 97
 
     def test_custom_prefix_posture(self, monkeypatch):
         monkeypatch.setenv("MYAPP_POSTURE", "ci")

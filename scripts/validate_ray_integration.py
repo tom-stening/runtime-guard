@@ -72,7 +72,16 @@ def _check_actor_api() -> dict[str, Any]:
         guard = rg.RuntimeGuard()
         config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
 
-        required_keys = {"method_decorator", "remote_wrapper", "get_actor_report", "reset_actor_report"}
+        required_keys = {
+            "method_decorator",
+            "remote_wrapper",
+            "get_actor_report",
+            "reset_actor_report",
+            "node_report",
+            "reset_node_reports",
+            "get_all_node_reports",
+            "cluster_summary",
+        }
         missing = required_keys - set(config.keys())
         if missing:
             result["errors"].append(f"Actor monitoring config missing keys: {sorted(missing)}")

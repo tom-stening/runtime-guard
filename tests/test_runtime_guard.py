@@ -1755,6 +1755,8 @@ class TestRayIntegration:
             assert result["get_present"] is True
             assert result["wait_present"] is True
             assert result["put_present"] is True
+            assert result["actor_monitoring_api_available"] is True
+            assert result["actor_monitoring_keys_present"] is True
         finally:
             restore()
 
@@ -1776,6 +1778,8 @@ class TestRayIntegration:
             assert evidence["validation_ok"] is True
             assert "ray_integration_validated" in evidence["evidence_items"]
             assert "ray_hooks_installed" in evidence["evidence_items"]
+            assert "ray_actor_monitoring_api_available" in evidence["evidence_items"]
+            assert "ray_actor_node_telemetry_keys_available" in evidence["evidence_items"]
             assert evidence["ray_version"] == "unknown"
         finally:
             restore()

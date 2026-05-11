@@ -248,3 +248,58 @@ Why:
 - Standardizes exit codes and JSON output for orchestration tooling.
 - Makes WSL crash prevention discoverable next to existing `--check` and `--report` workflows.
 
+---
+
+## Feedback from runtime-guard workspace (2026-05-11, host+guest crash triage)
+
+### Context
+
+After a VS Code WSL crash, investigation was run across both guest and host:
+
+- Guest showed severe memory contention (`MemAvailable` near 1.0-1.6 GiB, swap in 70-93% range)
+- Memory PSI showed active stalls (`full avg10` and `some avg10` elevated)
+- Top RSS consumers were mostly VS Code extension host and language-server Node processes
+- Host memory remained healthier than guest, confirming the immediate crash pressure was guest-local contention
+
+### Local implementation attempt
+
+`scripts/wsl_preflight.py` was extended with host+guest crash diagnostics:
+
+- New mode: `--diagnose-crash`
+- New gate: `--fail-on-risk {none,high,critical}`
+- New outputs:
+    - Guest RAM/swap + PSI (`/proc/meminfo`, `/proc/pressure/memory`)
+    - Host RAM/virtual memory via PowerShell CIM
+    - Drift fields between guest and host memory views
+    - Computed risk level (`low|moderate|high|critical`) and likely causes/prevention actions
+
+### Validation evidence
+
+- Unit tests for parser/risk logic:
+    - `tests/test_wsl_preflight.py`: `3 passed`
+- Live diagnostics output (same environment):
+    - `risk_level=critical`, `risk_score=5`
+    - Causes identified: high guest swap + elevated PSI stalls
+
+### Improvement suggestion to feed back into runtime-guard
+
+Add a first-class library function and CLI mode for crash triage so adopters do not need script-local logic:
+
+```text
+runtime-guard --diagnose-wsl-crash --json --fail-on-risk high
+```
+
+Suggested API shape:
+
+```python
+from runtime_guard import diagnose_wsl_crash
+
+report = diagnose_wsl_crash()
+assert report["risk_level"] in {"low", "moderate", "high", "critical"}
+```
+
+Benefits:
+- Consistent risk model and thresholds across repos
+- Shared, testable host+guest diagnostics in core package
+- Better operator UX for post-crash RCA and prevention automation
+

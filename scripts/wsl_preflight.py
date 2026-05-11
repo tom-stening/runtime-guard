@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import pathlib
+import subprocess
 from typing import Any
 
 from runtime_guard import RuntimeGuard
@@ -30,8 +31,8 @@ def _check_wslconfig_cap() -> tuple[bool, str]:
     """
     # Heuristic: look for .wslconfig in common Windows user profile paths
     candidate_dirs = []
-    # /proc/sys/fs/binfmt_misc or WSLENV sometimes carries the Windows username
-    win_user = os.environ.get("WINUSER") or os.environ.get("WSLENV", "")
+    host = _read_host_snapshot_from_wsl()
+    host_total_gb = float(host.get("host_mem_total_mb", 0) or 0) / 1024.0
     for d in pathlib.Path("/mnt/c/Users").iterdir() if pathlib.Path("/mnt/c/Users").is_dir() else []:
         candidate_dirs.append(d)
 
@@ -45,25 +46,17 @@ def _check_wslconfig_cap() -> tuple[bool, str]:
                 f"[wslconfig] {cfg} has no memory= cap — WSL can consume all host RAM. "
                 "Add memory=16GB under [wsl2] and run 'wsl --shutdown' to apply."
             )
-        # Extract the value and warn if it equals total RAM (risky)
+        # Extract configured cap and validate against host RAM when available.
         import re
         m = re.search(r"memory=(\d+)(gb|mb)?", text)
         if m:
             val_gb = int(m.group(1)) * (1 if (m.group(2) or "gb") == "gb" else 0.001)
-            try:
-                with open("/proc/meminfo") as f:
-                    for line in f:
-                        if line.startswith("MemTotal:"):
-                            total_kb = int(line.split()[1])
-                            total_gb = total_kb / 1e6
-                            break
-            except OSError:
-                total_gb = 0
-            if total_gb and val_gb >= total_gb * 0.95:
+            if host_total_gb and val_gb >= host_total_gb * 0.95:
+                recommended_gb = max(8, int(host_total_gb * 0.6))
                 return False, (
-                    f"[wslconfig] memory={m.group(1)}{m.group(2) or 'GB'} equals total RAM "
-                    f"({total_gb:.0f} GB) — no Windows headroom. "
-                    "Reduce to memory=16GB and run 'wsl --shutdown' to apply."
+                    f"[wslconfig] memory={m.group(1)}{m.group(2) or 'GB'} is near host total RAM "
+                    f"({host_total_gb:.0f} GB) — little Windows headroom. "
+                    f"Reduce to memory={recommended_gb}GB and run 'wsl --shutdown' to apply."
                 )
         return True, ""
 
@@ -112,7 +105,220 @@ def _build_parser() -> argparse.ArgumentParser:
             "Exits 0 if healthy, 1 if .wslconfig cap is missing/unsafe."
         ),
     )
+    parser.add_argument(
+        "--diagnose-crash",
+        action="store_true",
+        help=(
+            "Collect guest+host memory pressure diagnostics and classify risk "
+            "(low|moderate|high|critical)."
+        ),
+    )
+    parser.add_argument(
+        "--fail-on-risk",
+        choices=["none", "high", "critical"],
+        default="none",
+        help=(
+            "With --diagnose-crash, exit non-zero when risk meets the threshold "
+            "(default: none)."
+        ),
+    )
     return parser
+
+
+def _parse_meminfo(path: str = "/proc/meminfo") -> dict[str, int]:
+    out: dict[str, int] = {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                if ":" not in line:
+                    continue
+                key, val = line.split(":", 1)
+                parts = val.strip().split()
+                if not parts:
+                    continue
+                out[key.strip()] = int(parts[0])
+    except OSError:
+        return {}
+    return out
+
+
+def _parse_psi_memory(path: str = "/proc/pressure/memory") -> dict[str, float]:
+    data = {
+        "some_avg10": 0.0,
+        "some_avg60": 0.0,
+        "full_avg10": 0.0,
+        "full_avg60": 0.0,
+    }
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) < 2:
+                    continue
+                scope = parts[0]
+                kv: dict[str, str] = {}
+                for token in parts[1:]:
+                    if "=" not in token:
+                        continue
+                    k, v = token.split("=", 1)
+                    kv[k] = v
+                if scope == "some":
+                    data["some_avg10"] = float(kv.get("avg10", "0") or 0)
+                    data["some_avg60"] = float(kv.get("avg60", "0") or 0)
+                elif scope == "full":
+                    data["full_avg10"] = float(kv.get("avg10", "0") or 0)
+                    data["full_avg60"] = float(kv.get("avg60", "0") or 0)
+    except OSError:
+        return data
+    except ValueError:
+        return data
+    return data
+
+
+def _read_host_snapshot_from_wsl() -> dict[str, int]:
+    out = {
+        "host_mem_total_mb": 0,
+        "host_mem_free_mb": 0,
+        "host_vm_total_mb": 0,
+        "host_vm_free_mb": 0,
+        "host_vm_used_pct": 0,
+    }
+    try:
+        raw = subprocess.check_output(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_OperatingSystem "
+                "| Select-Object TotalVisibleMemorySize,FreePhysicalMemory,"
+                "TotalVirtualMemorySize,FreeVirtualMemory "
+                "| ConvertTo-Csv -NoTypeInformation",
+            ],
+            stderr=subprocess.DEVNULL,
+            timeout=8,
+            text=True,
+        )
+    except Exception:
+        return out
+
+    lines = [ln.strip().strip('"') for ln in raw.splitlines() if ln.strip()]
+    if len(lines) < 2:
+        return out
+
+    headers = [h.strip('"') for h in lines[0].split(",")]
+    values = [v.strip('"') for v in lines[1].split(",")]
+    row = dict(zip(headers, values))
+
+    total_kb = int(row.get("TotalVisibleMemorySize", 0) or 0)
+    free_kb = int(row.get("FreePhysicalMemory", 0) or 0)
+    vm_total_kb = int(row.get("TotalVirtualMemorySize", 0) or 0)
+    vm_free_kb = int(row.get("FreeVirtualMemory", 0) or 0)
+
+    out["host_mem_total_mb"] = total_kb // 1024
+    out["host_mem_free_mb"] = free_kb // 1024
+    out["host_vm_total_mb"] = vm_total_kb // 1024
+    out["host_vm_free_mb"] = vm_free_kb // 1024
+    if out["host_vm_total_mb"] > 0:
+        out["host_vm_used_pct"] = int(
+            100 * (out["host_vm_total_mb"] - out["host_vm_free_mb"]) / out["host_vm_total_mb"]
+        )
+    return out
+
+
+def _classify_wsl_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], list[str]]:
+    score = 0
+    causes: list[str] = []
+    prevention: list[str] = []
+
+    guest_mem_available_mb = int(metrics.get("guest_mem_available_mb", 0) or 0)
+    guest_swap_used_pct = int(metrics.get("guest_swap_used_pct", 0) or 0)
+    psi_some_avg10 = float(metrics.get("psi_some_avg10", 0.0) or 0.0)
+    psi_full_avg10 = float(metrics.get("psi_full_avg10", 0.0) or 0.0)
+    host_vm_used_pct = int(metrics.get("host_vm_used_pct", 0) or 0)
+
+    if guest_mem_available_mb < 1024:
+        score += 2
+        causes.append("guest available memory is below 1 GiB")
+        prevention.append("reduce concurrent heavy processes in WSL and VS Code extension hosts")
+    if guest_swap_used_pct >= 90:
+        score += 2
+        causes.append("guest swap usage is at or above 90%")
+        prevention.append("increase .wslconfig swap and reduce memory spikes before heavy launches")
+    if psi_full_avg10 >= 10:
+        score += 2
+        causes.append("guest full memory PSI avg10 is high (frequent stalls)")
+        prevention.append("stagger memory-heavy tasks; avoid concurrent mypy/pylance/test bursts")
+    if psi_some_avg10 >= 20:
+        score += 1
+        causes.append("guest some memory PSI avg10 indicates sustained contention")
+        prevention.append("limit extension host count and long-running indexers during heavy jobs")
+    if host_vm_used_pct >= 85:
+        score += 1
+        causes.append("host virtual memory usage is high")
+        prevention.append("free host memory/pagefile pressure and verify Windows pagefile is system-managed")
+
+    if score >= 5:
+        level = "critical"
+    elif score >= 3:
+        level = "high"
+    elif score >= 1:
+        level = "moderate"
+    else:
+        level = "low"
+
+    if not prevention:
+        prevention.append("current pressure is low; keep WSL capped and monitor before heavy subprocess launches")
+
+    return level, score, causes, prevention
+
+
+def collect_wsl_crash_diagnostics() -> dict[str, Any]:
+    meminfo = _parse_meminfo()
+    psi = _parse_psi_memory()
+
+    guest_mem_total_mb = int(meminfo.get("MemTotal", 0) // 1024)
+    guest_mem_available_mb = int(meminfo.get("MemAvailable", 0) // 1024)
+    guest_swap_total_mb = int(meminfo.get("SwapTotal", 0) // 1024)
+    guest_swap_free_mb = int(meminfo.get("SwapFree", 0) // 1024)
+    guest_swap_used_pct = (
+        int(100 * (guest_swap_total_mb - guest_swap_free_mb) / guest_swap_total_mb)
+        if guest_swap_total_mb > 0
+        else 0
+    )
+
+    host = _read_host_snapshot_from_wsl() if os.path.exists("/proc/sys/fs/binfmt_misc") else _read_host_snapshot_from_wsl()
+
+    metrics: dict[str, Any] = {
+        "guest_mem_total_mb": guest_mem_total_mb,
+        "guest_mem_available_mb": guest_mem_available_mb,
+        "guest_swap_total_mb": guest_swap_total_mb,
+        "guest_swap_free_mb": guest_swap_free_mb,
+        "guest_swap_used_pct": guest_swap_used_pct,
+        "psi_some_avg10": psi["some_avg10"],
+        "psi_some_avg60": psi["some_avg60"],
+        "psi_full_avg10": psi["full_avg10"],
+        "psi_full_avg60": psi["full_avg60"],
+    }
+    metrics.update(host)
+
+    if host.get("host_mem_total_mb"):
+        metrics["drift_mem_total_mb"] = guest_mem_total_mb - int(host["host_mem_total_mb"])
+    else:
+        metrics["drift_mem_total_mb"] = 0
+    if host.get("host_mem_free_mb"):
+        metrics["drift_mem_available_mb"] = guest_mem_available_mb - int(host["host_mem_free_mb"])
+    else:
+        metrics["drift_mem_available_mb"] = 0
+
+    level, score, causes, prevention = _classify_wsl_risk(metrics)
+    metrics["risk_level"] = level
+    metrics["risk_score"] = score
+    metrics["likely_causes"] = causes
+    metrics["prevention_actions"] = prevention
+    return metrics
 
 
 def main() -> int:
@@ -121,6 +327,47 @@ def main() -> int:
 
     cap_ok, cap_warning = _check_wslconfig_cap()
     available_mb, total_mb, swap_used_pct = guard.memory_snapshot_mb()
+
+    if args.diagnose_crash:
+        payload = collect_wsl_crash_diagnostics()
+        payload["wslconfig_cap_ok"] = cap_ok
+        payload["wslconfig_cap_warning"] = cap_warning
+
+        if args.json:
+            print(json.dumps(payload, sort_keys=True))
+        else:
+            print(
+                "[WSL diagnose] "
+                f"risk={payload['risk_level']} score={payload['risk_score']} "
+                f"guest_mem_available={payload['guest_mem_available_mb']}MB "
+                f"guest_swap_used={payload['guest_swap_used_pct']}%"
+            )
+            if payload.get("host_mem_total_mb"):
+                print(
+                    "  host: "
+                    f"mem_free={payload['host_mem_free_mb']}MB "
+                    f"vm_used={payload['host_vm_used_pct']}%"
+                )
+                print(
+                    "  drift: "
+                    f"mem_available={payload['drift_mem_available_mb']}MB "
+                    f"mem_total={payload['drift_mem_total_mb']}MB"
+                )
+            if payload["likely_causes"]:
+                print("  likely causes:")
+                for cause in payload["likely_causes"]:
+                    print(f"    - {cause}")
+            print("  prevention actions:")
+            for action in payload["prevention_actions"]:
+                print(f"    - {action}")
+            if not cap_ok and cap_warning:
+                print(f"  [WARN] {cap_warning}")
+
+        if args.fail_on_risk == "critical":
+            return 1 if payload["risk_level"] == "critical" else 0
+        if args.fail_on_risk == "high":
+            return 1 if payload["risk_level"] in {"high", "critical"} else 0
+        return 0
 
     if args.check_memory_before_start:
         # Startup-only check: report .wslconfig cap + current memory, no subprocess gate

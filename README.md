@@ -75,7 +75,7 @@ All variables are read at `check()` time, not at construction, so you can change
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `RUNTIME_GUARD_POSTURE` | _(none)_ | Preset: `tight`, `relaxed`, or `ci`. Individual numeric vars override the preset. |
+| `RUNTIME_GUARD_POSTURE` | _(none)_ | Preset: `tight`, `relaxed`, `ci`, or `wsl_dev`. Individual numeric vars override the preset. |
 | `RUNTIME_GUARD_MIN_MEM_AVAILABLE_MB` | 2048 | Available RAM floor in MB. Pressure fires when available drops below this. |
 | `RUNTIME_GUARD_MAX_SWAP_USED_PCT` | 85 | Swap ceiling in %. Pressure fires when swap usage exceeds this. |
 | `RUNTIME_GUARD_CRITICAL_MEM_MB` | 1024 | Available RAM below this → CRITICAL severity (vs WARNING). |
@@ -89,6 +89,7 @@ All variables are read at `check()` time, not at construction, so you can change
 | `tight` | 2048 | 75 | 1024 | 90 | 15 |
 | `relaxed` | 512 | 95 | 256 | 99 | 25 |
 | `ci` | 1024 | 90 | 512 | 97 | 20 |
+| `wsl_dev` | 256 | 97 | 128 | 99 | 10 |
 
 ### Per-repo prefix
 
@@ -131,7 +132,7 @@ With no options, prints a compact status line and exits 1 if pressure is detecte
 | `--write PATH` | Write generated `.wslconfig` to PATH instead of printing. Backs up existing file. |
 | `--policy-file PATH` | Load threshold/posture overrides from a JSON policy file. |
 | `--policy-auto-reload` | Re-read `--policy-file` when it changes (for repeated/default check workflows). |
-| `--posture {tight,relaxed,ci}` | Override threshold preset for this invocation. |
+| `--posture {tight,relaxed,ci,wsl_dev}` | Override threshold preset for this invocation. |
 | `--stage STAGE` | Label for the check output (e.g. `--stage "data-load"`). |
 | `--version` | Print package version and exit. |
 
@@ -149,6 +150,9 @@ runtime-guard --generate-wslconfig 8 --write ~/.wslconfig
 
 # Check version
 runtime-guard --version
+
+# Import the community Grafana dashboard template (M1-I04)
+# file: examples/grafana/runtime_guard_dashboard.json
 ```
 
 ---
@@ -893,7 +897,7 @@ A: On Linux, `_read_snapshot()` reads two `/proc` files and does a small `ps -o 
 A: Yes. `os.register_at_fork()` ensures the child process gets a clean background-thread state after `fork()`. Call `start_background_check()` again in the child if you need it there.
 
 **Q: How do I integrate with Prometheus or OpenTelemetry?**  
-A: Log the `runtime_guard.events` logger output (structured JSON) into your aggregation pipeline today. Native OTEL and Prometheus exporters are planned for Milestone 1 (M1-C04, M1-C05).
+A: Use `install_prometheus_endpoint()` (or `render_prometheus_metrics()`) for Prometheus scraping and `install_otel_memory_exporter()` for OpenTelemetry span emission. A starter Grafana dashboard JSON is available at `examples/grafana/runtime_guard_dashboard.json` with sample exposition data in `examples/grafana/sample_metrics.prom`.
 
 ---
 

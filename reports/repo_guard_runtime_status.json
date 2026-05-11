@@ -1055,49 +1055,37 @@
     "unenforced_repos": 0
   },
   "wsl_diagnosis": {
-    "drift_mem_available_mb": -31961,
-    "drift_mem_total_mb": -53485,
-    "drift_swap_used_pct": 53,
-    "guest_mem_available_mb": 2757,
+    "drift_mem_available_mb": 0,
+    "drift_mem_total_mb": 0,
+    "drift_swap_used_pct": 0,
+    "guest_mem_available_mb": 2761,
     "guest_mem_total_mb": 11963,
-    "guest_swap_free_mb": 536,
+    "guest_swap_free_mb": 342,
     "guest_swap_total_mb": 6144,
-    "guest_swap_used_pct": 91,
-    "host_error_event_count": 1,
-    "host_error_events": [
-      {
-        "id": 10016,
-        "level": "Warning",
-        "log": "System",
-        "message": "The application-specific permission settings do not grant Local Activation permission for the COM Server application with CLSID   {2593F8B9-4EAF-457C-B68A-50F6B8EA6B54}   and APPID   {15C20B67-12E7-4BB6-92BB-7AFF07997402...",
-        "provider": "Microsoft-Windows-DistributedCOM",
-        "relevance": "low",
-        "time": "/Date(1778511973977)/"
-      }
-    ],
+    "guest_swap_used_pct": 94,
+    "host_error_event_count": 0,
+    "host_error_events": [],
     "host_event_logs_checked": [
       "Microsoft-Windows-Hyper-V-Compute-Operational",
       "Microsoft-Windows-Hyper-V-Worker-Operational",
       "System"
     ],
     "host_high_relevance_event_count": 0,
-    "host_mem_free_mb": 34718,
-    "host_mem_total_mb": 65448,
-    "host_vm_free_mb": 61965,
-    "host_vm_total_mb": 100448,
-    "host_vm_used_pct": 38,
+    "host_mem_free_mb": 0,
+    "host_mem_total_mb": 0,
+    "host_vm_free_mb": 0,
+    "host_vm_total_mb": 0,
+    "host_vm_used_pct": 0,
     "likely_causes": [
-      "guest swap usage is at or above 90%",
-      "host warning/error events were detected (low relevance to WSL)"
+      "guest swap usage is at or above 90%"
     ],
     "prevention_actions": [
-      "increase .wslconfig swap and reduce memory spikes before heavy launches",
-      "review host events, but prioritize guest memory pressure signals first"
+      "increase .wslconfig swap and reduce memory spikes before heavy launches"
     ],
-    "psi_full_avg10": 0.55,
-    "psi_full_avg60": 2.68,
-    "psi_some_avg10": 0.71,
-    "psi_some_avg60": 4.51,
+    "psi_full_avg10": 0.52,
+    "psi_full_avg60": 0.54,
+    "psi_some_avg10": 1.05,
+    "psi_some_avg60": 1.06,
     "risk_level": "moderate",
     "risk_score": 2
   }

@@ -1248,8 +1248,12 @@ class TestRayActorMemoryMonitoring:
         assert config["ok"] is True
         assert "method_decorator" in config
         assert "remote_wrapper" in config
+        assert "get_actor_report" in config
+        assert "reset_actor_report" in config
         assert callable(config["method_decorator"])
         assert callable(config["remote_wrapper"])
+        assert callable(config["get_actor_report"])
+        assert callable(config["reset_actor_report"])
 
     def test_actor_method_decorator_calls_check_on_entry(self, monkeypatch):
         """Actor method decorator calls check_and_log on entry."""
@@ -1375,6 +1379,54 @@ class TestRayActorMemoryMonitoring:
         assert "instructions" in config
         assert isinstance(config["instructions"], list)
         assert len(config["instructions"]) > 0
+
+    def test_actor_monitoring_tracks_per_node_reports(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=True)
+
+        @config["method_decorator"]
+        def sample_method(self: Any, value: int) -> int:
+            return value * 2
+
+        class DummyActor:
+            _runtime_guard_node_id = "node-a"
+            _runtime_guard_actor_id = "actor-1"
+
+        actor = DummyActor()
+        out = sample_method(actor, 21)
+        assert out == 42
+
+        report = config["get_actor_report"](node_id="node-a", actor_id="actor-1")
+        assert report["ok"] is True
+        assert report["events"] == 2
+        assert report["entry_checks"] == 1
+        assert report["exit_checks"] == 1
+        assert report["methods"]["sample_method"] == 2
+
+    def test_actor_monitoring_reset_clears_reports(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-r", actor_id="actor-r") == 2
+
+        before = config["get_actor_report"]()
+        assert before["nodes_monitored"] == 1
+        assert before["total_events"] == 1
+
+        config["reset_actor_report"]()
+        after = config["get_actor_report"]()
+        assert after["nodes_monitored"] == 0
+        assert after["total_events"] == 0
 
 
 # ---------------------------------------------------------------------------

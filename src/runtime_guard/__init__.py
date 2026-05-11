@@ -2185,6 +2185,8 @@ def enable_ray_actor_memory_monitoring(
     - Each actor instance maintains independent pressure tracking
     - Remote function wrappers are recommended for lightweight monitoring
     """
+    actor_event_state: dict[str, dict[str, Any]] = {}
+
     config: dict[str, Any] = {
         "ok": True,
         "stage_prefix": stage_prefix,
@@ -2192,6 +2194,8 @@ def enable_ray_actor_memory_monitoring(
         "check_on_exit": check_on_exit,
         "method_decorator": None,
         "remote_wrapper": None,
+        "get_actor_report": None,
+        "reset_actor_report": None,
         "instructions": [
             "1. Add 'from runtime_guard import guard' to actor module (or pass via init)",
             "2. Wrap method calls with: if guard.check(stage='actor-method') is not None: handle_pressure()",
@@ -2200,18 +2204,120 @@ def enable_ray_actor_memory_monitoring(
         ],
     }
 
+    def _record_actor_event(
+        *,
+        node_id: str,
+        actor_id: str,
+        method_name: str,
+        event_type: str,
+    ) -> None:
+        node_key = str(node_id or "unknown-node").strip() or "unknown-node"
+        actor_key = str(actor_id or "unknown-actor").strip() or "unknown-actor"
+        method_key = str(method_name or "unknown-method").strip() or "unknown-method"
+
+        node_row = actor_event_state.setdefault(
+            node_key,
+            {
+                "node_id": node_key,
+                "events": 0,
+                "entry_checks": 0,
+                "exit_checks": 0,
+                "actors": {},
+            },
+        )
+        node_row["events"] += 1
+        if event_type == "entry":
+            node_row["entry_checks"] += 1
+        elif event_type == "exit":
+            node_row["exit_checks"] += 1
+
+        actors = node_row["actors"]
+        actor_row = actors.setdefault(
+            actor_key,
+            {
+                "actor_id": actor_key,
+                "events": 0,
+                "entry_checks": 0,
+                "exit_checks": 0,
+                "methods": {},
+            },
+        )
+        actor_row["events"] += 1
+        if event_type == "entry":
+            actor_row["entry_checks"] += 1
+        elif event_type == "exit":
+            actor_row["exit_checks"] += 1
+
+        methods = actor_row["methods"]
+        methods[method_key] = int(methods.get(method_key, 0)) + 1
+
+    def _get_actor_report(*, node_id: str | None = None, actor_id: str | None = None) -> dict[str, Any]:
+        if node_id is None and actor_id is None:
+            return {
+                "ok": True,
+                "nodes": actor_event_state,
+                "nodes_monitored": len(actor_event_state),
+                "total_events": sum(int(v.get("events", 0)) for v in actor_event_state.values()),
+            }
+
+        if node_id is not None:
+            node_key = str(node_id)
+            node_row = actor_event_state.get(node_key)
+            if node_row is None:
+                return {"ok": True, "node_id": node_key, "events": 0, "actors": {}}
+            if actor_id is None:
+                return {"ok": True, **node_row}
+            actor_key = str(actor_id)
+            actor_row = node_row.get("actors", {}).get(actor_key)
+            if actor_row is None:
+                return {
+                    "ok": True,
+                    "node_id": node_key,
+                    "actor_id": actor_key,
+                    "events": 0,
+                    "methods": {},
+                }
+            return {"ok": True, "node_id": node_key, **actor_row}
+
+        actor_key = str(actor_id)
+        for node_key, node_row in actor_event_state.items():
+            actor_row = node_row.get("actors", {}).get(actor_key)
+            if actor_row is not None:
+                return {"ok": True, "node_id": node_key, **actor_row}
+
+        return {"ok": True, "actor_id": actor_key, "events": 0, "methods": {}}
+
+    def _reset_actor_report() -> None:
+        actor_event_state.clear()
+
     def _method_decorator(method: Any) -> Any:
         """Decorator for actor methods to add memory monitoring."""
 
         def _wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             stage = f"{stage_prefix}::{method.__name__}"
+            node_id = str(getattr(self, "_runtime_guard_node_id", "unknown-node"))
+            actor_id = str(
+                getattr(self, "_runtime_guard_actor_id", f"{self.__class__.__name__}:{id(self)}")
+            )
             if check_on_entry:
                 guard.check_and_log(stage=f"{stage}:entry")
+                _record_actor_event(
+                    node_id=node_id,
+                    actor_id=actor_id,
+                    method_name=method.__name__,
+                    event_type="entry",
+                )
             try:
                 result = method(self, *args, **kwargs)
             finally:
                 if check_on_exit:
                     guard.check_and_log(stage=f"{stage}:exit")
+                    _record_actor_event(
+                        node_id=node_id,
+                        actor_id=actor_id,
+                        method_name=method.__name__,
+                        event_type="exit",
+                    )
             return result
 
         return _wrapper
@@ -2221,19 +2327,35 @@ def enable_ray_actor_memory_monitoring(
 
         def _wrapper(*args: Any, **kwargs: Any) -> Any:
             stage = f"{stage_prefix}::{fn.__name__}"
+            node_id = str(kwargs.pop("node_id", "remote-node"))
+            actor_id = str(kwargs.pop("actor_id", f"remote::{fn.__name__}"))
             if check_on_entry:
                 guard.check_and_log(stage=f"{stage}:entry")
+                _record_actor_event(
+                    node_id=node_id,
+                    actor_id=actor_id,
+                    method_name=fn.__name__,
+                    event_type="entry",
+                )
             try:
                 result = fn(*args, **kwargs)
             finally:
                 if check_on_exit:
                     guard.check_and_log(stage=f"{stage}:exit")
+                    _record_actor_event(
+                        node_id=node_id,
+                        actor_id=actor_id,
+                        method_name=fn.__name__,
+                        event_type="exit",
+                    )
             return result
 
         return _wrapper
 
     config["method_decorator"] = _method_decorator
     config["remote_wrapper"] = _remote_wrapper
+    config["get_actor_report"] = _get_actor_report
+    config["reset_actor_report"] = _reset_actor_report
 
     return config
 

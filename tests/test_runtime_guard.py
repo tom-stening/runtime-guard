@@ -970,6 +970,7 @@ class TestDaskIntegration:
         try:
             evidence = collect_dask_integration_evidence(guard, module=_DaskWithCallbackAPI)
             assert "dask_scheduler_callback_api_available" in evidence["evidence_items"]
+            assert "dask_scheduler_callback_context_available" not in evidence["evidence_items"]
         finally:
             restore()
 
@@ -1008,6 +1009,7 @@ class TestDaskIntegration:
             assert validation["scheduler_callback_context_available"] is True
 
             evidence = collect_dask_integration_evidence(guard, module=_DaskWithCallbackContext)
+            assert "dask_scheduler_callback_context_available" in evidence["evidence_items"]
             assert "dask_scheduler_callback_context_wrapped" in evidence["evidence_items"]
         finally:
             restore()

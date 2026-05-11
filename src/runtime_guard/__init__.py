@@ -2258,6 +2258,9 @@ def collect_dask_integration_evidence(
     if validation.get("scheduler_callback_api_present"):
         evidence_items.append("dask_scheduler_callback_api_available")
 
+    if validation.get("scheduler_callback_context_available"):
+        evidence_items.append("dask_scheduler_callback_context_available")
+
     if validation.get("scheduler_callbacks_wrapped"):
         evidence_items.append("dask_scheduler_callback_context_wrapped")
 

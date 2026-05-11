@@ -18,8 +18,11 @@ Usage::
     # Also verify the task-graph guard API is callable
     python scripts/validate_dask_integration.py --check-guard-api
 
+    # Also verify scheduler callback integration API/behavior is callable
+    python scripts/validate_dask_integration.py --check-scheduler-api
+
     # Full CI gate: all checks, JSON output
-    python scripts/validate_dask_integration.py --json --require-hooks --check-guard-api
+    python scripts/validate_dask_integration.py --json --require-hooks --check-guard-api --check-scheduler-api
 """
 
 from __future__ import annotations
@@ -48,6 +51,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--check-guard-api",
         action="store_true",
         help="Verify that install_dask_task_graph_guard() is importable and callable",
+    )
+    p.add_argument(
+        "--check-scheduler-api",
+        action="store_true",
+        help=(
+            "Verify that install_dask_scheduler_callbacks() and "
+            "attach_dask_guard(..., enable_scheduler_callbacks=True) are callable"
+        ),
     )
     p.add_argument(
         "--stage",
@@ -96,6 +107,82 @@ def _check_guard_api() -> dict[str, Any]:
         # compute() with a 2-task graph should warn (>1) but not raise
         try:
             _MockDask.compute(_MockGraph())
+        finally:
+            restore()
+
+        result["available"] = True
+    except Exception as exc:
+        result["errors"].append(str(exc))
+    return result
+
+
+def _check_scheduler_api() -> dict[str, Any]:
+    """Verify scheduler callback integration API surface and behavior."""
+    result: dict[str, Any] = {"available": False, "errors": []}
+    try:
+        from runtime_guard import attach_dask_guard, install_dask_scheduler_callbacks, validate_dask_integration
+
+        if not callable(install_dask_scheduler_callbacks):
+            result["errors"].append("install_dask_scheduler_callbacks is not callable")
+            return result
+
+        class _MockDaskBase:
+            @staticmethod
+            def compute(*args, **kwargs):
+                return args
+
+            @staticmethod
+            def persist(*args, **kwargs):
+                return args
+
+        class _MockCallback:
+            pass
+
+        class _MockDask:
+            base = _MockDaskBase
+
+            class callbacks:
+                Callback = _MockCallback
+
+            @staticmethod
+            def compute(*args, **kwargs):
+                return args
+
+            @staticmethod
+            def persist(*args, **kwargs):
+                return args
+
+        import runtime_guard as rg
+
+        guard = rg.RuntimeGuard()
+
+        # Callback metadata API should be callable and expose context helpers.
+        callback_report = install_dask_scheduler_callbacks(
+            guard,
+            stage_prefix="sched-check",
+            module=_MockDask,
+        )
+        create_ctx = getattr(callback_report, "create_callback_context", None)
+        if not callable(create_ctx):
+            result["errors"].append("create_callback_context metadata missing")
+            return result
+        _ctx = create_ctx()
+
+        # Full attach path should mark scheduler callback wrapping as enabled.
+        restore = attach_dask_guard(
+            guard,
+            stage="sched-check",
+            enable_scheduler_callbacks=True,
+            module=_MockDask,
+        )
+        try:
+            validation = validate_dask_integration(guard, module=_MockDask)
+            if not validation.get("scheduler_callbacks_wrapped"):
+                result["errors"].append("scheduler_callbacks_wrapped flag not set")
+                return result
+            if not validation.get("scheduler_callback_context_available"):
+                result["errors"].append("scheduler_callback_context_available flag not set")
+                return result
         finally:
             restore()
 
@@ -181,6 +268,12 @@ def main() -> int:
         if guard_check.get("errors"):
             report["errors"].extend(guard_check["errors"])
 
+    if args.check_scheduler_api:
+        scheduler_check = _check_scheduler_api()
+        report["scheduler_callback_api"] = scheduler_check
+        if scheduler_check.get("errors"):
+            report["errors"].extend(scheduler_check["errors"])
+
     # ---- 7. Determine pass/fail -------------------------------------------
     ok = report.get("api_importable", False)
     if args.require_hooks:
@@ -203,6 +296,9 @@ def main() -> int:
         if report.get("task_graph_guard_api"):
             guard_ok = report["task_graph_guard_api"].get("available", False)
             print(f"  task_graph_guard_api: {'ok' if guard_ok else 'FAIL'}")
+        if report.get("scheduler_callback_api"):
+            sched_ok = report["scheduler_callback_api"].get("available", False)
+            print(f"  scheduler_callback_api_check: {'ok' if sched_ok else 'FAIL'}")
         if report["errors"]:
             for err in report["errors"]:
                 print(f"  WARN: {err}", file=sys.stderr)

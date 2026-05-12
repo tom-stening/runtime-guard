@@ -1181,6 +1181,205 @@ def test_build_result_fails_on_integration_fallback_directory_mismatch(tmp_path:
     assert any("fallback report directory mismatch" in row for row in result["errors"])
 
 
+def test_build_result_fails_on_integration_fallback_policy_type_errors(tmp_path: Path):
+    module = _load_module()
+
+    enforcement_path = tmp_path / "repo_guard_enforcement.json"
+    integration_path = tmp_path / "integration_fleet_status.json"
+    runtime_path = tmp_path / "repo_guard_runtime_status.json"
+
+    enforcement = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "enforce_runtime_guard_all_repos",
+                    "generated_at_utc": "2026-05-12T00:00:00Z",
+                    "run_id": "ci-1",
+                    "inputs": {},
+                },
+            }
+        )
+    )
+    enforcement_path.write_text(json.dumps(enforcement), encoding="utf-8")
+
+    integration = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "pressure_fallback": {
+                    "enabled": "true",
+                    "pressure_detected": True,
+                    "fallback_report_dir": 123,
+                    "max_report_age_hours": "12",
+                    "note": None,
+                },
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "validate_integration_fleet",
+                    "generated_at_utc": "2026-05-12T00:00:01Z",
+                    "run_id": "ci-1",
+                    "inputs": {
+                        "source_artifact_hashes": {},
+                        "validator_script_hashes": {},
+                        "fallback_on_pressure": "false",
+                        "fallback_report_dir": 456,
+                        "max_fallback_report_age_hours": -1,
+                        "require_signed_report_inputs": False,
+                        "verify_report_input_signatures": False,
+                        "report_allowed_key_ids": [],
+                        "max_report_signature_age_hours": 0,
+                    },
+                },
+            }
+        )
+    )
+    integration_path.write_text(json.dumps(integration), encoding="utf-8")
+
+    runtime = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "repo_guard_fleet_report",
+                    "generated_at_utc": "2026-05-12T00:00:02Z",
+                    "run_id": "ci-1",
+                    "inputs": {
+                        "source_artifact_hashes": {
+                            "repo_guard_enforcement": _sha(enforcement_path),
+                            "integration_fleet_status": _sha(integration_path),
+                        }
+                    },
+                },
+            }
+        )
+    )
+    runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
+
+    ok, result = module._build_result(
+        enforcement_path,
+        integration_path,
+        runtime_path,
+        strict=True,
+        require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
+    )
+    assert ok is False
+    assert any("pressure_fallback.enabled must be a boolean" in row for row in result["errors"])
+    assert any("pressure_fallback.fallback_report_dir must be a string" in row for row in result["errors"])
+    assert any("pressure_fallback.max_report_age_hours must be a non-negative integer" in row for row in result["errors"])
+    assert any("provenance.inputs.fallback_on_pressure must be a boolean" in row for row in result["errors"])
+    assert any("provenance.inputs.fallback_report_dir must be a string" in row for row in result["errors"])
+    assert any("provenance.inputs.max_fallback_report_age_hours must be a non-negative integer" in row for row in result["errors"])
+
+
+def test_build_result_fails_on_report_signature_policy_type_errors(tmp_path: Path):
+    module = _load_module()
+
+    enforcement_path = tmp_path / "repo_guard_enforcement.json"
+    integration_path = tmp_path / "integration_fleet_status.json"
+    runtime_path = tmp_path / "repo_guard_runtime_status.json"
+
+    enforcement = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "enforce_runtime_guard_all_repos",
+                    "generated_at_utc": "2026-05-12T00:00:00Z",
+                    "run_id": "ci-1",
+                    "inputs": {},
+                },
+            }
+        )
+    )
+    enforcement_path.write_text(json.dumps(enforcement), encoding="utf-8")
+
+    integration = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "validate_integration_fleet",
+                    "generated_at_utc": "2026-05-12T00:00:01Z",
+                    "run_id": "ci-1",
+                    "inputs": {
+                        "source_artifact_hashes": {},
+                        "validator_script_hashes": {},
+                        "fallback_on_pressure": False,
+                        "fallback_report_dir": "",
+                        "max_fallback_report_age_hours": 0,
+                        "require_signed_report_inputs": "false",
+                        "verify_report_input_signatures": "false",
+                        "report_allowed_key_ids": ["key-a", 42],
+                        "max_report_signature_age_hours": "0",
+                    },
+                },
+            }
+        )
+    )
+    integration_path.write_text(json.dumps(integration), encoding="utf-8")
+
+    runtime = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "repo_guard_fleet_report",
+                    "generated_at_utc": "2026-05-12T00:00:02Z",
+                    "run_id": "ci-1",
+                    "inputs": {
+                        "source_artifact_hashes": {
+                            "repo_guard_enforcement": _sha(enforcement_path),
+                            "integration_fleet_status": _sha(integration_path),
+                        }
+                    },
+                },
+            }
+        )
+    )
+    runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
+
+    ok, result = module._build_result(
+        enforcement_path,
+        integration_path,
+        runtime_path,
+        strict=True,
+        require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
+    )
+    assert ok is False
+    assert any("provenance.inputs.require_signed_report_inputs must be a boolean" in row for row in result["errors"])
+    assert any("provenance.inputs.verify_report_input_signatures must be a boolean" in row for row in result["errors"])
+    assert any("provenance.inputs.report_allowed_key_ids entries must be strings" in row for row in result["errors"])
+    assert any("provenance.inputs.max_report_signature_age_hours must be a non-negative integer" in row for row in result["errors"])
+
+
 def test_build_result_fails_on_expected_integration_report_signature_policy_mismatch(tmp_path: Path):
     module = _load_module()
 

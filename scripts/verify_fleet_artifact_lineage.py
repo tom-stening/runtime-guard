@@ -245,21 +245,57 @@ def _validate_integration_fallback_policy_consistency(payload: dict[str, Any]) -
     fallback_dir_payload: str | None = None
     fallback_age_payload: str | None = None
     if isinstance(pressure_fallback, dict) and "max_report_age_hours" in pressure_fallback:
-        fallback_age_payload = str(pressure_fallback.get("max_report_age_hours")).strip()
+        raw_age = pressure_fallback.get("max_report_age_hours")
+        if not isinstance(raw_age, int) or isinstance(raw_age, bool) or raw_age < 0:
+            errors.append(
+                "integration_fleet_status: pressure_fallback.max_report_age_hours must be a non-negative integer"
+            )
+        else:
+            fallback_age_payload = str(raw_age).strip()
     if isinstance(pressure_fallback, dict) and "enabled" in pressure_fallback:
-        fallback_enabled_payload = str(bool(pressure_fallback.get("enabled", False))).strip()
+        raw_enabled = pressure_fallback.get("enabled")
+        if not isinstance(raw_enabled, bool):
+            errors.append(
+                "integration_fleet_status: pressure_fallback.enabled must be a boolean"
+            )
+        else:
+            fallback_enabled_payload = str(raw_enabled).strip()
     if isinstance(pressure_fallback, dict) and "fallback_report_dir" in pressure_fallback:
-        fallback_dir_payload = str(pressure_fallback.get("fallback_report_dir") or "").strip()
+        raw_dir = pressure_fallback.get("fallback_report_dir")
+        if not isinstance(raw_dir, str):
+            errors.append(
+                "integration_fleet_status: pressure_fallback.fallback_report_dir must be a string"
+            )
+        else:
+            fallback_dir_payload = raw_dir.strip()
 
     fallback_enabled_provenance: str | None = None
     fallback_dir_provenance: str | None = None
     fallback_age_provenance: str | None = None
     if isinstance(inputs, dict) and "max_fallback_report_age_hours" in inputs:
-        fallback_age_provenance = str(inputs.get("max_fallback_report_age_hours")).strip()
+        raw_age = inputs.get("max_fallback_report_age_hours")
+        if not isinstance(raw_age, int) or isinstance(raw_age, bool) or raw_age < 0:
+            errors.append(
+                "integration_fleet_status: provenance.inputs.max_fallback_report_age_hours must be a non-negative integer"
+            )
+        else:
+            fallback_age_provenance = str(raw_age).strip()
     if isinstance(inputs, dict) and "fallback_on_pressure" in inputs:
-        fallback_enabled_provenance = str(bool(inputs.get("fallback_on_pressure", False))).strip()
+        raw_enabled = inputs.get("fallback_on_pressure")
+        if not isinstance(raw_enabled, bool):
+            errors.append(
+                "integration_fleet_status: provenance.inputs.fallback_on_pressure must be a boolean"
+            )
+        else:
+            fallback_enabled_provenance = str(raw_enabled).strip()
     if isinstance(inputs, dict) and "fallback_report_dir" in inputs:
-        fallback_dir_provenance = str(inputs.get("fallback_report_dir") or "").strip()
+        raw_dir = inputs.get("fallback_report_dir")
+        if not isinstance(raw_dir, str):
+            errors.append(
+                "integration_fleet_status: provenance.inputs.fallback_report_dir must be a string"
+            )
+        else:
+            fallback_dir_provenance = raw_dir.strip()
 
     if fallback_enabled_payload is None and fallback_enabled_provenance is not None:
         errors.append(
@@ -359,14 +395,22 @@ def _validate_expected_integration_report_signature_policy(
     if errors:
         return errors
 
-    actual_require_signed = bool(inputs.get("require_signed_report_inputs", False))
-    if actual_require_signed != bool(expected_require_signed_report_inputs):
+    raw_require_signed = inputs.get("require_signed_report_inputs")
+    if not isinstance(raw_require_signed, bool):
+        errors.append(
+            "integration_fleet_status: provenance.inputs.require_signed_report_inputs must be a boolean"
+        )
+    elif raw_require_signed != bool(expected_require_signed_report_inputs):
         errors.append(
             "integration_fleet_status: expected require_signed_report_inputs policy does not match provenance.inputs"
         )
 
-    actual_verify = bool(inputs.get("verify_report_input_signatures", False))
-    if actual_verify != bool(expected_verify_report_input_signatures):
+    raw_verify = inputs.get("verify_report_input_signatures")
+    if not isinstance(raw_verify, bool):
+        errors.append(
+            "integration_fleet_status: provenance.inputs.verify_report_input_signatures must be a boolean"
+        )
+    elif raw_verify != bool(expected_verify_report_input_signatures):
         errors.append(
             "integration_fleet_status: expected verify_report_input_signatures policy does not match provenance.inputs"
         )
@@ -374,16 +418,29 @@ def _validate_expected_integration_report_signature_policy(
     expected_allowed = sorted({str(k).strip() for k in list(expected_report_allowed_key_ids or []) if str(k).strip()})
     actual_allowed_raw = inputs.get("report_allowed_key_ids", [])
     actual_allowed: list[str] = []
-    if isinstance(actual_allowed_raw, list):
-        actual_allowed = sorted({str(k).strip() for k in actual_allowed_raw if str(k).strip()})
-    if actual_allowed != expected_allowed:
+    if not isinstance(actual_allowed_raw, list):
+        errors.append(
+            "integration_fleet_status: provenance.inputs.report_allowed_key_ids must be a list"
+        )
+    else:
+        invalid_keys = [k for k in actual_allowed_raw if not isinstance(k, str)]
+        if invalid_keys:
+            errors.append(
+                "integration_fleet_status: provenance.inputs.report_allowed_key_ids entries must be strings"
+            )
+        actual_allowed = sorted({k.strip() for k in actual_allowed_raw if isinstance(k, str) and k.strip()})
+    if isinstance(actual_allowed_raw, list) and actual_allowed != expected_allowed:
         errors.append(
             "integration_fleet_status: expected report_allowed_key_ids policy does not match provenance.inputs"
         )
 
     expected_age = int(expected_max_report_signature_age_hours or 0)
-    actual_age = int(inputs.get("max_report_signature_age_hours", 0) or 0)
-    if actual_age != expected_age:
+    raw_age = inputs.get("max_report_signature_age_hours")
+    if not isinstance(raw_age, int) or isinstance(raw_age, bool) or raw_age < 0:
+        errors.append(
+            "integration_fleet_status: provenance.inputs.max_report_signature_age_hours must be a non-negative integer"
+        )
+    elif raw_age != expected_age:
         errors.append(
             "integration_fleet_status: expected max_report_signature_age_hours policy does not match provenance.inputs"
         )

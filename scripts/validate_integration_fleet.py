@@ -81,6 +81,15 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="Optional external run identifier for cross-artifact correlation.",
     )
+    parser.add_argument(
+        "--max-fallback-report-age-hours",
+        type=int,
+        default=0,
+        help=(
+            "Maximum age allowed for fallback/explicit report inputs in hours "
+            "(0 disables staleness enforcement)"
+        ),
+    )
     return parser
 
 
@@ -226,6 +235,21 @@ def _default_component_report_name(tool_name: str) -> str:
     return f"{tool_name}_integration_status.json"
 
 
+def _parse_utc_timestamp(value: str) -> dt.datetime | None:
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = dt.datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(dt.timezone.utc)
+
+
 def _safe_git_commit(repo_root: Path) -> str:
     try:
         proc = subprocess.run(
@@ -353,7 +377,13 @@ def _run_validator(repo_root: Path, tool_name: str, script_name: str, extra_args
     )
 
 
-def _component_from_report(tool_name: str, report_path: Path) -> dict[str, Any]:
+def _component_from_report(
+    tool_name: str,
+    report_path: Path,
+    *,
+    max_report_age_hours: int = 0,
+    now_utc: dt.datetime | None = None,
+) -> dict[str, Any]:
     payload, load_error = _load_report_payload(report_path)
     if load_error is not None:
         return _component_from_payload(
@@ -388,6 +418,24 @@ def _component_from_report(tool_name: str, report_path: Path) -> dict[str, Any]:
             identity_errors.append(
                 f"report milestone mismatch for {tool_name}: expected {expected_milestone}"
             )
+
+    if int(max_report_age_hours or 0) > 0:
+        provenance = payload.get("provenance")
+        generated_at_text = ""
+        if isinstance(provenance, dict):
+            generated_at_text = str(provenance.get("generated_at_utc") or "").strip()
+        issued = _parse_utc_timestamp(generated_at_text)
+        if issued is None:
+            identity_errors.append(
+                f"report generated_at_utc missing/invalid for {tool_name} staleness policy"
+            )
+        else:
+            reference = now_utc or dt.datetime.now(dt.timezone.utc)
+            age_h = (reference - issued).total_seconds() / 3600.0
+            if age_h > float(max_report_age_hours):
+                identity_errors.append(
+                    f"report too old for {tool_name}: {age_h:.2f}h > {int(max_report_age_hours)}h"
+                )
 
     return _component_from_payload(
         tool_name,
@@ -424,6 +472,7 @@ def _build_payload(
     ray_report: str | None,
     fallback_on_pressure: bool,
     fallback_report_dir: str,
+    max_fallback_report_age_hours: int = 0,
     run_id: str = "",
     pressure_detected_override: bool | None = None,
 ) -> dict[str, Any]:
@@ -468,6 +517,7 @@ def _build_payload(
     source_hashes: dict[str, str] = {}
     validator_script_hashes: dict[str, str] = {}
     fleet_warnings: list[str] = []
+    report_age_reference_utc = dt.datetime.now(dt.timezone.utc)
     for tool, script_name, extra_args, report_path in component_specs:
         script_path = _resolve_validator_script_path(repo_root, script_name)
         if script_path is not None:
@@ -493,7 +543,14 @@ def _build_payload(
                 path = repo_root / path
             if path.exists():
                 source_hashes[tool] = _sha256_file(path)
-            components.append(_component_from_report(tool, path))
+            components.append(
+                _component_from_report(
+                    tool,
+                    path,
+                    max_report_age_hours=int(max_fallback_report_age_hours or 0),
+                    now_utc=report_age_reference_utc,
+                )
+            )
             continue
         components.append(_run_validator(repo_root, tool, script_name, extra_args, timeout_s))
 
@@ -571,6 +628,7 @@ def main() -> int:
         ray_report=args.ray_report,
         fallback_on_pressure=bool(args.fallback_on_pressure),
         fallback_report_dir=str(args.fallback_report_dir),
+        max_fallback_report_age_hours=int(args.max_fallback_report_age_hours),
         run_id=str(args.run_id),
     )
 

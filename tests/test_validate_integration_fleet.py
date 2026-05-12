@@ -191,6 +191,44 @@ def test_component_from_report_rejects_identity_mismatch(tmp_path: Path):
     assert any("report milestone mismatch" in err for err in comp["errors"])
 
 
+def test_component_from_report_rejects_stale_report(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "stale.json"
+    report.write_text(
+        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
+        '"ok": true, "api_importable": true, '
+        '"scan_budget_api": {"available": true}, '
+        '"native_callback_api": {"available": true}, '
+        '"provenance": {"generated_at_utc": "2020-01-01T00:00:00Z"}}',
+        encoding="utf-8",
+    )
+
+    comp = module._component_from_report(
+        "polars",
+        report,
+        max_report_age_hours=1,
+        now_utc=module.dt.datetime(2026, 5, 12, 0, 0, tzinfo=module.dt.timezone.utc),
+    )
+    assert comp["healthy"] is False
+    assert any("report too old" in err for err in comp["errors"])
+
+
+def test_component_from_report_staleness_disabled_accepts_old_report(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "old-ok.json"
+    report.write_text(
+        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
+        '"ok": true, "api_importable": true, '
+        '"scan_budget_api": {"available": true}, '
+        '"native_callback_api": {"available": true}, '
+        '"provenance": {"generated_at_utc": "2020-01-01T00:00:00Z"}}',
+        encoding="utf-8",
+    )
+
+    comp = module._component_from_report("polars", report, max_report_age_hours=0)
+    assert comp["healthy"] is True
+
+
 def test_build_payload_uses_report_fallback_when_pressure_detected(
     tmp_path: Path,
     monkeypatch,

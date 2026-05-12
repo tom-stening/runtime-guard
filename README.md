@@ -853,6 +853,15 @@ prefers `reports/polars_integration_status.json`,
 `reports/dask_integration_status.json`, and
 `reports/ray_integration_status.json` when pressure is present.
 
+Attach a caller-provided run correlation ID to integration output:
+
+```bash
+python scripts/validate_integration_fleet.py \
+    --json \
+    --run-id ci-${GITHUB_RUN_ID:-local} \
+    --output reports/integration_fleet_status.json
+```
+
 Run full fleet governance in one command (enforcement -> integration -> runtime gates):
 
 ```bash

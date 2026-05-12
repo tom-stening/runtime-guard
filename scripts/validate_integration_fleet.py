@@ -11,6 +11,7 @@ import argparse
 import json
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,11 @@ def _build_parser() -> argparse.ArgumentParser:
             "Directory used with --fallback-on-pressure to discover component "
             "reports (default: reports)"
         ),
+    )
+    parser.add_argument(
+        "--run-id",
+        default="",
+        help="Optional external run identifier for cross-artifact correlation.",
     )
     return parser
 
@@ -275,8 +281,13 @@ def _build_payload(
     ray_report: str | None,
     fallback_on_pressure: bool,
     fallback_report_dir: str,
+    run_id: str = "",
     pressure_detected_override: bool | None = None,
 ) -> dict[str, Any]:
+    effective_run_id = str(run_id or "").strip()
+    if not effective_run_id:
+        effective_run_id = str(uuid.uuid4())
+
     pressure_detected = False
     pressure_probe_note: str | None = None
     if fallback_on_pressure:
@@ -346,6 +357,7 @@ def _build_payload(
     payload: dict[str, Any] = {
         "tool": "validate_integration_fleet",
         "milestone": "M1-integration",
+        "run_id": effective_run_id,
         "execution_mode": (
             "offline"
             if all(c.get("source") == "report" for c in components)
@@ -363,6 +375,7 @@ def _build_payload(
         "summary": summary,
         "components": components,
     }
+    summary["run_id"] = effective_run_id
 
     if include_wsl_diagnosis:
         try:
@@ -388,6 +401,7 @@ def main() -> int:
         ray_report=args.ray_report,
         fallback_on_pressure=bool(args.fallback_on_pressure),
         fallback_report_dir=str(args.fallback_report_dir),
+        run_id=str(args.run_id),
     )
 
     rendered = json.dumps(payload, indent=2, sort_keys=True)

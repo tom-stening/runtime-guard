@@ -43,6 +43,8 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
 
     assert "validate_integration_fleet.py" in " ".join(integration_cmd)
     assert "--fallback-on-pressure" in integration_cmd
+    assert "--run-id" in integration_cmd
+    assert "ci-run-12345" in integration_cmd
     assert str(integration_report).endswith("integration_fleet_status.json")
 
     assert "repo_guard_fleet_report.py" in " ".join(runtime_cmd)

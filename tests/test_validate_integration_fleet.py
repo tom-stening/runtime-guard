@@ -158,3 +158,42 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
     assert payload["pressure_fallback"]["pressure_detected"] is True
     assert payload["summary"]["overall_healthy"] is True
     assert [c["source"] for c in payload["components"]] == ["report", "report", "report"]
+
+
+def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
+    module = _load_module()
+
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir(parents=True)
+    (reports_dir / "polars_integration_status.json").write_text(
+        '{"ok": true, "api_importable": true, "scan_budget_api": {"available": true}}',
+        encoding="utf-8",
+    )
+    (reports_dir / "dask_integration_status.json").write_text(
+        '{"ok": true, "api_importable": true, '
+        '"task_graph_guard_api": {"available": true}, '
+        '"scheduler_callback_api": {"available": true}}',
+        encoding="utf-8",
+    )
+    (reports_dir / "ray_integration_status.json").write_text(
+        '{"ok": true, "api_importable": true, "actor_monitoring_api": {"available": true}}',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(module, "_run_validator", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("unexpected live validator")))
+
+    payload = module._build_payload(
+        tmp_path,
+        timeout_s=1,
+        include_wsl_diagnosis=False,
+        polars_report=None,
+        dask_report=None,
+        ray_report=None,
+        fallback_on_pressure=True,
+        fallback_report_dir="reports",
+        run_id="ci-run-xyz",
+        pressure_detected_override=True,
+    )
+
+    assert payload.get("run_id") == "ci-run-xyz"
+    assert payload.get("summary", {}).get("run_id") == "ci-run-xyz"

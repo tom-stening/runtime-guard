@@ -390,17 +390,8 @@ def main() -> int:
         integration_report=integration_payload,
     )
 
-    output_path = Path(args.output)
-    if not output_path.is_absolute():
-        output_path = Path.cwd() / output_path
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-
-    print(json.dumps(payload["summary"], indent=2, sort_keys=True))
-    print(f"report: {output_path}")
-
     summary = payload.get("summary", {})
-    should_fail = False
+    failed_gates: list[dict[str, Any]] = []
     extension_specs: dict[str, int] = {}
     try:
         extension_specs = _parse_extension_rss_specs(list(args.fail_on_extension_rss))
@@ -409,19 +400,47 @@ def main() -> int:
         return 2
 
     if args.fail_on_unenforced and int(summary.get("unenforced_repos", 0) or 0) > 0:
-        should_fail = True
+        failed_gates.append(
+            {
+                "gate": "fail-on-unenforced",
+                "actual": int(summary.get("unenforced_repos", 0) or 0),
+                "threshold": 0,
+                "reason": "unenforced repos present",
+            }
+        )
     if args.fail_on_integration_unhealthy and summary.get("integration_overall_healthy") is False:
-        should_fail = True
+        failed_gates.append(
+            {
+                "gate": "fail-on-integration-unhealthy",
+                "actual": False,
+                "threshold": True,
+                "reason": "integration overall health is false",
+            }
+        )
     if args.fail_on_wsl_risk:
         threshold = str(args.fail_on_wsl_risk)
         actual = str(summary.get("wsl_risk_level", "low"))
         if _risk_rank(actual) >= _risk_rank(threshold):
-            should_fail = True
+            failed_gates.append(
+                {
+                    "gate": "fail-on-wsl-risk",
+                    "actual": actual,
+                    "threshold": threshold,
+                    "reason": "WSL risk level meets/exceeds threshold",
+                }
+            )
 
     if args.fail_on_extension_total_rss_mb > 0:
         actual_total = int(summary.get("wsl_vscode_extension_total_rss_mb", 0) or 0)
         if actual_total >= int(args.fail_on_extension_total_rss_mb):
-            should_fail = True
+            failed_gates.append(
+                {
+                    "gate": "fail-on-extension-total-rss-mb",
+                    "actual": actual_total,
+                    "threshold": int(args.fail_on_extension_total_rss_mb),
+                    "reason": "extension total RSS meets/exceeds threshold",
+                }
+            )
 
     if extension_specs:
         wsl_diag = payload.get("wsl_diagnosis", {})
@@ -441,11 +460,31 @@ def main() -> int:
                 ext_totals[ext_name] = int(row.get("rss_mb", 0) or 0)
 
         for ext_name, threshold_mb in extension_specs.items():
-            if int(ext_totals.get(ext_name, 0) or 0) >= threshold_mb:
-                should_fail = True
-                break
+            actual_mb = int(ext_totals.get(ext_name, 0) or 0)
+            if actual_mb >= threshold_mb:
+                failed_gates.append(
+                    {
+                        "gate": "fail-on-extension-rss",
+                        "extension": ext_name,
+                        "actual": actual_mb,
+                        "threshold": threshold_mb,
+                        "reason": "extension RSS meets/exceeds threshold",
+                    }
+                )
 
-    if should_fail:
+    payload["failed_gates"] = failed_gates
+    summary["failed_gate_count"] = len(failed_gates)
+
+    output_path = Path(args.output)
+    if not output_path.is_absolute():
+        output_path = Path.cwd() / output_path
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    print(json.dumps(payload["summary"], indent=2, sort_keys=True))
+    print(f"report: {output_path}")
+
+    if failed_gates:
         return 1
 
     return 0

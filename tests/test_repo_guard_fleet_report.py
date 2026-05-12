@@ -117,6 +117,9 @@ def test_fail_on_unenforced_exits_nonzero(tmp_path: Path) -> None:
 
     result = _run_script(tmp_path, payload, "--no-proc-scan", "--fail-on-unenforced")
     assert result.returncode == 1
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    assert runtime["summary"]["failed_gate_count"] >= 1
+    assert any(row.get("gate") == "fail-on-unenforced" for row in runtime.get("failed_gates", []))
 
 
 def test_fail_on_integration_unhealthy_exits_nonzero(tmp_path: Path) -> None:
@@ -193,3 +196,28 @@ def test_fail_on_extension_rss_invalid_spec_exits_2(tmp_path: Path) -> None:
     )
     assert result.returncode == 2
     assert "expected EXTENSION=MB" in result.stderr
+
+
+def test_fail_on_extension_total_rss_records_failed_gate(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ]
+    }
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--include-wsl-diagnosis",
+        "--fail-on-extension-total-rss-mb",
+        "1",
+    )
+    assert result.returncode == 1
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    assert runtime["summary"]["failed_gate_count"] >= 1
+    assert any(
+        row.get("gate") == "fail-on-extension-total-rss-mb"
+        for row in runtime.get("failed_gates", [])
+        if isinstance(row, dict)
+    )

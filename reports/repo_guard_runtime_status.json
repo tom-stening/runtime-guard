@@ -1,4 +1,12 @@
 {
+  "failed_gates": [
+    {
+      "actual": 1974,
+      "gate": "fail-on-extension-total-rss-mb",
+      "reason": "extension total RSS meets/exceeds threshold",
+      "threshold": 1500
+    }
+  ],
   "integration_status": {
     "components": [
       {
@@ -1221,6 +1229,7 @@
   "summary": {
     "active_repos": 8,
     "enforced_repos": 54,
+    "failed_gate_count": 1,
     "fully_enforced": true,
     "integration_components_healthy": 3,
     "integration_components_total": 3,
@@ -1241,16 +1250,16 @@
     "wsl_top_process_command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node /home/thomas_stening/.vscode-server/extensions/tamasfe.even-better-toml-0.21.2/dist/server.js --node-ipc --clientProcessId=2668",
     "wsl_top_process_pid": 27169,
     "wsl_top_process_rss_mb": 1280,
-    "wsl_vscode_extension_total_rss_mb": 1966
+    "wsl_vscode_extension_total_rss_mb": 1974
   },
   "wsl_diagnosis": {
     "docker_desktop_running": true,
-    "drift_mem_available_mb": -26776,
+    "drift_mem_available_mb": -26853,
     "drift_mem_total_mb": -49453,
     "drift_swap_used_pct": -37,
-    "guest_mem_available_mb": 2838,
+    "guest_mem_available_mb": 2766,
     "guest_mem_total_mb": 15995,
-    "guest_swap_free_mb": 14689,
+    "guest_swap_free_mb": 14685,
     "guest_swap_total_mb": 16384,
     "guest_swap_used_pct": 10,
     "guest_top_memory_processes": [
@@ -1262,37 +1271,37 @@
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 2668,
-        "rss_mb": 1194
-      },
-      {
-        "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node /home/thomas_stening/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js --cancellationReceive=file:ad61...",
-        "pid": 33628,
-        "rss_mb": 686
+        "rss_mb": 1262
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 2263,
-        "rss_mb": 680
+        "rss_mb": 694
+      },
+      {
+        "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node /home/thomas_stening/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js --cancellationReceive=file:ad61...",
+        "pid": 33628,
+        "rss_mb": 694
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 12532,
-        "rss_mb": 674
+        "rss_mb": 675
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 2257,
-        "rss_mb": 663
+        "rss_mb": 659
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 2311,
-        "rss_mb": 647
+        "rss_mb": 648
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 2270,
-        "rss_mb": 622
+        "rss_mb": 624
       }
     ],
     "guest_vscode_extension_rss": [
@@ -1310,10 +1319,10 @@
           33628
         ],
         "process_count": 1,
-        "rss_mb": 686
+        "rss_mb": 694
       }
     ],
-    "guest_vscode_extension_total_rss_mb": 1966,
+    "guest_vscode_extension_total_rss_mb": 1974,
     "host_error_event_count": 2,
     "host_error_events": [
       {
@@ -1341,15 +1350,15 @@
       "System"
     ],
     "host_high_relevance_event_count": 0,
-    "host_mem_free_mb": 29614,
+    "host_mem_free_mb": 29619,
     "host_mem_total_mb": 65448,
-    "host_vm_free_mb": 52488,
+    "host_vm_free_mb": 52538,
     "host_vm_total_mb": 100448,
     "host_vm_used_pct": 47,
     "likely_causes": [
       "host warning/error events were detected (low relevance to WSL)",
-      "VS Code extension hosts account for elevated guest RSS (~1966 MB across top processes)",
-      "top extension memory consumers: tamasfe.even-better-toml (1280 MB), ms-python.vscode-pylance (686 MB)"
+      "VS Code extension hosts account for elevated guest RSS (~1974 MB across top processes)",
+      "top extension memory consumers: tamasfe.even-better-toml (1280 MB), ms-python.vscode-pylance (694 MB)"
     ],
     "prevention_actions": [
       "review host events, but prioritize guest memory pressure signals first",

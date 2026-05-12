@@ -143,6 +143,12 @@ def sys_platform_linux_proc_available() -> bool:
     return os.name == "posix" and os.path.isdir("/proc")
 
 
+def _normalize_run_id(value: Any) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return ""
+
+
 def _strict_bool(value: Any) -> tuple[bool, bool]:
     if isinstance(value, bool):
         return value, True
@@ -611,7 +617,7 @@ def main() -> int:
     )
 
     summary = payload.get("summary", {})
-    run_id = str(args.run_id or "").strip()
+    run_id = _normalize_run_id(args.run_id)
     if not run_id:
         run_id = str(uuid.uuid4())
 

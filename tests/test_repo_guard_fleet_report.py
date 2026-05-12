@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -29,6 +30,18 @@ def _run_script(tmp_path: Path, enforcement_payload: dict[str, object], *args: s
         check=False,
         env=os.environ.copy(),
     )
+
+
+def _load_module():
+    repo_root = Path(__file__).resolve().parent.parent
+    script_path = repo_root / "scripts" / "repo_guard_fleet_report.py"
+    spec = importlib.util.spec_from_file_location("repo_guard_fleet_report", script_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_builds_runtime_summary_from_enforcement_report(tmp_path: Path) -> None:
@@ -436,6 +449,49 @@ def test_fail_on_run_id_mismatch_exits_nonzero(tmp_path: Path) -> None:
         if isinstance(row, dict) and row.get("gate") == "fail-on-run-id-mismatch"
     ]
     assert failed
+
+
+def test_non_string_run_id_generates_uuid_in_runtime_payload(tmp_path: Path, monkeypatch) -> None:
+    enforcement_path = tmp_path / "enforcement.json"
+    enforcement_path.write_text(
+        json.dumps({
+            "run_id": "ci-sync-1",
+            "repos": [
+                {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+            ],
+        }),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "runtime.json"
+
+    module = _load_module()
+
+    class _Args:
+        enforcement_report = str(enforcement_path)
+        output = str(output_path)
+        no_proc_scan = True
+        integration_report = str(tmp_path / "missing-integration.json")
+        include_wsl_diagnosis = False
+        fail_on_unenforced = False
+        fail_on_integration_unhealthy = False
+        fail_on_wsl_risk = None
+        fail_on_extension_total_rss_mb = 0
+        fail_on_extension_rss: list[str] = []
+        run_id = 123
+        fail_on_run_id_mismatch = False
+
+    monkeypatch.setattr(module, "_parse_args", lambda: _Args())
+
+    result_code = module.main()
+    assert result_code == 0
+
+    runtime = json.loads(output_path.read_text(encoding="utf-8"))
+    run_id = runtime.get("run_id")
+    assert isinstance(run_id, str)
+    assert run_id
+    assert run_id != "123"
+    assert runtime.get("summary", {}).get("run_id") == run_id
+    assert runtime.get("provenance", {}).get("run_id") == run_id
 
 
 def test_non_string_source_run_ids_are_not_coerced(tmp_path: Path) -> None:

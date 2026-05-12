@@ -192,6 +192,21 @@ def _validate_integration_fallback_policy_consistency(payload: dict[str, Any]) -
     return errors
 
 
+def _validate_expected_tool(name: str, payload: dict[str, Any], expected_tool: str) -> list[str]:
+    prov = payload.get("provenance")
+    if not isinstance(prov, dict):
+        return [f"{name}: missing provenance block"]
+
+    actual_tool = str(prov.get("tool") or "").strip()
+    if not actual_tool:
+        return [f"{name}: provenance.tool missing"]
+    if actual_tool != expected_tool:
+        return [
+            f"{name}: provenance.tool mismatch (expected {expected_tool}, got {actual_tool})"
+        ]
+    return []
+
+
 def _validate_signature_envelope(
     name: str,
     payload: dict[str, Any],
@@ -414,6 +429,27 @@ def _build_result(
     errors.extend(_validate_provenance("repo_guard_enforcement", enforcement, strict))
     errors.extend(_validate_provenance("integration_fleet_status", integration, strict))
     errors.extend(_validate_provenance("repo_guard_runtime_status", runtime, strict))
+    errors.extend(
+        _validate_expected_tool(
+            "repo_guard_enforcement",
+            enforcement,
+            "enforce_runtime_guard_all_repos",
+        )
+    )
+    errors.extend(
+        _validate_expected_tool(
+            "integration_fleet_status",
+            integration,
+            "validate_integration_fleet",
+        )
+    )
+    errors.extend(
+        _validate_expected_tool(
+            "repo_guard_runtime_status",
+            runtime,
+            "repo_guard_fleet_report",
+        )
+    )
     errors.extend(_validate_artifact_sha256("repo_guard_enforcement", enforcement))
     errors.extend(_validate_artifact_sha256("integration_fleet_status", integration))
     errors.extend(_validate_artifact_sha256("repo_guard_runtime_status", runtime))
@@ -474,8 +510,9 @@ def _build_result(
                 f"repo_guard_runtime_status: source hash mismatch for {key}"
             )
 
+    ok = len(errors) == 0
     result = {
-        "ok": len(errors) == 0,
+        "ok": ok,
         "errors": errors,
         "run_id": next(iter(set(run_ids.values()))) if len(set(run_ids.values())) == 1 else "",
         "run_ids": run_ids,
@@ -486,7 +523,7 @@ def _build_result(
         },
         "runtime_expected_source_hashes": expected_source_hashes,
     }
-    return result["ok"], result
+    return ok, result
 
 
 def main() -> int:

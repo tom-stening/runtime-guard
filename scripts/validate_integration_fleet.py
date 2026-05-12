@@ -327,6 +327,12 @@ def _parse_utc_timestamp(value: str) -> dt.datetime | None:
     return parsed.astimezone(dt.timezone.utc)
 
 
+def _normalize_run_id(value: Any) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return ""
+
+
 def _safe_git_commit(repo_root: Path) -> str:
     try:
         proc = subprocess.run(
@@ -583,7 +589,7 @@ def _run_validator(
         "--json",
         *extra_args,
     ]
-    effective_run_id = str(run_id or "").strip()
+    effective_run_id = _normalize_run_id(run_id)
     if effective_run_id:
         cmd.extend(["--run-id", effective_run_id])
     try:
@@ -698,18 +704,18 @@ def _component_from_report(
             )
         )
 
-    expected_run = str(expected_run_id or "").strip()
+    expected_run = _normalize_run_id(expected_run_id)
     if expected_run:
         report_run_id = ""
         raw_root_run_id = report_payload.get("run_id")
-        if isinstance(raw_root_run_id, str) and raw_root_run_id.strip():
-            report_run_id = raw_root_run_id.strip()
+        normalized_root_run_id = _normalize_run_id(raw_root_run_id)
+        if normalized_root_run_id:
+            report_run_id = normalized_root_run_id
         else:
             summary = report_payload.get("summary")
             if isinstance(summary, dict):
                 raw_summary_run_id = summary.get("run_id")
-                if isinstance(raw_summary_run_id, str) and raw_summary_run_id.strip():
-                    report_run_id = raw_summary_run_id.strip()
+                report_run_id = _normalize_run_id(raw_summary_run_id)
         if report_run_id != expected_run:
             identity_errors.append(
                 f"report run_id mismatch for {tool_name}: expected {expected_run}"
@@ -775,7 +781,7 @@ def _build_payload(
     run_id: str = "",
     pressure_detected_override: bool | None = None,
 ) -> dict[str, Any]:
-    effective_run_id = str(run_id or "").strip()
+    effective_run_id = _normalize_run_id(run_id)
     if not effective_run_id:
         effective_run_id = str(uuid.uuid4())
 

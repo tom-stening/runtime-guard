@@ -828,6 +828,40 @@ def test_run_validator_timeout_returns_unhealthy_component(tmp_path: Path, monke
     assert any("timed out" in row for row in component["errors"])
 
 
+def test_run_validator_ignores_non_string_run_id(tmp_path: Path, monkeypatch):
+    module = _load_module()
+
+    payload = {
+        "ok": True,
+        "api_importable": True,
+        "scan_budget_api": {"available": True},
+        "native_callback_api": {"available": True},
+        "errors": [],
+    }
+
+    def _fake_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            args=["validator"],
+            returncode=0,
+            stdout=json.dumps(payload),
+            stderr="",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", _fake_run)
+
+    component = module._run_validator(
+        tmp_path,
+        "polars",
+        "validate_polars_integration.py",
+        ["--check-budget-api", "--check-callback-api"],
+        timeout_s=1,
+        run_id=123,
+    )
+
+    assert component["healthy"] is True
+    assert "--run-id" not in component["command"]
+
+
 def test_build_payload_passes_run_id_to_live_validators(tmp_path: Path, monkeypatch):
     module = _load_module()
 
@@ -891,3 +925,68 @@ def test_build_payload_passes_run_id_to_live_validators(tmp_path: Path, monkeypa
 
     assert payload.get("summary", {}).get("overall_healthy") is True
     assert seen == ["ci-run-live", "ci-run-live", "ci-run-live"]
+
+
+def test_build_payload_generates_uuid_for_non_string_run_id(tmp_path: Path, monkeypatch):
+    module = _load_module()
+
+    def _fake_run(repo_root, tool_name, script_name, extra_args, timeout_s, run_id=""):
+        if tool_name == "polars":
+            report = {
+                "ok": True,
+                "api_importable": True,
+                "scan_budget_api": {"available": True},
+                "native_callback_api": {"available": True},
+                "errors": [],
+            }
+        elif tool_name == "dask":
+            report = {
+                "ok": True,
+                "api_importable": True,
+                "task_graph_guard_api": {"available": True},
+                "scheduler_callback_api": {
+                    "available": True,
+                    "telemetry_counters_present": True,
+                },
+                "errors": [],
+            }
+        else:
+            report = {
+                "ok": True,
+                "api_importable": True,
+                "actor_monitoring_api": {
+                    "available": True,
+                    "hotspot_fields_present": True,
+                },
+                "errors": [],
+            }
+        return module._component_from_payload(
+            tool_name,
+            report,
+            source="live",
+            command=[script_name],
+            exit_code=0,
+            hard_errors=[],
+            warnings=[],
+        )
+
+    monkeypatch.setattr(module, "_run_validator", _fake_run)
+
+    payload = module._build_payload(
+        tmp_path,
+        timeout_s=1,
+        include_wsl_diagnosis=False,
+        polars_report=None,
+        dask_report=None,
+        ray_report=None,
+        fallback_on_pressure=False,
+        fallback_report_dir="reports",
+        max_fallback_report_age_hours=0,
+        run_id=123,
+    )
+
+    run_id = payload.get("run_id")
+    assert isinstance(run_id, str)
+    assert run_id
+    assert run_id != "123"
+    assert payload.get("summary", {}).get("run_id") == run_id

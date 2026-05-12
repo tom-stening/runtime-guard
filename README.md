@@ -900,10 +900,22 @@ For explicit lineage/integrity verification in CI, run:
 python scripts/verify_fleet_artifact_lineage.py --json
 ```
 
+To require detached signatures in addition to digest/provenance validation:
+
+```bash
+python scripts/verify_fleet_artifact_lineage.py --json --require-signed
+```
+
 `run_fleet_guard_cycle.py` executes this verifier by default after artifact
 generation (use `--skip-lineage-verify` to opt out).
 The cycle invokes the verifier in strict mode, requiring complete provenance
 metadata and canonical digest validity.
+
+Artifacts now include a signature-ready envelope at
+`provenance.signature` (`mode`, `algorithm`, `key_id`, `signature`) and sign
+`artifact_sha256`. By default mode is `unsigned`; set
+`RUNTIME_GUARD_ARTIFACT_SIGNATURE`, `RUNTIME_GUARD_ARTIFACT_KEY_ID`, and
+`RUNTIME_GUARD_ARTIFACT_SIGNATURE_ALGORITHM` to emit detached signature metadata.
 
 ### Measuring success
 

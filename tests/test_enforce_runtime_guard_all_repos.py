@@ -113,3 +113,6 @@ def test_run_id_override_is_written_to_enforcement_payload(tmp_path: Path) -> No
     assert str(provenance.get("generated_at_utc", "")).endswith("Z")
     assert provenance.get("inputs", {}).get("args_digest")
     assert provenance.get("artifact_sha256")
+    signature = provenance.get("signature", {})
+    assert signature.get("mode") in {"unsigned", "detached"}
+    assert signature.get("signed_field") == "artifact_sha256"

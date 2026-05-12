@@ -44,6 +44,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fail when optional provenance metadata (git_commit/script) is missing",
     )
+    parser.add_argument(
+        "--require-signed",
+        action="store_true",
+        help="Fail when artifacts are not detached-signed in provenance.signature",
+    )
     return parser
 
 
@@ -79,6 +84,7 @@ def _expected_artifact_sha256(payload: dict[str, Any]) -> str:
     prov = canonical_payload.get("provenance")
     if isinstance(prov, dict):
         prov.pop("artifact_sha256", None)
+        prov.pop("signature", None)
     canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
     return _sha256_text(canonical)
 
@@ -120,11 +126,57 @@ def _validate_artifact_sha256(name: str, payload: dict[str, Any]) -> list[str]:
     return []
 
 
+def _validate_signature_envelope(
+    name: str,
+    payload: dict[str, Any],
+    *,
+    require_signed: bool,
+) -> list[str]:
+    prov = payload.get("provenance")
+    if not isinstance(prov, dict):
+        return [f"{name}: missing provenance block"]
+    sig = prov.get("signature")
+    if not isinstance(sig, dict):
+        return [f"{name}: missing provenance.signature envelope"]
+
+    required = ["mode", "signed_field", "signed_value", "algorithm", "key_id", "signature"]
+    errors: list[str] = []
+    for key in required:
+        if key not in sig:
+            errors.append(f"{name}: signature missing '{key}'")
+
+    mode = str(sig.get("mode") or "")
+    if mode not in {"unsigned", "detached"}:
+        errors.append(f"{name}: signature mode must be 'unsigned' or 'detached'")
+
+    signed_field = str(sig.get("signed_field") or "")
+    if signed_field != "artifact_sha256":
+        errors.append(f"{name}: signature.signed_field must be artifact_sha256")
+
+    artifact_sha = str(prov.get("artifact_sha256") or "")
+    signed_value = str(sig.get("signed_value") or "")
+    if artifact_sha and signed_value != artifact_sha:
+        errors.append(f"{name}: signature.signed_value must match provenance.artifact_sha256")
+
+    if require_signed:
+        if mode != "detached":
+            errors.append(f"{name}: detached signature required")
+        if not str(sig.get("signature") or "").strip():
+            errors.append(f"{name}: detached signature payload missing")
+        if not str(sig.get("key_id") or "").strip():
+            errors.append(f"{name}: detached signature key_id missing")
+        if not str(sig.get("algorithm") or "").strip():
+            errors.append(f"{name}: detached signature algorithm missing")
+
+    return errors
+
+
 def _build_result(
     enforcement_path: Path,
     integration_path: Path,
     runtime_path: Path,
     strict: bool,
+    require_signed: bool,
 ) -> tuple[bool, dict[str, Any]]:
     errors: list[str] = []
 
@@ -154,6 +206,27 @@ def _build_result(
     errors.extend(_validate_artifact_sha256("repo_guard_enforcement", enforcement))
     errors.extend(_validate_artifact_sha256("integration_fleet_status", integration))
     errors.extend(_validate_artifact_sha256("repo_guard_runtime_status", runtime))
+    errors.extend(
+        _validate_signature_envelope(
+            "repo_guard_enforcement",
+            enforcement,
+            require_signed=require_signed,
+        )
+    )
+    errors.extend(
+        _validate_signature_envelope(
+            "integration_fleet_status",
+            integration,
+            require_signed=require_signed,
+        )
+    )
+    errors.extend(
+        _validate_signature_envelope(
+            "repo_guard_runtime_status",
+            runtime,
+            require_signed=require_signed,
+        )
+    )
 
     runtime_prov = runtime.get("provenance", {})
     runtime_inputs = runtime_prov.get("inputs", {}) if isinstance(runtime_prov, dict) else {}
@@ -213,6 +286,7 @@ def main() -> int:
         integration_path,
         runtime_path,
         strict=bool(args.strict),
+        require_signed=bool(args.require_signed),
     )
 
     if args.json:

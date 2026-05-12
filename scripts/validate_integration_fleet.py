@@ -11,6 +11,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import uuid
@@ -216,8 +217,24 @@ def _stamp_artifact_sha256(payload: dict[str, Any]) -> None:
     canonical_prov = canonical_payload.get("provenance")
     if isinstance(canonical_prov, dict):
         canonical_prov.pop("artifact_sha256", None)
+        canonical_prov.pop("signature", None)
     canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
     prov["artifact_sha256"] = _sha256_text(canonical)
+
+
+def _build_signature_envelope(artifact_sha256: str) -> dict[str, str]:
+    key_id = str(os.getenv("RUNTIME_GUARD_ARTIFACT_KEY_ID", "")).strip()
+    algorithm = str(os.getenv("RUNTIME_GUARD_ARTIFACT_SIGNATURE_ALGORITHM", "")).strip()
+    signature = str(os.getenv("RUNTIME_GUARD_ARTIFACT_SIGNATURE", "")).strip()
+    mode = "detached" if signature else "unsigned"
+    return {
+        "mode": mode,
+        "signed_field": "artifact_sha256",
+        "signed_value": artifact_sha256,
+        "algorithm": algorithm,
+        "key_id": key_id,
+        "signature": signature,
+    }
 
 
 def _resolve_validator_script_path(repo_root: Path, script_name: str) -> Path | None:
@@ -457,6 +474,9 @@ def _build_payload(
             payload["wsl_diagnosis_error"] = str(exc)
 
     _stamp_artifact_sha256(payload)
+    prov = payload.get("provenance")
+    if isinstance(prov, dict):
+        prov["signature"] = _build_signature_envelope(str(prov.get("artifact_sha256") or ""))
 
     return payload
 

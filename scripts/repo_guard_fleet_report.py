@@ -15,6 +15,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -247,6 +248,7 @@ def _parse_extension_rss_specs(specs: list[str]) -> dict[str, int]:
 def _build_failed_gate(
     *,
     gate: str,
+    run_id: str,
     evaluated_at_utc: str,
     actual: Any,
     threshold: Any,
@@ -260,6 +262,7 @@ def _build_failed_gate(
     payload: dict[str, Any] = {
         "gate": gate,
         "gate_id": gate_id,
+        "run_id": run_id,
         "evaluated_at_utc": evaluated_at_utc,
         "actual": actual,
         "threshold": threshold,
@@ -418,6 +421,9 @@ def main() -> int:
     )
 
     summary = payload.get("summary", {})
+    run_id = str(uuid.uuid4())
+    payload["run_id"] = run_id
+    summary["run_id"] = run_id
     failed_gates: list[dict[str, Any]] = []
     evaluated_at_utc = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     extension_specs: dict[str, int] = {}
@@ -431,6 +437,7 @@ def main() -> int:
         failed_gates.append(
             _build_failed_gate(
                 gate="fail-on-unenforced",
+                run_id=run_id,
                 evaluated_at_utc=evaluated_at_utc,
                 actual=int(summary.get("unenforced_repos", 0) or 0),
                 threshold=0,
@@ -441,6 +448,7 @@ def main() -> int:
         failed_gates.append(
             _build_failed_gate(
                 gate="fail-on-integration-unhealthy",
+                run_id=run_id,
                 evaluated_at_utc=evaluated_at_utc,
                 actual=False,
                 threshold=True,
@@ -454,6 +462,7 @@ def main() -> int:
             failed_gates.append(
                 _build_failed_gate(
                     gate="fail-on-wsl-risk",
+                    run_id=run_id,
                     evaluated_at_utc=evaluated_at_utc,
                     actual=actual,
                     threshold=threshold,
@@ -467,6 +476,7 @@ def main() -> int:
             failed_gates.append(
                 _build_failed_gate(
                     gate="fail-on-extension-total-rss-mb",
+                    run_id=run_id,
                     evaluated_at_utc=evaluated_at_utc,
                     actual=actual_total,
                     threshold=int(args.fail_on_extension_total_rss_mb),
@@ -497,6 +507,7 @@ def main() -> int:
                 failed_gates.append(
                     _build_failed_gate(
                         gate="fail-on-extension-rss",
+                        run_id=run_id,
                         evaluated_at_utc=evaluated_at_utc,
                         extension=ext_name,
                         actual=actual_mb,

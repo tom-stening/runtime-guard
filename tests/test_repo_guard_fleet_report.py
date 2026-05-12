@@ -124,6 +124,7 @@ def test_fail_on_unenforced_exits_nonzero(tmp_path: Path) -> None:
         if isinstance(row, dict) and row.get("gate") == "fail-on-unenforced"
     ]
     assert matched
+    assert matched[0].get("run_id") == runtime["summary"].get("run_id")
     assert matched[0].get("gate_id") == "fail-on-unenforced"
     assert str(matched[0].get("evaluated_at_utc", "")).endswith("Z")
 
@@ -228,5 +229,48 @@ def test_fail_on_extension_total_rss_records_failed_gate(tmp_path: Path) -> None
         if isinstance(row, dict) and row.get("gate") == "fail-on-extension-total-rss-mb"
     ]
     assert matched
+    assert matched[0].get("run_id") == runtime["summary"].get("run_id")
     assert matched[0].get("gate_id") == "fail-on-extension-total-rss-mb"
     assert str(matched[0].get("evaluated_at_utc", "")).endswith("Z")
+
+
+def test_failed_gates_share_single_run_id(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "watcher_only_candidate"},
+        ]
+    }
+    integration_path = tmp_path / "integration.json"
+    integration_path.write_text(
+        json.dumps(
+            {
+                "summary": {
+                    "overall_healthy": False,
+                    "components_total": 1,
+                    "components_healthy": 0,
+                    "risk_level": "high",
+                },
+                "execution_mode": "live",
+                "pressure_fallback": {"enabled": False, "pressure_detected": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--integration-report",
+        str(integration_path),
+        "--fail-on-unenforced",
+        "--fail-on-integration-unhealthy",
+    )
+    assert result.returncode == 1
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    run_id = runtime["summary"].get("run_id")
+    assert isinstance(run_id, str)
+    assert run_id == runtime.get("run_id")
+    failed_gates = [row for row in runtime.get("failed_gates", []) if isinstance(row, dict)]
+    assert len(failed_gates) >= 2
+    assert all(row.get("run_id") == run_id for row in failed_gates)

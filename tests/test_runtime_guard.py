@@ -2578,6 +2578,8 @@ class TestRayActorMemoryMonitoring:
         assert summary["total_events"] == 3
         assert summary["busiest_node"] == "node-a"
         assert summary["busiest_node_events"] == 2
+        assert summary["busiest_actor"] == "actor-1"
+        assert summary["busiest_actor_events"] == 2
 
         config["reset_node_reports"]()
         after = config["get_all_node_reports"]()

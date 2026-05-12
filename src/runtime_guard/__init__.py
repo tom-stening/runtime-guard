@@ -2726,11 +2726,18 @@ def enable_ray_actor_memory_monitoring(
         total_actors = sum(len(v.get("actors", {})) for v in node_rows)
         busiest_node = None
         busiest_events = -1
+        busiest_actor = None
+        busiest_actor_events = -1
         for node_id, row in actor_event_state.items():
             events = int(row.get("events", 0))
             if events > busiest_events:
                 busiest_events = events
                 busiest_node = node_id
+            for actor_id, actor_row in row.get("actors", {}).items():
+                actor_events = int(actor_row.get("events", 0))
+                if actor_events > busiest_actor_events:
+                    busiest_actor_events = actor_events
+                    busiest_actor = actor_id
         return {
             "ok": True,
             "nodes_monitored": len(actor_event_state),
@@ -2738,6 +2745,8 @@ def enable_ray_actor_memory_monitoring(
             "total_events": total_events,
             "busiest_node": busiest_node,
             "busiest_node_events": max(busiest_events, 0),
+            "busiest_actor": busiest_actor,
+            "busiest_actor_events": max(busiest_actor_events, 0),
         }
 
     def _method_decorator(method: Any) -> Any:

@@ -229,6 +229,53 @@ def test_component_from_report_staleness_disabled_accepts_old_report(tmp_path: P
     assert comp["healthy"] is True
 
 
+def test_component_from_report_rejects_run_id_mismatch(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "wrong-run.json"
+    report.write_text(
+        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
+        '"run_id": "other-run", '
+        '"ok": true, "api_importable": true, '
+        '"scan_budget_api": {"available": true}, '
+        '"native_callback_api": {"available": true}, '
+        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        encoding="utf-8",
+    )
+
+    comp = module._component_from_report(
+        "polars",
+        report,
+        expected_run_id="ci-run-xyz",
+        max_report_age_hours=0,
+    )
+
+    assert comp["healthy"] is False
+    assert any("report run_id mismatch" in err for err in comp["errors"])
+
+
+def test_component_from_report_accepts_matching_summary_run_id(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "summary-run.json"
+    report.write_text(
+        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
+        '"summary": {"run_id": "ci-run-xyz"}, '
+        '"ok": true, "api_importable": true, '
+        '"scan_budget_api": {"available": true}, '
+        '"native_callback_api": {"available": true}, '
+        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        encoding="utf-8",
+    )
+
+    comp = module._component_from_report(
+        "polars",
+        report,
+        expected_run_id="ci-run-xyz",
+        max_report_age_hours=0,
+    )
+
+    assert comp["healthy"] is True
+
+
 def test_build_payload_uses_report_fallback_when_pressure_detected(
     tmp_path: Path,
     monkeypatch,
@@ -240,6 +287,7 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
 
     (reports_dir / "polars_integration_status.json").write_text(
         '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
+        '"run_id": "fallback-run", '
         '"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
         '"native_callback_api": {"available": true}, '
         '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
@@ -247,6 +295,7 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
     )
     (reports_dir / "dask_integration_status.json").write_text(
         '{"tool": "validate_dask_integration", "milestone": "M1-I02", '
+        '"run_id": "fallback-run", '
         '"ok": true, "api_importable": true, '
         '"task_graph_guard_api": {"available": true}, '
         '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}, '
@@ -255,6 +304,7 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
     )
     (reports_dir / "ray_integration_status.json").write_text(
         '{"tool": "validate_ray_integration", "milestone": "M1-I03", '
+        '"run_id": "fallback-run", '
         '"ok": true, "api_importable": true, '
         '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}, '
         '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
@@ -276,6 +326,7 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
         fallback_on_pressure=True,
         fallback_report_dir="reports",
         max_fallback_report_age_hours=4,
+        run_id="fallback-run",
         pressure_detected_override=True,
     )
 
@@ -294,6 +345,7 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     reports_dir.mkdir(parents=True)
     (reports_dir / "polars_integration_status.json").write_text(
         '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
+        '"run_id": "ci-run-xyz", '
         '"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
         '"native_callback_api": {"available": true}, '
         '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
@@ -301,6 +353,7 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     )
     (reports_dir / "dask_integration_status.json").write_text(
         '{"tool": "validate_dask_integration", "milestone": "M1-I02", '
+        '"run_id": "ci-run-xyz", '
         '"ok": true, "api_importable": true, '
         '"task_graph_guard_api": {"available": true}, '
         '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}, '
@@ -309,6 +362,7 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     )
     (reports_dir / "ray_integration_status.json").write_text(
         '{"tool": "validate_ray_integration", "milestone": "M1-I03", '
+        '"run_id": "ci-run-xyz", '
         '"ok": true, "api_importable": true, '
         '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}, '
         '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',

@@ -316,7 +316,7 @@ def _resolve_validator_script_path(repo_root: Path, script_name: str) -> Path | 
 def _detect_runtime_pressure() -> tuple[bool, str | None]:
     """Return whether RuntimeGuard currently detects memory pressure."""
     try:
-        from runtime_guard import RuntimeGuard
+        from runtime_guard import RuntimeGuard  # type: ignore[import-untyped]
 
         guard = RuntimeGuard()
         report = guard.check(stage="integration-fleet:auto-fallback")
@@ -382,6 +382,7 @@ def _component_from_report(
     report_path: Path,
     *,
     max_report_age_hours: int = 0,
+    expected_run_id: str = "",
     now_utc: dt.datetime | None = None,
 ) -> dict[str, Any]:
     payload, load_error = _load_report_payload(report_path)
@@ -396,6 +397,7 @@ def _component_from_report(
             warnings=[],
         )
 
+    report_payload = payload or {}
     expected_tool = {
         "polars": "validate_polars_integration",
         "dask": "validate_dask_integration",
@@ -408,19 +410,29 @@ def _component_from_report(
     }.get(tool_name, "")
 
     identity_errors: list[str] = []
-    if expected_tool:
-        if str(payload.get("tool", "")).strip() != expected_tool:
+    if expected_tool and str(report_payload.get("tool", "")).strip() != expected_tool:
+        identity_errors.append(
+            f"report tool mismatch for {tool_name}: expected {expected_tool}"
+        )
+    if expected_milestone and str(report_payload.get("milestone", "")).strip() != expected_milestone:
+        identity_errors.append(
+            f"report milestone mismatch for {tool_name}: expected {expected_milestone}"
+        )
+
+    expected_run = str(expected_run_id or "").strip()
+    if expected_run:
+        report_run_id = str(report_payload.get("run_id") or "").strip()
+        if not report_run_id:
+            summary = report_payload.get("summary")
+            if isinstance(summary, dict):
+                report_run_id = str(summary.get("run_id") or "").strip()
+        if report_run_id != expected_run:
             identity_errors.append(
-                f"report tool mismatch for {tool_name}: expected {expected_tool}"
-            )
-    if expected_milestone:
-        if str(payload.get("milestone", "")).strip() != expected_milestone:
-            identity_errors.append(
-                f"report milestone mismatch for {tool_name}: expected {expected_milestone}"
+                f"report run_id mismatch for {tool_name}: expected {expected_run}"
             )
 
     if int(max_report_age_hours or 0) > 0:
-        provenance = payload.get("provenance")
+        provenance = report_payload.get("provenance")
         generated_at_text = ""
         if isinstance(provenance, dict):
             generated_at_text = str(provenance.get("generated_at_utc") or "").strip()
@@ -439,7 +451,7 @@ def _component_from_report(
 
     return _component_from_payload(
         tool_name,
-        payload or {},
+        report_payload,
         source="report",
         command=None,
         exit_code=0,
@@ -452,7 +464,6 @@ def _risk_level(components: list[dict[str, Any]]) -> str:
     if all(bool(c.get("healthy", False)) for c in components):
         return "low"
 
-    # High if API surface or required capability checks fail.
     if any(not bool(c.get("api_importable", False)) for c in components):
         return "high"
     if any(not bool(c.get("required_checks_ok", False)) for c in components):
@@ -548,13 +559,14 @@ def _build_payload(
                     tool,
                     path,
                     max_report_age_hours=int(max_fallback_report_age_hours or 0),
+                    expected_run_id=effective_run_id,
                     now_utc=report_age_reference_utc,
                 )
             )
             continue
         components.append(_run_validator(repo_root, tool, script_name, extra_args, timeout_s))
 
-    summary = {
+    summary: dict[str, Any] = {
         "components_total": len(components),
         "components_healthy": sum(1 for c in components if bool(c.get("healthy", False))),
         "components_unhealthy": sum(1 for c in components if not bool(c.get("healthy", False))),

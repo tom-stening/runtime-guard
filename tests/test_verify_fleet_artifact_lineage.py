@@ -59,6 +59,143 @@ def _stamp_signature_envelope(payload: dict, *, detached: bool = False) -> dict:
     return payload
 
 
+def test_validate_cli_configuration_requires_public_key_for_verification():
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = True
+        require_signed = True
+        signature_public_key = ""
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = 0
+        expected_verify_report_input_signatures = False
+        expected_require_signed_report_inputs = False
+        expected_report_allowed_key_id: list[str] = []
+        expected_max_report_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--signature-public-key" in errors[0]
+
+
+def test_validate_cli_configuration_requires_signed_mode_when_verifying():
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = True
+        require_signed = False
+        signature_public_key = "/tmp/public.pem"
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = 0
+        expected_verify_report_input_signatures = False
+        expected_require_signed_report_inputs = False
+        expected_report_allowed_key_id: list[str] = []
+        expected_max_report_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--require-signed" in errors[0]
+
+
+def test_validate_cli_configuration_requires_verification_for_allowed_key_ids():
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = False
+        require_signed = True
+        signature_public_key = ""
+        allowed_key_id = ["fleet-key-a"]
+        max_signature_age_hours = 0
+        expected_verify_report_input_signatures = False
+        expected_require_signed_report_inputs = False
+        expected_report_allowed_key_id: list[str] = []
+        expected_max_report_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--verify-signatures" in errors[0]
+    assert "--allowed-key-id" in errors[0]
+
+
+def test_validate_cli_configuration_requires_verification_for_signature_age_policy():
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = False
+        require_signed = True
+        signature_public_key = ""
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = 4
+        expected_verify_report_input_signatures = False
+        expected_require_signed_report_inputs = False
+        expected_report_allowed_key_id: list[str] = []
+        expected_max_report_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--verify-signatures" in errors[0]
+    assert "--max-signature-age-hours" in errors[0]
+
+
+def test_validate_cli_configuration_requires_expected_signed_inputs_when_expected_verification_enabled():
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = False
+        require_signed = False
+        signature_public_key = ""
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = 0
+        expected_verify_report_input_signatures = True
+        expected_require_signed_report_inputs = False
+        expected_report_allowed_key_id: list[str] = []
+        expected_max_report_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--expected-require-signed-report-inputs" in errors[0]
+
+
+def test_validate_cli_configuration_requires_expected_verification_for_expected_allowed_key_ids():
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = False
+        require_signed = False
+        signature_public_key = ""
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = 0
+        expected_verify_report_input_signatures = False
+        expected_require_signed_report_inputs = True
+        expected_report_allowed_key_id = ["report-key-a"]
+        expected_max_report_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--expected-verify-report-input-signatures" in errors[0]
+    assert "--expected-report-allowed-key-id" in errors[0]
+
+
+def test_validate_cli_configuration_requires_expected_verification_for_expected_signature_age_policy():
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = False
+        require_signed = False
+        signature_public_key = ""
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = 0
+        expected_verify_report_input_signatures = False
+        expected_require_signed_report_inputs = True
+        expected_report_allowed_key_id: list[str] = []
+        expected_max_report_signature_age_hours = 7
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--expected-verify-report-input-signatures" in errors[0]
+    assert "--expected-max-report-signature-age-hours" in errors[0]
+
+
 def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
     module = _load_module()
 

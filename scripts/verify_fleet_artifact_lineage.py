@@ -101,6 +101,55 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    verify_signatures = bool(getattr(args, "verify_signatures", False))
+    require_signed = bool(getattr(args, "require_signed", False))
+    signature_public_key = str(getattr(args, "signature_public_key", "") or "").strip()
+    allowed_key_ids = [
+        str(key_id).strip()
+        for key_id in list(getattr(args, "allowed_key_id", []) or [])
+        if str(key_id).strip()
+    ]
+    max_signature_age_hours = int(getattr(args, "max_signature_age_hours", 0) or 0)
+
+    expected_verify = bool(getattr(args, "expected_verify_report_input_signatures", False))
+    expected_require_signed = bool(getattr(args, "expected_require_signed_report_inputs", False))
+    expected_allowed_key_ids = [
+        str(key_id).strip()
+        for key_id in list(getattr(args, "expected_report_allowed_key_id", []) or [])
+        if str(key_id).strip()
+    ]
+    expected_max_age = int(getattr(args, "expected_max_report_signature_age_hours", 0) or 0)
+
+    if verify_signatures and not require_signed:
+        errors.append("--require-signed must be set when --verify-signatures is enabled")
+    if verify_signatures and not signature_public_key:
+        errors.append("--signature-public-key is required when --verify-signatures is set")
+    if allowed_key_ids and not verify_signatures:
+        errors.append("--verify-signatures must be set when --allowed-key-id is used")
+    if max_signature_age_hours > 0 and not verify_signatures:
+        errors.append(
+            "--verify-signatures must be set when --max-signature-age-hours is greater than 0"
+        )
+
+    if expected_verify and not expected_require_signed:
+        errors.append(
+            "--expected-require-signed-report-inputs must be set when --expected-verify-report-input-signatures is enabled"
+        )
+    if expected_allowed_key_ids and not expected_verify:
+        errors.append(
+            "--expected-verify-report-input-signatures must be set when --expected-report-allowed-key-id is used"
+        )
+    if expected_max_age > 0 and not expected_verify:
+        errors.append(
+            "--expected-verify-report-input-signatures must be set when --expected-max-report-signature-age-hours is greater than 0"
+        )
+
+    return errors
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     parsed = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(parsed, dict):
@@ -613,6 +662,24 @@ def main() -> int:
     args = _build_parser().parse_args()
     repo_root = Path(__file__).resolve().parent.parent
 
+    configuration_errors = _validate_cli_configuration(args)
+    if configuration_errors:
+        result = {
+            "ok": False,
+            "errors": configuration_errors,
+            "run_id": "",
+            "run_ids": {},
+            "artifacts": {},
+            "runtime_expected_source_hashes": {},
+        }
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print("FAIL")
+            for row in configuration_errors:
+                print(f"- {row}")
+        return 1
+
     enforcement_path = Path(args.enforcement_report)
     if not enforcement_path.is_absolute():
         enforcement_path = repo_root / enforcement_path
@@ -647,8 +714,10 @@ def main() -> int:
         print("PASS" if ok else "FAIL")
         if result.get("run_id"):
             print(f"run_id: {result['run_id']}")
-        for row in result.get("errors", []):
-            print(f"- {row}")
+        rows = result.get("errors", [])
+        if isinstance(rows, list):
+            for row in rows:
+                print(f"- {row}")
 
     return 0 if ok else 1
 

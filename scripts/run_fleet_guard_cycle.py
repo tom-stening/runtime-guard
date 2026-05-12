@@ -368,8 +368,33 @@ def _build_lineage_verify_command(
 
 
 def _summarize_runtime_report(runtime_report_path: Path) -> dict[str, Any]:
-    payload = json.loads(runtime_report_path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(runtime_report_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "run_id": "",
+            "overall_runtime_healthy": False,
+            "fully_enforced": False,
+            "integration_overall_healthy": None,
+            "wsl_risk_level": None,
+            "recommendation_count": 0,
+            "runtime_report": str(runtime_report_path),
+            "parse_error": str(exc),
+        }
+    if not isinstance(payload, dict):
+        return {
+            "run_id": "",
+            "overall_runtime_healthy": False,
+            "fully_enforced": False,
+            "integration_overall_healthy": None,
+            "wsl_risk_level": None,
+            "recommendation_count": 0,
+            "runtime_report": str(runtime_report_path),
+            "parse_error": "runtime report payload must be a JSON object",
+        }
     summary = payload.get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
     return {
         "run_id": payload.get("run_id") or summary.get("run_id"),
         "overall_runtime_healthy": bool(summary.get("overall_runtime_healthy", False)),
@@ -382,7 +407,12 @@ def _summarize_runtime_report(runtime_report_path: Path) -> dict[str, Any]:
 
 
 def _read_run_id_from_report(report_path: Path) -> str:
-    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
     root_run_id = str(payload.get("run_id") or "").strip()
     if root_run_id:
         return root_run_id

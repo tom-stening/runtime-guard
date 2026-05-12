@@ -275,6 +275,24 @@ def test_validate_run_id_consistency_returns_false_for_mismatched_reports(tmp_pa
     assert run_ids["repo_guard_runtime_status"] == "ci-a"
 
 
+    def test_validate_run_id_consistency_handles_invalid_report_json(tmp_path: Path):
+        module = _load_module()
+
+        enforcement = tmp_path / "repo_guard_enforcement.json"
+        integration = tmp_path / "integration_fleet_status.json"
+        runtime = tmp_path / "repo_guard_runtime_status.json"
+
+        enforcement.write_text(json.dumps({"run_id": "ci-a"}), encoding="utf-8")
+        integration.write_text("{not json", encoding="utf-8")
+        runtime.write_text(json.dumps({"run_id": "ci-a"}), encoding="utf-8")
+
+        ok, run_ids = module._validate_run_id_consistency(enforcement, integration, runtime)
+        assert ok is False
+        assert run_ids["repo_guard_enforcement"] == "ci-a"
+        assert run_ids["integration_fleet_status"] == ""
+        assert run_ids["repo_guard_runtime_status"] == "ci-a"
+
+
 def test_summarize_runtime_report(tmp_path: Path):
     module = _load_module()
     path = tmp_path / "runtime.json"
@@ -299,6 +317,32 @@ def test_summarize_runtime_report(tmp_path: Path):
     assert out["integration_overall_healthy"] is True
     assert out["wsl_risk_level"] == "low"
     assert out["recommendation_count"] == 2
+
+
+    def test_summarize_runtime_report_handles_invalid_json(tmp_path: Path):
+        module = _load_module()
+        path = tmp_path / "runtime.json"
+        path.write_text("{not json", encoding="utf-8")
+
+        summary = module._summarize_runtime_report(path)
+        assert summary["run_id"] == ""
+        assert summary["overall_runtime_healthy"] is False
+        assert summary["fully_enforced"] is False
+        assert summary["recommendation_count"] == 0
+        assert "parse_error" in summary
+
+
+    def test_summarize_runtime_report_handles_non_object_payload(tmp_path: Path):
+        module = _load_module()
+        path = tmp_path / "runtime.json"
+        path.write_text(json.dumps([]), encoding="utf-8")
+
+        summary = module._summarize_runtime_report(path)
+        assert summary["run_id"] == ""
+        assert summary["overall_runtime_healthy"] is False
+        assert summary["fully_enforced"] is False
+        assert summary["recommendation_count"] == 0
+        assert "must be a JSON object" in summary["parse_error"]
 
 
 def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):

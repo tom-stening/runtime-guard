@@ -68,6 +68,25 @@ def _parse_args() -> argparse.Namespace:
         choices=["moderate", "high", "critical"],
         help="Exit 1 when WSL risk level is at or above this threshold (requires --include-wsl-diagnosis).",
     )
+    parser.add_argument(
+        "--fail-on-extension-total-rss-mb",
+        type=int,
+        default=0,
+        help=(
+            "Exit 1 when wsl_diagnosis.guest_vscode_extension_total_rss_mb "
+            "meets/exceeds this threshold (requires --include-wsl-diagnosis)."
+        ),
+    )
+    parser.add_argument(
+        "--fail-on-extension-rss",
+        action="append",
+        default=[],
+        metavar="EXTENSION=MB",
+        help=(
+            "Exit 1 when a named extension in wsl_diagnosis.guest_vscode_extension_rss "
+            "meets/exceeds MB threshold. May be repeated."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -201,6 +220,29 @@ def _risk_rank(level: str) -> int:
     return table.get(level.strip().lower(), -1)
 
 
+def _parse_extension_rss_specs(specs: list[str]) -> dict[str, int]:
+    parsed: dict[str, int] = {}
+    for spec in specs:
+        if "=" not in spec:
+            raise ValueError(f"invalid --fail-on-extension-rss spec '{spec}' (expected EXTENSION=MB)")
+        ext_raw, mb_raw = spec.split("=", 1)
+        ext_name = ext_raw.strip()
+        if not ext_name:
+            raise ValueError(f"invalid --fail-on-extension-rss spec '{spec}' (empty extension name)")
+        try:
+            threshold_mb = int(mb_raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid --fail-on-extension-rss spec '{spec}' (MB must be integer)"
+            ) from exc
+        if threshold_mb <= 0:
+            raise ValueError(
+                f"invalid --fail-on-extension-rss spec '{spec}' (MB must be > 0)"
+            )
+        parsed[ext_name] = threshold_mb
+    return parsed
+
+
 def _compute_overall_runtime_healthy(summary: dict[str, Any]) -> bool:
     if not bool(summary.get("fully_enforced", False)):
         return False
@@ -296,6 +338,9 @@ def _build_payload(
         summary["wsl_risk_score"] = int(wsl_diag.get("risk_score", 0) or 0)
         summary["wsl_running_distro_count"] = int(wsl_diag.get("wsl_running_distro_count", 0) or 0)
         summary["wsl_docker_desktop_running"] = bool(wsl_diag.get("docker_desktop_running", False))
+        summary["wsl_vscode_extension_total_rss_mb"] = int(
+            wsl_diag.get("guest_vscode_extension_total_rss_mb", 0) or 0
+        )
         top_rows = wsl_diag.get("guest_top_memory_processes", [])
         if isinstance(top_rows, list) and top_rows:
             first = top_rows[0]
@@ -356,6 +401,13 @@ def main() -> int:
 
     summary = payload.get("summary", {})
     should_fail = False
+    extension_specs: dict[str, int] = {}
+    try:
+        extension_specs = _parse_extension_rss_specs(list(args.fail_on_extension_rss))
+    except ValueError as exc:
+        print(f"error: {exc}", file=os.sys.stderr)
+        return 2
+
     if args.fail_on_unenforced and int(summary.get("unenforced_repos", 0) or 0) > 0:
         should_fail = True
     if args.fail_on_integration_unhealthy and summary.get("integration_overall_healthy") is False:
@@ -365,6 +417,33 @@ def main() -> int:
         actual = str(summary.get("wsl_risk_level", "low"))
         if _risk_rank(actual) >= _risk_rank(threshold):
             should_fail = True
+
+    if args.fail_on_extension_total_rss_mb > 0:
+        actual_total = int(summary.get("wsl_vscode_extension_total_rss_mb", 0) or 0)
+        if actual_total >= int(args.fail_on_extension_total_rss_mb):
+            should_fail = True
+
+    if extension_specs:
+        wsl_diag = payload.get("wsl_diagnosis", {})
+        ext_rows = (
+            wsl_diag.get("guest_vscode_extension_rss", [])
+            if isinstance(wsl_diag, dict)
+            else []
+        )
+        ext_totals: dict[str, int] = {}
+        if isinstance(ext_rows, list):
+            for row in ext_rows:
+                if not isinstance(row, dict):
+                    continue
+                ext_name = str(row.get("extension", "") or "").strip()
+                if not ext_name:
+                    continue
+                ext_totals[ext_name] = int(row.get("rss_mb", 0) or 0)
+
+        for ext_name, threshold_mb in extension_specs.items():
+            if int(ext_totals.get(ext_name, 0) or 0) >= threshold_mb:
+                should_fail = True
+                break
 
     if should_fail:
         return 1

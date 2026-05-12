@@ -174,3 +174,22 @@ def test_fail_on_wsl_risk_requires_threshold_exits_nonzero(tmp_path: Path) -> No
         assert result.returncode == 1
     else:
         assert result.returncode == 0
+
+
+def test_fail_on_extension_rss_invalid_spec_exits_2(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ]
+    }
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--include-wsl-diagnosis",
+        "--fail-on-extension-rss",
+        "broken-spec",
+    )
+    assert result.returncode == 2
+    assert "expected EXTENSION=MB" in result.stderr

@@ -59,6 +59,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Fail when WSL risk reaches the selected threshold",
     )
     p.add_argument(
+        "--fail-on-extension-total-rss-mb",
+        type=int,
+        default=0,
+        help="Fail when summed VS Code extension RSS meets/exceeds MB threshold",
+    )
+    p.add_argument(
+        "--fail-on-extension-rss",
+        action="append",
+        default=[],
+        metavar="EXTENSION=MB",
+        help="Fail when named VS Code extension RSS meets/exceeds MB threshold (repeatable)",
+    )
+    p.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the step commands without executing",
@@ -114,6 +127,12 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
         runtime_cmd.append("--fail-on-integration-unhealthy")
     if args.fail_on_wsl_risk:
         runtime_cmd.extend(["--fail-on-wsl-risk", str(args.fail_on_wsl_risk)])
+    if int(args.fail_on_extension_total_rss_mb or 0) > 0:
+        runtime_cmd.extend(
+            ["--fail-on-extension-total-rss-mb", str(int(args.fail_on_extension_total_rss_mb))]
+        )
+    for spec in list(args.fail_on_extension_rss or []):
+        runtime_cmd.extend(["--fail-on-extension-rss", str(spec)])
 
     return enforce_cmd, integration_cmd, runtime_cmd, enforcement_report, integration_report, runtime_report
 

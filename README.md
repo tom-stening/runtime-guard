@@ -862,7 +862,9 @@ python scripts/run_fleet_guard_cycle.py \
     --integration-fallback-on-pressure \
     --fail-on-unenforced \
     --fail-on-integration-unhealthy \
-    --fail-on-wsl-risk high
+    --fail-on-wsl-risk high \
+    --fail-on-extension-total-rss-mb 2500 \
+    --fail-on-extension-rss ms-python.vscode-pylance=800
 ```
 
 This orchestrator produces refreshed `repo_guard_enforcement.json`,

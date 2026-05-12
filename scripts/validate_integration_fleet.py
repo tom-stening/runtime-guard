@@ -531,13 +531,23 @@ def _detect_runtime_pressure() -> tuple[bool, str | None]:
         return False, f"pressure probe unavailable: {exc}"
 
 
-def _run_validator(repo_root: Path, tool_name: str, script_name: str, extra_args: list[str], timeout_s: int) -> dict[str, Any]:
+def _run_validator(
+    repo_root: Path,
+    tool_name: str,
+    script_name: str,
+    extra_args: list[str],
+    timeout_s: int,
+    run_id: str = "",
+) -> dict[str, Any]:
     cmd = [
         sys.executable,
         str(repo_root / "scripts" / script_name),
         "--json",
         *extra_args,
     ]
+    effective_run_id = str(run_id or "").strip()
+    if effective_run_id:
+        cmd.extend(["--run-id", effective_run_id])
     try:
         proc = subprocess.run(
             cmd,
@@ -804,7 +814,16 @@ def _build_payload(
                 )
             )
             continue
-        components.append(_run_validator(repo_root, tool, script_name, extra_args, timeout_s))
+        components.append(
+            _run_validator(
+                repo_root,
+                tool,
+                script_name,
+                extra_args,
+                timeout_s,
+                run_id=effective_run_id,
+            )
+        )
 
     summary: dict[str, Any] = {
         "components_total": len(components),

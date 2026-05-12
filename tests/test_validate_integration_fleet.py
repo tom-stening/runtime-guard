@@ -664,9 +664,77 @@ def test_run_validator_timeout_returns_unhealthy_component(tmp_path: Path, monke
         "validate_polars_integration.py",
         ["--check-budget-api", "--check-callback-api"],
         timeout_s=1,
+        run_id="ci-run-timeout",
     )
 
     assert component["tool"] == "polars"
     assert component["healthy"] is False
     assert component["exit_code"] == 124
+    assert "--run-id" in component["command"]
+    assert "ci-run-timeout" in component["command"]
     assert any("timed out" in row for row in component["errors"])
+
+
+def test_build_payload_passes_run_id_to_live_validators(tmp_path: Path, monkeypatch):
+    module = _load_module()
+
+    seen: list[str] = []
+
+    def _fake_run(repo_root, tool_name, script_name, extra_args, timeout_s, run_id=""):
+        seen.append(str(run_id))
+        if tool_name == "polars":
+            report = {
+                "ok": True,
+                "api_importable": True,
+                "scan_budget_api": {"available": True},
+                "native_callback_api": {"available": True},
+                "errors": [],
+            }
+        elif tool_name == "dask":
+            report = {
+                "ok": True,
+                "api_importable": True,
+                "task_graph_guard_api": {"available": True},
+                "scheduler_callback_api": {
+                    "available": True,
+                    "telemetry_counters_present": True,
+                },
+                "errors": [],
+            }
+        else:
+            report = {
+                "ok": True,
+                "api_importable": True,
+                "actor_monitoring_api": {
+                    "available": True,
+                    "hotspot_fields_present": True,
+                },
+                "errors": [],
+            }
+        return module._component_from_payload(
+            tool_name,
+            report,
+            source="live",
+            command=[script_name],
+            exit_code=0,
+            hard_errors=[],
+            warnings=[],
+        )
+
+    monkeypatch.setattr(module, "_run_validator", _fake_run)
+
+    payload = module._build_payload(
+        tmp_path,
+        timeout_s=1,
+        include_wsl_diagnosis=False,
+        polars_report=None,
+        dask_report=None,
+        ray_report=None,
+        fallback_on_pressure=False,
+        fallback_report_dir="reports",
+        max_fallback_report_age_hours=0,
+        run_id="ci-run-live",
+    )
+
+    assert payload.get("summary", {}).get("overall_healthy") is True
+    assert seen == ["ci-run-live", "ci-run-live", "ci-run-live"]

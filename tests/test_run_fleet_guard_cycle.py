@@ -345,6 +345,39 @@ def test_summarize_runtime_report(tmp_path: Path):
         assert "must be a JSON object" in summary["parse_error"]
 
 
+    def test_summarize_runtime_report_rejects_malformed_summary_field_types(tmp_path: Path):
+        module = _load_module()
+        path = tmp_path / "runtime.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "run_id": "ci-1",
+                    "summary": {
+                        "overall_runtime_healthy": "true",
+                        "fully_enforced": "true",
+                        "integration_overall_healthy": "false",
+                        "wsl_risk_level": {"level": "high"},
+                        "recommendation_count": "5",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        summary = module._summarize_runtime_report(path)
+        assert summary["run_id"] == "ci-1"
+        assert summary["overall_runtime_healthy"] is False
+        assert summary["fully_enforced"] is False
+        assert summary["integration_overall_healthy"] is None
+        assert summary["wsl_risk_level"] is None
+        assert summary["recommendation_count"] == 0
+        assert any("summary.overall_runtime_healthy must be boolean" in row for row in summary["parse_warnings"])
+        assert any("summary.fully_enforced must be boolean" in row for row in summary["parse_warnings"])
+        assert any("summary.integration_overall_healthy must be boolean or null" in row for row in summary["parse_warnings"])
+        assert any("summary.wsl_risk_level must be string or null" in row for row in summary["parse_warnings"])
+        assert any("summary.recommendation_count must be a non-negative integer" in row for row in summary["parse_warnings"])
+
+
 def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):
     module = _load_module()
     repo_root = Path("/repo")

@@ -395,14 +395,44 @@ def _summarize_runtime_report(runtime_report_path: Path) -> dict[str, Any]:
     summary = payload.get("summary", {})
     if not isinstance(summary, dict):
         summary = {}
+    parse_warnings: list[str] = []
+
+    overall_runtime_healthy = summary.get("overall_runtime_healthy", False)
+    if not isinstance(overall_runtime_healthy, bool):
+        parse_warnings.append("summary.overall_runtime_healthy must be boolean")
+        overall_runtime_healthy = False
+
+    fully_enforced = summary.get("fully_enforced", False)
+    if not isinstance(fully_enforced, bool):
+        parse_warnings.append("summary.fully_enforced must be boolean")
+        fully_enforced = False
+
+    integration_overall_healthy = summary.get("integration_overall_healthy")
+    if integration_overall_healthy is not None and not isinstance(integration_overall_healthy, bool):
+        parse_warnings.append("summary.integration_overall_healthy must be boolean or null")
+        integration_overall_healthy = None
+
+    wsl_risk_level = summary.get("wsl_risk_level")
+    if wsl_risk_level is not None and not isinstance(wsl_risk_level, str):
+        parse_warnings.append("summary.wsl_risk_level must be string or null")
+        wsl_risk_level = None
+
+    recommendation_count_raw = summary.get("recommendation_count", 0)
+    recommendation_count = 0
+    if isinstance(recommendation_count_raw, int) and not isinstance(recommendation_count_raw, bool):
+        recommendation_count = max(0, recommendation_count_raw)
+    else:
+        parse_warnings.append("summary.recommendation_count must be a non-negative integer")
+
     return {
         "run_id": payload.get("run_id") or summary.get("run_id"),
-        "overall_runtime_healthy": bool(summary.get("overall_runtime_healthy", False)),
-        "fully_enforced": bool(summary.get("fully_enforced", False)),
-        "integration_overall_healthy": summary.get("integration_overall_healthy"),
-        "wsl_risk_level": summary.get("wsl_risk_level"),
-        "recommendation_count": int(summary.get("recommendation_count", 0) or 0),
+        "overall_runtime_healthy": overall_runtime_healthy,
+        "fully_enforced": fully_enforced,
+        "integration_overall_healthy": integration_overall_healthy,
+        "wsl_risk_level": wsl_risk_level,
+        "recommendation_count": recommendation_count,
         "runtime_report": str(runtime_report_path),
+        **({"parse_warnings": parse_warnings} if parse_warnings else {}),
     }
 
 

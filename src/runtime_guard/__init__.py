@@ -1902,6 +1902,11 @@ def attach_polars_guard(
         return _restore
 
     def _wrap_lazyframe_method(name: str, fn: Any) -> Any:
+        signature: inspect.Signature | None = None
+        try:
+            signature = inspect.signature(fn)
+        except Exception:
+            signature = None
         callback_kw_names: tuple[str, ...] = _infer_polars_callback_kwargs(fn)
 
         native_callback_stage = f"{stage}-native-callback"
@@ -1918,7 +1923,28 @@ def attach_polars_guard(
         def _guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
             if callback_kw_names:
-                selected_kw_name: str | None = None
+                if signature is not None:
+                    try:
+                        bound = signature.bind_partial(self, *args, **kwargs)
+                    except TypeError:
+                        bound = None
+                    if bound is not None:
+                        selected_kw_name: str | None = None
+                        for kw_name in callback_kw_names:
+                            if kw_name in bound.arguments:
+                                selected_kw_name = kw_name
+                                break
+
+                        if selected_kw_name is None:
+                            selected_kw_name = callback_kw_names[0]
+                            bound.arguments[selected_kw_name] = _chain_native_callback()
+                        else:
+                            user_callback = bound.arguments.get(selected_kw_name)
+                            if user_callback is None or callable(user_callback):
+                                bound.arguments[selected_kw_name] = _chain_native_callback(user_callback)
+                        return fn(*bound.args, **bound.kwargs)
+
+                selected_kw_name = None
                 for kw_name in callback_kw_names:
                     if kw_name in kwargs:
                         selected_kw_name = kw_name

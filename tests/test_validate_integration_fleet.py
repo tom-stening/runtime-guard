@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import subprocess
 from pathlib import Path
 
@@ -14,6 +16,28 @@ def _load_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _stamp_report_payload(payload: dict) -> dict:
+    provenance = payload.setdefault("provenance", {})
+    assert isinstance(provenance, dict)
+    canonical_payload = json.loads(json.dumps(payload, sort_keys=True))
+    canonical_provenance = canonical_payload.get("provenance")
+    if isinstance(canonical_provenance, dict):
+        canonical_provenance.pop("artifact_sha256", None)
+        canonical_provenance.pop("signature", None)
+    canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
+    artifact_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    provenance["artifact_sha256"] = artifact_sha
+    provenance["signature"] = {
+        "mode": "unsigned",
+        "signed_field": "artifact_sha256",
+        "signed_value": artifact_sha,
+        "algorithm": "",
+        "key_id": "",
+        "signature": "",
+    }
+    return payload
 
 
 def test_extract_last_json_object_handles_prefixed_lines():
@@ -179,9 +203,18 @@ def test_component_from_report_rejects_identity_mismatch(tmp_path: Path):
     module = _load_module()
     wrong = tmp_path / "wrong.json"
     wrong.write_text(
-        '{"tool": "validate_ray_integration", "milestone": "M1-I03", "ok": true, '
-        '"api_importable": true, "scan_budget_api": {"available": true}, '
-        '"native_callback_api": {"available": true}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_ray_integration",
+                    "milestone": "M1-I03",
+                    "ok": True,
+                    "api_importable": True,
+                    "scan_budget_api": {"available": True},
+                    "native_callback_api": {"available": True},
+                }
+            )
+        ),
         encoding="utf-8",
     )
 
@@ -195,11 +228,19 @@ def test_component_from_report_rejects_stale_report(tmp_path: Path):
     module = _load_module()
     report = tmp_path / "stale.json"
     report.write_text(
-        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
-        '"ok": true, "api_importable": true, '
-        '"scan_budget_api": {"available": true}, '
-        '"native_callback_api": {"available": true}, '
-        '"provenance": {"generated_at_utc": "2020-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_polars_integration",
+                    "milestone": "M1-I01",
+                    "ok": True,
+                    "api_importable": True,
+                    "scan_budget_api": {"available": True},
+                    "native_callback_api": {"available": True},
+                    "provenance": {"generated_at_utc": "2020-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
 
@@ -217,11 +258,19 @@ def test_component_from_report_staleness_disabled_accepts_old_report(tmp_path: P
     module = _load_module()
     report = tmp_path / "old-ok.json"
     report.write_text(
-        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
-        '"ok": true, "api_importable": true, '
-        '"scan_budget_api": {"available": true}, '
-        '"native_callback_api": {"available": true}, '
-        '"provenance": {"generated_at_utc": "2020-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_polars_integration",
+                    "milestone": "M1-I01",
+                    "ok": True,
+                    "api_importable": True,
+                    "scan_budget_api": {"available": True},
+                    "native_callback_api": {"available": True},
+                    "provenance": {"generated_at_utc": "2020-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
 
@@ -233,12 +282,20 @@ def test_component_from_report_rejects_run_id_mismatch(tmp_path: Path):
     module = _load_module()
     report = tmp_path / "wrong-run.json"
     report.write_text(
-        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
-        '"run_id": "other-run", '
-        '"ok": true, "api_importable": true, '
-        '"scan_budget_api": {"available": true}, '
-        '"native_callback_api": {"available": true}, '
-        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_polars_integration",
+                    "milestone": "M1-I01",
+                    "run_id": "other-run",
+                    "ok": True,
+                    "api_importable": True,
+                    "scan_budget_api": {"available": True},
+                    "native_callback_api": {"available": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
 
@@ -257,12 +314,20 @@ def test_component_from_report_accepts_matching_summary_run_id(tmp_path: Path):
     module = _load_module()
     report = tmp_path / "summary-run.json"
     report.write_text(
-        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
-        '"summary": {"run_id": "ci-run-xyz"}, '
-        '"ok": true, "api_importable": true, '
-        '"scan_budget_api": {"available": true}, '
-        '"native_callback_api": {"available": true}, '
-        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_polars_integration",
+                    "milestone": "M1-I01",
+                    "summary": {"run_id": "ci-run-xyz"},
+                    "ok": True,
+                    "api_importable": True,
+                    "scan_budget_api": {"available": True},
+                    "native_callback_api": {"available": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
 
@@ -276,6 +341,29 @@ def test_component_from_report_accepts_matching_summary_run_id(tmp_path: Path):
     assert comp["healthy"] is True
 
 
+def test_component_from_report_rejects_artifact_sha_mismatch(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "tampered.json"
+    payload = _stamp_report_payload(
+        {
+            "tool": "validate_polars_integration",
+            "milestone": "M1-I01",
+            "ok": True,
+            "api_importable": True,
+            "scan_budget_api": {"available": True},
+            "native_callback_api": {"available": True},
+            "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+        }
+    )
+    payload["provenance"]["artifact_sha256"] = "deadbeef"
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    comp = module._component_from_report("polars", report)
+
+    assert comp["healthy"] is False
+    assert any("report artifact_sha256 mismatch" in err for err in comp["errors"])
+
+
 def test_build_payload_uses_report_fallback_when_pressure_detected(
     tmp_path: Path,
     monkeypatch,
@@ -286,28 +374,53 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
     reports_dir.mkdir(parents=True)
 
     (reports_dir / "polars_integration_status.json").write_text(
-        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
-        '"run_id": "fallback-run", '
-        '"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
-        '"native_callback_api": {"available": true}, '
-        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_polars_integration",
+                    "milestone": "M1-I01",
+                    "run_id": "fallback-run",
+                    "ok": True,
+                    "api_importable": True,
+                    "scan_budget_api": {"available": True},
+                    "native_callback_api": {"available": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
     (reports_dir / "dask_integration_status.json").write_text(
-        '{"tool": "validate_dask_integration", "milestone": "M1-I02", '
-        '"run_id": "fallback-run", '
-        '"ok": true, "api_importable": true, '
-        '"task_graph_guard_api": {"available": true}, '
-        '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}, '
-        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_dask_integration",
+                    "milestone": "M1-I02",
+                    "run_id": "fallback-run",
+                    "ok": True,
+                    "api_importable": True,
+                    "task_graph_guard_api": {"available": True},
+                    "scheduler_callback_api": {"available": True, "telemetry_counters_present": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
     (reports_dir / "ray_integration_status.json").write_text(
-        '{"tool": "validate_ray_integration", "milestone": "M1-I03", '
-        '"run_id": "fallback-run", '
-        '"ok": true, "api_importable": true, '
-        '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}, '
-        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_ray_integration",
+                    "milestone": "M1-I03",
+                    "run_id": "fallback-run",
+                    "ok": True,
+                    "api_importable": True,
+                    "actor_monitoring_api": {"available": True, "hotspot_fields_present": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
 
@@ -344,28 +457,53 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir(parents=True)
     (reports_dir / "polars_integration_status.json").write_text(
-        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
-        '"run_id": "ci-run-xyz", '
-        '"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
-        '"native_callback_api": {"available": true}, '
-        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_polars_integration",
+                    "milestone": "M1-I01",
+                    "run_id": "ci-run-xyz",
+                    "ok": True,
+                    "api_importable": True,
+                    "scan_budget_api": {"available": True},
+                    "native_callback_api": {"available": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
     (reports_dir / "dask_integration_status.json").write_text(
-        '{"tool": "validate_dask_integration", "milestone": "M1-I02", '
-        '"run_id": "ci-run-xyz", '
-        '"ok": true, "api_importable": true, '
-        '"task_graph_guard_api": {"available": true}, '
-        '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}, '
-        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_dask_integration",
+                    "milestone": "M1-I02",
+                    "run_id": "ci-run-xyz",
+                    "ok": True,
+                    "api_importable": True,
+                    "task_graph_guard_api": {"available": True},
+                    "scheduler_callback_api": {"available": True, "telemetry_counters_present": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
     (reports_dir / "ray_integration_status.json").write_text(
-        '{"tool": "validate_ray_integration", "milestone": "M1-I03", '
-        '"run_id": "ci-run-xyz", '
-        '"ok": true, "api_importable": true, '
-        '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}, '
-        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_ray_integration",
+                    "milestone": "M1-I03",
+                    "run_id": "ci-run-xyz",
+                    "ok": True,
+                    "api_importable": True,
+                    "actor_monitoring_api": {"available": True, "hotspot_fields_present": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
         encoding="utf-8",
     )
 

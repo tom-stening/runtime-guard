@@ -288,6 +288,16 @@ def _stamp_artifact_sha256(payload: dict[str, Any]) -> None:
     prov["artifact_sha256"] = _sha256_text(canonical)
 
 
+def _expected_artifact_sha256(payload: dict[str, Any]) -> str:
+    canonical_payload = json.loads(json.dumps(payload, sort_keys=True))
+    canonical_prov = canonical_payload.get("provenance")
+    if isinstance(canonical_prov, dict):
+        canonical_prov.pop("artifact_sha256", None)
+        canonical_prov.pop("signature", None)
+    canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
+    return _sha256_text(canonical)
+
+
 def _build_signature_envelope(artifact_sha256: str) -> dict[str, str]:
     key_id = str(os.getenv("RUNTIME_GUARD_ARTIFACT_KEY_ID", "")).strip()
     algorithm = str(os.getenv("RUNTIME_GUARD_ARTIFACT_SIGNATURE_ALGORITHM", "")).strip()
@@ -419,6 +429,28 @@ def _component_from_report(
             f"report milestone mismatch for {tool_name}: expected {expected_milestone}"
         )
 
+    provenance = report_payload.get("provenance")
+    if not isinstance(provenance, dict):
+        identity_errors.append(f"report provenance missing for {tool_name}")
+    else:
+        artifact_sha = str(provenance.get("artifact_sha256") or "").strip()
+        if not artifact_sha:
+            identity_errors.append(f"report artifact_sha256 missing for {tool_name}")
+        elif artifact_sha != _expected_artifact_sha256(report_payload):
+            identity_errors.append(f"report artifact_sha256 mismatch for {tool_name}")
+
+        signature = provenance.get("signature")
+        if not isinstance(signature, dict):
+            identity_errors.append(f"report signature envelope missing for {tool_name}")
+        else:
+            mode = str(signature.get("mode") or "").strip()
+            if mode not in {"unsigned", "detached"}:
+                identity_errors.append(f"report signature mode invalid for {tool_name}: {mode or 'missing'}")
+            if str(signature.get("signed_field") or "").strip() != "artifact_sha256":
+                identity_errors.append(f"report signature.signed_field invalid for {tool_name}")
+            if str(signature.get("signed_value") or "").strip() != artifact_sha:
+                identity_errors.append(f"report signature.signed_value mismatch for {tool_name}")
+
     expected_run = str(expected_run_id or "").strip()
     if expected_run:
         report_run_id = str(report_payload.get("run_id") or "").strip()
@@ -432,7 +464,6 @@ def _component_from_report(
             )
 
     if int(max_report_age_hours or 0) > 0:
-        provenance = report_payload.get("provenance")
         generated_at_text = ""
         if isinstance(provenance, dict):
             generated_at_text = str(provenance.get("generated_at_utc") or "").strip()

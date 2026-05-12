@@ -28,7 +28,12 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import hashlib
 import json
+import os
+from pathlib import Path
+import subprocess
 import sys
 from typing import Any
 
@@ -65,7 +70,61 @@ def _build_parser() -> argparse.ArgumentParser:
         default="polars-collect",
         help="Stage label to pass to attach_polars_guard (default: polars-collect)",
     )
+    p.add_argument(
+        "--run-id",
+        default="",
+        help="Optional external run identifier for cross-artifact correlation.",
+    )
     return p
+
+
+def _safe_git_commit(repo_root: Path) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return "unknown"
+    if proc.returncode != 0:
+        return "unknown"
+    commit = proc.stdout.strip()
+    return commit or "unknown"
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _stamp_artifact_sha256(payload: dict[str, Any]) -> None:
+    provenance = payload.get("provenance")
+    if not isinstance(provenance, dict):
+        return
+    canonical_payload = json.loads(json.dumps(payload, sort_keys=True))
+    canonical_provenance = canonical_payload.get("provenance")
+    if isinstance(canonical_provenance, dict):
+        canonical_provenance.pop("artifact_sha256", None)
+        canonical_provenance.pop("signature", None)
+    canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
+    provenance["artifact_sha256"] = _sha256_text(canonical)
+
+
+def _build_signature_envelope(artifact_sha256: str) -> dict[str, str]:
+    key_id = str(os.getenv("RUNTIME_GUARD_ARTIFACT_KEY_ID", "")).strip()
+    algorithm = str(os.getenv("RUNTIME_GUARD_ARTIFACT_SIGNATURE_ALGORITHM", "")).strip()
+    signature = str(os.getenv("RUNTIME_GUARD_ARTIFACT_SIGNATURE", "")).strip()
+    mode = "detached" if signature else "unsigned"
+    return {
+        "mode": mode,
+        "signed_field": "artifact_sha256",
+        "signed_value": artifact_sha256,
+        "algorithm": algorithm,
+        "key_id": key_id,
+        "signature": signature,
+    }
 
 
 def _check_budget_api() -> dict[str, Any]:
@@ -182,6 +241,7 @@ def _check_callback_api() -> dict[str, Any]:
 
 def main() -> int:
     args = _build_parser().parse_args()
+    repo_root = Path(__file__).resolve().parent.parent
 
     report: dict[str, Any] = {
         "tool": "validate_polars_integration",
@@ -279,6 +339,25 @@ def main() -> int:
         ok = ok and callback_check_ok
 
     report["ok"] = ok
+    report["run_id"] = str(args.run_id or "").strip()
+    report["provenance"] = {
+        "schema_version": 1,
+        "tool": "validate_polars_integration",
+        "script": str(Path(__file__).resolve()),
+        "generated_at_utc": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "run_id": str(args.run_id or "").strip(),
+        "git_commit": _safe_git_commit(repo_root),
+        "inputs": {
+            "check_budget_api": bool(args.check_budget_api),
+            "check_callback_api": bool(args.check_callback_api),
+            "require_hooks": bool(args.require_hooks),
+            "stage": str(args.stage),
+        },
+    }
+    _stamp_artifact_sha256(report)
+    provenance = report.get("provenance")
+    if isinstance(provenance, dict):
+        provenance["signature"] = _build_signature_envelope(str(provenance.get("artifact_sha256") or ""))
 
     # ---- 8. Emit output ---------------------------------------------------
     if args.json:

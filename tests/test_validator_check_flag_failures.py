@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -46,3 +47,60 @@ def test_validate_ray_fails_when_actor_check_unavailable(monkeypatch):
     )
     monkeypatch.setattr(module.sys, "argv", ["validate_ray_integration.py", "--check-actor-api", "--json"])
     assert module.main() == 1
+
+
+def test_validate_polars_json_emits_provenance_and_run_id(monkeypatch, capsys):
+    module = _load_script("validate_polars_integration", "validate_polars_integration.py")
+    monkeypatch.setattr(
+        module.sys,
+        "argv",
+        ["validate_polars_integration.py", "--json", "--run-id", "ci-polars"],
+    )
+    assert module.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["run_id"] == "ci-polars"
+    assert payload["provenance"]["run_id"] == "ci-polars"
+    assert payload["provenance"]["artifact_sha256"]
+    assert payload["provenance"]["signature"]["signed_field"] == "artifact_sha256"
+    assert (
+        payload["provenance"]["signature"]["signed_value"]
+        == payload["provenance"]["artifact_sha256"]
+    )
+
+
+def test_validate_dask_json_emits_provenance_and_run_id(monkeypatch, capsys):
+    module = _load_script("validate_dask_integration", "validate_dask_integration.py")
+    monkeypatch.setattr(
+        module.sys,
+        "argv",
+        ["validate_dask_integration.py", "--json", "--run-id", "ci-dask"],
+    )
+    assert module.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["run_id"] == "ci-dask"
+    assert payload["provenance"]["run_id"] == "ci-dask"
+    assert payload["provenance"]["artifact_sha256"]
+    assert payload["provenance"]["signature"]["signed_field"] == "artifact_sha256"
+    assert (
+        payload["provenance"]["signature"]["signed_value"]
+        == payload["provenance"]["artifact_sha256"]
+    )
+
+
+def test_validate_ray_json_emits_provenance_and_run_id(monkeypatch, capsys):
+    module = _load_script("validate_ray_integration", "validate_ray_integration.py")
+    monkeypatch.setattr(
+        module.sys,
+        "argv",
+        ["validate_ray_integration.py", "--json", "--run-id", "ci-ray"],
+    )
+    assert module.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["run_id"] == "ci-ray"
+    assert payload["provenance"]["run_id"] == "ci-ray"
+    assert payload["provenance"]["artifact_sha256"]
+    assert payload["provenance"]["signature"]["signed_field"] == "artifact_sha256"
+    assert (
+        payload["provenance"]["signature"]["signed_value"]
+        == payload["provenance"]["artifact_sha256"]
+    )

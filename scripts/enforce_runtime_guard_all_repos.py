@@ -90,6 +90,12 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _normalize_run_id(value: Any) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return ""
+
+
 def _discover_git_repos(root: Path) -> list[Path]:
     repos: list[Path] = []
     for dirpath, dirnames, _filenames in os.walk(root):
@@ -296,7 +302,7 @@ def main() -> int:
         )
 
     summary = _summarize(statuses)
-    run_id = str(args.run_id or "").strip()
+    run_id = _normalize_run_id(args.run_id)
     if not run_id:
         run_id = str(uuid.uuid4())
     summary_payload = asdict(summary)

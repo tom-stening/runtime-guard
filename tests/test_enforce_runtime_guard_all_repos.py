@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -25,6 +26,18 @@ def _run_script(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
         check=False,
         env=os.environ.copy(),
     )
+
+
+def _load_module():
+    repo_root = Path(__file__).resolve().parent.parent
+    script_path = repo_root / "scripts" / "enforce_runtime_guard_all_repos.py"
+    spec = importlib.util.spec_from_file_location("enforce_runtime_guard_all_repos", script_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_enforcement_creates_sitecustomize_for_python_repo(tmp_path: Path) -> None:
@@ -116,3 +129,38 @@ def test_run_id_override_is_written_to_enforcement_payload(tmp_path: Path) -> No
     signature = provenance.get("signature", {})
     assert signature.get("mode") in {"unsigned", "detached"}
     assert signature.get("signed_field") == "artifact_sha256"
+
+
+def test_non_string_run_id_generates_uuid_in_enforcement_payload(tmp_path: Path, monkeypatch) -> None:
+    repo = tmp_path / "py-repo"
+    repo.mkdir(parents=True)
+    (repo / ".git").mkdir()
+    (repo / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+
+    module = _load_module()
+
+    class _Args:
+        root = str(tmp_path)
+        report_path = str(tmp_path / "report.json")
+        stage = "repo-autostart"
+        interval_s = 30.0
+        cooldown_s = 30.0
+        env_prefix = "RUNTIME_GUARD"
+        posture = "wsl_dev"
+        enforce_all_repos = False
+        force_runtime_guard_sitecustomize = False
+        run_id = 123
+        dry_run = False
+
+    monkeypatch.setattr(module, "_parse_args", lambda: _Args())
+
+    result_code = module.main()
+    assert result_code == 0
+
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    run_id = report.get("run_id")
+    assert isinstance(run_id, str)
+    assert run_id
+    assert run_id != "123"
+    assert report.get("summary", {}).get("run_id") == run_id
+    assert report.get("provenance", {}).get("run_id") == run_id

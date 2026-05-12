@@ -164,6 +164,12 @@ def _load_json(path: Path) -> dict[str, Any]:
     return parsed
 
 
+def _strict_string(value: Any) -> tuple[str, bool]:
+    if isinstance(value, str) and value.strip():
+        return value.strip(), True
+    return "", False
+
+
 def _extract_run_id(payload: dict[str, Any]) -> str:
     root = payload.get("run_id")
     if isinstance(root, str) and root.strip():
@@ -503,30 +509,44 @@ def _validate_signature_envelope(
         if key not in sig:
             errors.append(f"{name}: signature missing '{key}'")
 
-    mode = str(sig.get("mode") or "")
+    mode, mode_ok = _strict_string(sig.get("mode"))
+    if not mode_ok:
+        errors.append(f"{name}: signature mode must be a non-empty string")
     if mode not in {"unsigned", "detached"}:
         errors.append(f"{name}: signature mode must be 'unsigned' or 'detached'")
 
-    signed_field = str(sig.get("signed_field") or "")
+    signed_field, signed_field_ok = _strict_string(sig.get("signed_field"))
+    if not signed_field_ok:
+        errors.append(f"{name}: signature.signed_field must be a non-empty string")
     if signed_field != "artifact_sha256":
         errors.append(f"{name}: signature.signed_field must be artifact_sha256")
 
-    artifact_sha = str(prov.get("artifact_sha256") or "")
-    signed_value = str(sig.get("signed_value") or "")
+    artifact_sha, artifact_sha_ok = _strict_string(prov.get("artifact_sha256"))
+    if not artifact_sha_ok:
+        errors.append(f"{name}: provenance.artifact_sha256 must be a non-empty string")
+    signed_value, signed_value_ok = _strict_string(sig.get("signed_value"))
+    if not signed_value_ok:
+        errors.append(f"{name}: signature.signed_value must be a non-empty string")
     if artifact_sha and signed_value != artifact_sha:
         errors.append(f"{name}: signature.signed_value must match provenance.artifact_sha256")
 
     if require_signed:
         if mode != "detached":
             errors.append(f"{name}: detached signature required")
-        if not str(sig.get("signature") or "").strip():
+        signature_text, signature_ok = _strict_string(sig.get("signature"))
+        if not signature_ok:
             errors.append(f"{name}: detached signature payload missing")
-        if not str(sig.get("key_id") or "").strip():
+        key_id, key_id_ok = _strict_string(sig.get("key_id"))
+        if not key_id_ok:
             errors.append(f"{name}: detached signature key_id missing")
-        if not str(sig.get("algorithm") or "").strip():
+        algorithm, algorithm_ok = _strict_string(sig.get("algorithm"))
+        if not algorithm_ok:
             errors.append(f"{name}: detached signature algorithm missing")
+    else:
+        signature_text, _ = _strict_string(sig.get("signature"))
+        key_id, _ = _strict_string(sig.get("key_id"))
+        algorithm, _ = _strict_string(sig.get("algorithm"))
 
-    key_id = str(sig.get("key_id") or "").strip()
     if allowed_key_ids:
         if not key_id:
             errors.append(f"{name}: signature key_id is required by allowed-key-id policy")
@@ -536,7 +556,9 @@ def _validate_signature_envelope(
     if int(max_signature_age_hours or 0) > 0:
         generated_at = ""
         if isinstance(prov, dict):
-            generated_at = str(prov.get("generated_at_utc") or "").strip()
+            generated_at, generated_ok = _strict_string(prov.get("generated_at_utc"))
+            if not generated_ok:
+                errors.append(f"{name}: provenance.generated_at_utc must be a non-empty string")
         issued = _parse_utc_timestamp(generated_at)
         if issued is None:
             errors.append(f"{name}: invalid generated_at_utc for signature age policy")
@@ -558,9 +580,9 @@ def _validate_signature_envelope(
             return errors
 
         ok, reason = _verify_detached_signature(
-            algorithm=str(sig.get("algorithm") or ""),
-            signed_value=str(sig.get("signed_value") or ""),
-            signature_text=str(sig.get("signature") or ""),
+            algorithm=algorithm,
+            signed_value=signed_value,
+            signature_text=signature_text,
             public_key_path=Path(key_path),
         )
         if not ok:

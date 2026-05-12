@@ -786,6 +786,107 @@ def test_build_result_verify_signatures_calls_crypto_backend(tmp_path: Path, mon
     assert result["errors"] == []
 
 
+def test_build_result_rejects_non_string_signature_envelope_fields(tmp_path: Path):
+    module = _load_module()
+
+    enforcement_path = tmp_path / "repo_guard_enforcement.json"
+    integration_path = tmp_path / "integration_fleet_status.json"
+    runtime_path = tmp_path / "repo_guard_runtime_status.json"
+
+    enforcement = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "enforce_runtime_guard_all_repos",
+                    "generated_at_utc": "2026-05-12T00:00:00Z",
+                    "run_id": "ci-1",
+                    "git_commit": "abc123",
+                    "script": "/repo/scripts/enforce_runtime_guard_all_repos.py",
+                    "inputs": {},
+                },
+            }
+        )
+    )
+    integration = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "validate_integration_fleet",
+                    "generated_at_utc": "2026-05-12T00:00:01Z",
+                    "run_id": "ci-1",
+                    "git_commit": "abc123",
+                    "script": "/repo/scripts/validate_integration_fleet.py",
+                    "inputs": {},
+                },
+            }
+        )
+    )
+    enforcement_path.write_text(json.dumps(enforcement), encoding="utf-8")
+    integration_path.write_text(json.dumps(integration), encoding="utf-8")
+
+    runtime = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "repo_guard_fleet_report",
+                    "generated_at_utc": "2026-05-12T00:00:02Z",
+                    "run_id": "ci-1",
+                    "git_commit": "abc123",
+                    "script": "/repo/scripts/repo_guard_fleet_report.py",
+                    "inputs": {
+                        "source_artifact_hashes": {
+                            "repo_guard_enforcement": _sha(enforcement_path),
+                            "integration_fleet_status": _sha(integration_path),
+                        }
+                    },
+                },
+            }
+        )
+    )
+
+    enforcement["provenance"]["signature"] = {
+        "mode": 123,
+        "signed_field": True,
+        "signed_value": False,
+        "algorithm": 7,
+        "key_id": [],
+        "signature": {},
+    }
+    integration["provenance"]["signature"] = enforcement["provenance"]["signature"]
+    runtime["provenance"]["signature"] = enforcement["provenance"]["signature"]
+
+    runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
+
+    ok, result = module._build_result(
+        enforcement_path,
+        integration_path,
+        runtime_path,
+        strict=True,
+        require_signed=True,
+        verify_signatures=True,
+        signature_public_key="/tmp/pubkey.pem",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
+    )
+    assert ok is False
+    assert any("signature mode must be a non-empty string" in row for row in result["errors"])
+    assert any("signature.signed_field must be a non-empty string" in row for row in result["errors"])
+    assert any("signature.signed_value must be a non-empty string" in row for row in result["errors"])
+
+
 def test_build_result_fails_on_disallowed_key_id(tmp_path: Path):
     module = _load_module()
 

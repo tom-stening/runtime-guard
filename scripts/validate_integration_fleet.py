@@ -333,6 +333,12 @@ def _normalize_run_id(value: Any) -> str:
     return ""
 
 
+def _strict_string(value: Any) -> tuple[str, bool]:
+    if isinstance(value, str) and value.strip():
+        return value.strip(), True
+    return "", False
+
+
 def _safe_git_commit(repo_root: Path) -> str:
     try:
         proc = subprocess.run(
@@ -492,28 +498,45 @@ def _validate_report_signature(
         return [f"report signature envelope missing for {tool_name}"]
 
     errors: list[str] = []
-    mode = str(signature.get("mode") or "").strip()
+    mode, mode_ok = _strict_string(signature.get("mode"))
+    if not mode_ok:
+        errors.append(f"report signature.mode must be a non-empty string for {tool_name}")
     if mode not in {"unsigned", "detached"}:
         errors.append(f"report signature mode invalid for {tool_name}: {mode or 'missing'}")
 
-    if str(signature.get("signed_field") or "").strip() != "artifact_sha256":
+    signed_field, signed_field_ok = _strict_string(signature.get("signed_field"))
+    if not signed_field_ok:
+        errors.append(f"report signature.signed_field must be a non-empty string for {tool_name}")
+    if signed_field != "artifact_sha256":
         errors.append(f"report signature.signed_field invalid for {tool_name}")
 
-    artifact_sha = str(provenance.get("artifact_sha256") or "").strip()
-    if str(signature.get("signed_value") or "").strip() != artifact_sha:
+    artifact_sha, artifact_sha_ok = _strict_string(provenance.get("artifact_sha256"))
+    if not artifact_sha_ok:
+        errors.append(f"report provenance.artifact_sha256 must be a non-empty string for {tool_name}")
+
+    signed_value, signed_value_ok = _strict_string(signature.get("signed_value"))
+    if not signed_value_ok:
+        errors.append(f"report signature.signed_value must be a non-empty string for {tool_name}")
+    if signed_value != artifact_sha:
         errors.append(f"report signature.signed_value mismatch for {tool_name}")
 
     if require_signed:
         if mode != "detached":
             errors.append(f"report detached signature required for {tool_name}")
-        if not str(signature.get("signature") or "").strip():
+        signature_text, signature_ok = _strict_string(signature.get("signature"))
+        if not signature_ok:
             errors.append(f"report detached signature payload missing for {tool_name}")
-        if not str(signature.get("key_id") or "").strip():
+        key_id, key_id_ok = _strict_string(signature.get("key_id"))
+        if not key_id_ok:
             errors.append(f"report detached signature key_id missing for {tool_name}")
-        if not str(signature.get("algorithm") or "").strip():
+        algorithm, algorithm_ok = _strict_string(signature.get("algorithm"))
+        if not algorithm_ok:
             errors.append(f"report detached signature algorithm missing for {tool_name}")
+    else:
+        signature_text, _ = _strict_string(signature.get("signature"))
+        key_id, _ = _strict_string(signature.get("key_id"))
+        algorithm, _ = _strict_string(signature.get("algorithm"))
 
-    key_id = str(signature.get("key_id") or "").strip()
     if allowed_key_ids:
         if not key_id:
             errors.append(f"report signature key_id is required by policy for {tool_name}")
@@ -521,7 +544,12 @@ def _validate_report_signature(
             errors.append(f"report signature key_id '{key_id}' not allowed for {tool_name}")
 
     if int(max_signature_age_hours or 0) > 0:
-        issued = _parse_utc_timestamp(str(provenance.get("generated_at_utc") or "").strip())
+        generated_at_text, generated_ok = _strict_string(provenance.get("generated_at_utc"))
+        if not generated_ok:
+            errors.append(f"report provenance.generated_at_utc must be a non-empty string for {tool_name}")
+            issued = None
+        else:
+            issued = _parse_utc_timestamp(generated_at_text)
         if issued is None:
             errors.append(f"report generated_at_utc missing/invalid for {tool_name} signature age policy")
         else:
@@ -540,9 +568,9 @@ def _validate_report_signature(
             errors.append("--report-signature-public-key is required when --verify-report-input-signatures is set")
             return errors
         ok, reason = _verify_detached_signature(
-            algorithm=str(signature.get("algorithm") or ""),
-            signed_value=str(signature.get("signed_value") or ""),
-            signature_text=str(signature.get("signature") or ""),
+            algorithm=algorithm,
+            signed_value=signed_value,
+            signature_text=signature_text,
             public_key_path=Path(key_path),
         )
         if not ok:

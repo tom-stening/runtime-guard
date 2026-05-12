@@ -588,6 +588,45 @@ def test_component_from_report_verify_signatures_calls_crypto_backend(tmp_path: 
     assert comp["healthy"] is True
 
 
+def test_component_from_report_rejects_non_string_signature_envelope_fields(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "bad-signature-types.json"
+    payload = _stamp_report_payload(
+        {
+            "tool": "validate_polars_integration",
+            "milestone": "M1-I01",
+            "ok": True,
+            "api_importable": True,
+            "scan_budget_api": {"available": True},
+            "native_callback_api": {"available": True},
+            "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+        }
+    )
+    payload["provenance"]["signature"] = {
+        "mode": 123,
+        "signed_field": True,
+        "signed_value": False,
+        "algorithm": 7,
+        "key_id": [],
+        "signature": {},
+    }
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    comp = module._component_from_report(
+        "polars",
+        report,
+        require_signed=True,
+        verify_signatures=True,
+        signature_public_key="/tmp/public.pem",
+    )
+
+    assert comp["healthy"] is False
+    assert any("report signature.mode must be a non-empty string" in err for err in comp["errors"])
+    assert any("report signature.signed_field must be a non-empty string" in err for err in comp["errors"])
+    assert any("report signature.signed_value must be a non-empty string" in err for err in comp["errors"])
+    assert any("report detached signature payload missing" in err for err in comp["errors"])
+
+
 def test_component_from_report_rejects_disallowed_signature_key_id(tmp_path: Path):
     module = _load_module()
     report = tmp_path / "wrong-key.json"

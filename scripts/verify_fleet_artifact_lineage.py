@@ -744,11 +744,13 @@ def _build_result(
 
     runtime_prov = runtime.get("provenance", {})
     runtime_inputs = runtime_prov.get("inputs", {}) if isinstance(runtime_prov, dict) else {}
-    runtime_source_hashes = (
-        runtime_inputs.get("source_artifact_hashes", {})
-        if isinstance(runtime_inputs, dict)
-        else {}
-    )
+    runtime_source_hashes: dict[str, Any] = {}
+    if isinstance(runtime_inputs, dict):
+        raw_runtime_source_hashes = runtime_inputs.get("source_artifact_hashes", {})
+        if isinstance(raw_runtime_source_hashes, dict):
+            runtime_source_hashes = raw_runtime_source_hashes
+        else:
+            errors.append("repo_guard_runtime_status: source_artifact_hashes must be an object")
 
     expected_source_hashes = {
         "repo_guard_enforcement": _sha256_file(enforcement_path),

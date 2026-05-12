@@ -881,7 +881,9 @@ This orchestrator produces refreshed `repo_guard_enforcement.json`,
 `integration_fleet_status.json`, and `repo_guard_runtime_status.json` in one
 run and exits non-zero on selected policy failures. Use `--run-id` to align
 `failed_gates` records with external CI run identifiers; the same `run_id` is
-propagated into enforcement, integration, and runtime artifact payloads.
+propagated into enforcement, integration, and runtime artifact payloads. When
+`--run-id` is omitted, the orchestrator generates one run ID and still enforces
+cross-artifact run_id consistency (non-zero exit on mismatch or missing run_id).
 
 ### Measuring success
 

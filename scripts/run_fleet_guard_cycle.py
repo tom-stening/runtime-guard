@@ -16,6 +16,7 @@ import argparse
 import json
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -93,6 +94,8 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
     integration_report = reports_dir / "integration_fleet_status.json"
     runtime_report = reports_dir / "repo_guard_runtime_status.json"
     run_id = str(args.run_id or "").strip()
+    if not run_id:
+        run_id = str(uuid.uuid4())
 
     enforce_cmd = [
         sys.executable,
@@ -158,6 +161,7 @@ def _summarize_runtime_report(runtime_report_path: Path) -> dict[str, Any]:
     payload = json.loads(runtime_report_path.read_text(encoding="utf-8"))
     summary = payload.get("summary", {})
     return {
+        "run_id": payload.get("run_id") or summary.get("run_id"),
         "overall_runtime_healthy": bool(summary.get("overall_runtime_healthy", False)),
         "fully_enforced": bool(summary.get("fully_enforced", False)),
         "integration_overall_healthy": summary.get("integration_overall_healthy"),
@@ -167,11 +171,40 @@ def _summarize_runtime_report(runtime_report_path: Path) -> dict[str, Any]:
     }
 
 
+def _read_run_id_from_report(report_path: Path) -> str:
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    root_run_id = str(payload.get("run_id") or "").strip()
+    if root_run_id:
+        return root_run_id
+    summary = payload.get("summary")
+    if isinstance(summary, dict):
+        summary_run_id = str(summary.get("run_id") or "").strip()
+        if summary_run_id:
+            return summary_run_id
+    return ""
+
+
+def _validate_run_id_consistency(
+    enforcement_report: Path,
+    integration_report: Path,
+    runtime_report: Path,
+) -> tuple[bool, dict[str, str]]:
+    run_ids = {
+        "repo_guard_enforcement": _read_run_id_from_report(enforcement_report),
+        "integration_fleet_status": _read_run_id_from_report(integration_report),
+        "repo_guard_runtime_status": _read_run_id_from_report(runtime_report),
+    }
+    unique_run_ids = {value for value in run_ids.values() if value}
+    if len(unique_run_ids) != 1 or any(not value for value in run_ids.values()):
+        return False, run_ids
+    return True, run_ids
+
+
 def main() -> int:
     args = _build_parser().parse_args()
     repo_root = Path(__file__).resolve().parent.parent
 
-    enforce_cmd, integration_cmd, runtime_cmd, _, _, runtime_report = _build_step_commands(args, repo_root)
+    enforce_cmd, integration_cmd, runtime_cmd, enforcement_report, integration_report, runtime_report = _build_step_commands(args, repo_root)
 
     if bool(args.dry_run):
         print("[dry-run] enforce:", " ".join(enforce_cmd))
@@ -191,7 +224,32 @@ def main() -> int:
     if step3 != 0:
         return step3
 
+    run_id_consistent, run_id_map = _validate_run_id_consistency(
+        enforcement_report,
+        integration_report,
+        runtime_report,
+    )
+    if not run_id_consistent:
+        print(
+            json.dumps(
+                {
+                    "error": "run_id mismatch across fleet artifacts",
+                    "run_ids": run_id_map,
+                    "artifacts": {
+                        "enforcement_report": str(enforcement_report),
+                        "integration_report": str(integration_report),
+                        "runtime_report": str(runtime_report),
+                    },
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 1
+
     summary = _summarize_runtime_report(runtime_report)
+    summary["run_id_consistent"] = True
+    summary["run_ids"] = run_id_map
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
 

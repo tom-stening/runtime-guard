@@ -552,6 +552,39 @@ class TestWslRuntimeContext:
         ctx = _read_wsl_running_distros()
         assert ctx["wsl_running_distro_count"] >= 0
 
+    def test_summarize_vscode_extension_rss_aggregates_and_normalizes(self):
+        from runtime_guard import _summarize_vscode_extension_rss
+
+        rows = [
+            {
+                "pid": 10,
+                "rss_mb": 700,
+                "command": "/home/u/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js",
+            },
+            {
+                "pid": 11,
+                "rss_mb": 500,
+                "command": "/home/u/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js",
+            },
+            {
+                "pid": 12,
+                "rss_mb": 300,
+                "command": "/home/u/.vscode-server/extensions/tamasfe.even-better-toml-0.21.2/dist/server.js",
+            },
+            {
+                "pid": 13,
+                "rss_mb": 450,
+                "command": "/home/u/.vscode-server/bin/hash/out/bootstrap-fork --type=extensionHost",
+            },
+        ]
+
+        summary = _summarize_vscode_extension_rss(rows, limit=5)
+        assert summary[0]["extension"] == "ms-python.vscode-pylance"
+        assert summary[0]["rss_mb"] == 1200
+        assert summary[0]["process_count"] == 2
+        assert set(summary[0]["pids"]) == {10, 11}
+        assert any(r["extension"] == "vscode.extension-host" for r in summary)
+
 
 class TestDiagnoseWslCrash:
     def test_diagnose_wsl_crash_includes_top_processes_and_runtime_context(self, monkeypatch):
@@ -755,7 +788,16 @@ class TestDiagnoseWslCrash:
         diag = diagnose_wsl_crash()
         assert diag["risk_level"] in {"moderate", "high", "critical"}
         assert any("VS Code extension hosts" in item for item in diag["likely_causes"])
+        assert any("top extension memory consumers" in item for item in diag["likely_causes"])
+        assert any("ms-python.vscode-pylance" in item for item in diag["likely_causes"])
         assert any("reload VS Code window" in item for item in diag["prevention_actions"])
+        assert any("top extensions" in item for item in diag["prevention_actions"])
+        assert isinstance(diag.get("guest_vscode_extension_rss"), list)
+        assert any(
+            row.get("extension") == "ms-python.vscode-pylance"
+            for row in diag.get("guest_vscode_extension_rss", [])
+            if isinstance(row, dict)
+        )
 
 
 class TestPressureReportNewFields:

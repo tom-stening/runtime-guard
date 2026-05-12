@@ -54,6 +54,7 @@ import hashlib
 import inspect
 import logging
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -5678,23 +5679,18 @@ def _derive_vscode_extension_pressure_hints(
 
     Returns (score_delta, causes, prevention_actions).
     """
-    rows_raw = metrics.get("guest_top_memory_processes", [])
-    if not isinstance(rows_raw, list):
-        return 0, [], []
+    ext_rows_raw = metrics.get("guest_vscode_extension_rss", [])
+    ext_rows: list[dict[str, Any]] = []
+    if isinstance(ext_rows_raw, list):
+        for item in ext_rows_raw:
+            if isinstance(item, dict):
+                ext_rows.append(item)
 
-    vscode_rows: list[dict[str, Any]] = []
-    for item in rows_raw:
-        if not isinstance(item, dict):
-            continue
-        cmd = str(item.get("command", "") or "").lower()
-        if ".vscode-server" in cmd or "extensionhost" in cmd or "/extensions/" in cmd:
-            vscode_rows.append(item)
-
-    if not vscode_rows:
+    if not ext_rows:
         return 0, [], []
 
     total_vscode_rss_mb = 0
-    for row in vscode_rows:
+    for row in ext_rows:
         try:
             total_vscode_rss_mb += int(row.get("rss_mb", 0) or 0)
         except Exception:
@@ -5706,15 +5702,86 @@ def _derive_vscode_extension_pressure_hints(
     elif total_vscode_rss_mb >= 3000:
         score_delta = 1
 
+    top_extension_labels: list[str] = []
+    for row in ext_rows[:3]:
+        name = str(row.get("extension", "") or "").strip()
+        if not name:
+            continue
+        rss_mb = int(row.get("rss_mb", 0) or 0)
+        top_extension_labels.append(f"{name} ({rss_mb} MB)")
+
     causes = [
         "VS Code extension hosts account for elevated guest RSS "
         f"(~{total_vscode_rss_mb} MB across top processes)"
     ]
+    if top_extension_labels:
+        causes.append("top extension memory consumers: " + ", ".join(top_extension_labels))
+
     prevention = [
         "reload VS Code window and disable high-RSS extensions not needed for the current task",
         "split large multi-root workspaces to reduce concurrent language-server indexing load",
     ]
+    if top_extension_labels:
+        prevention.append(
+            "review settings and indexing scope for top extensions: "
+            + ", ".join(str(row.get("extension", "")) for row in ext_rows[:3] if row.get("extension"))
+        )
+
     return score_delta, causes, prevention
+
+
+def _summarize_vscode_extension_rss(rows_raw: Any, limit: int = 5) -> list[dict[str, Any]]:
+    """Summarize VS Code extension RSS from guest top-process rows."""
+    if not isinstance(rows_raw, list):
+        return []
+
+    extension_map: dict[str, dict[str, Any]] = {}
+
+    for item in rows_raw:
+        if not isinstance(item, dict):
+            continue
+        cmd = str(item.get("command", "") or "")
+        cmd_lower = cmd.lower()
+        if ".vscode-server" not in cmd_lower:
+            continue
+
+        ext_name: str | None = None
+        match = re.search(r"/\.vscode-server/extensions/([^/\s]+)", cmd)
+        if match:
+            ext_name = str(match.group(1) or "").strip()
+            if ext_name:
+                ext_name = re.sub(r"-(\d+(?:\.\d+){1,})$", "", ext_name)
+        if not ext_name:
+            if "extensionhost" in cmd_lower:
+                ext_name = "vscode.extension-host"
+            else:
+                continue
+
+        try:
+            rss_mb = int(item.get("rss_mb", 0) or 0)
+            pid = int(item.get("pid", 0) or 0)
+        except Exception:
+            continue
+
+        row = extension_map.get(ext_name)
+        if row is None:
+            row = {
+                "extension": ext_name,
+                "rss_mb": 0,
+                "process_count": 0,
+                "pids": [],
+            }
+            extension_map[ext_name] = row
+
+        row["rss_mb"] = int(row.get("rss_mb", 0) or 0) + rss_mb
+        row["process_count"] = int(row.get("process_count", 0) or 0) + 1
+        row_pids = row.get("pids")
+        if isinstance(row_pids, list):
+            row_pids.append(pid)
+
+    rows = list(extension_map.values())
+    rows.sort(key=lambda r: int(r.get("rss_mb", 0) or 0), reverse=True)
+    return rows[: max(1, int(limit))]
 
 
 def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], list[str]]:
@@ -5934,6 +6001,10 @@ def diagnose_wsl_crash() -> dict[str, Any]:
         "host_high_relevance_event_count": 0,
         "guest_top_memory_processes": _top_memory_process_details(8),
     }
+    metrics["guest_vscode_extension_rss"] = _summarize_vscode_extension_rss(
+        metrics.get("guest_top_memory_processes", []),
+        limit=5,
+    )
     metrics.update(psi)
     metrics.update(_read_wsl_running_distros())
     metrics.update(_read_windows_wsl_event_hints())

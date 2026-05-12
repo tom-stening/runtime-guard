@@ -197,3 +197,11 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
 
     assert payload.get("run_id") == "ci-run-xyz"
     assert payload.get("summary", {}).get("run_id") == "ci-run-xyz"
+    provenance = payload.get("provenance", {})
+    assert provenance.get("tool") == "validate_integration_fleet"
+    assert provenance.get("run_id") == "ci-run-xyz"
+    assert str(provenance.get("generated_at_utc", "")).endswith("Z")
+    src_hashes = provenance.get("inputs", {}).get("source_artifact_hashes", {})
+    assert src_hashes.get("polars")
+    assert src_hashes.get("dask")
+    assert src_hashes.get("ray")

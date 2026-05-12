@@ -107,3 +107,8 @@ def test_run_id_override_is_written_to_enforcement_payload(tmp_path: Path) -> No
     report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
     assert report.get("run_id") == "ci-run-xyz"
     assert report.get("summary", {}).get("run_id") == "ci-run-xyz"
+    provenance = report.get("provenance", {})
+    assert provenance.get("tool") == "enforce_runtime_guard_all_repos"
+    assert provenance.get("run_id") == "ci-run-xyz"
+    assert str(provenance.get("generated_at_utc", "")).endswith("Z")
+    assert provenance.get("inputs", {}).get("args_digest")

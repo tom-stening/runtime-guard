@@ -8,6 +8,8 @@ verifiable payload that can be used as a CI gate for integration readiness.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import hashlib
 import json
 import subprocess
 import sys
@@ -181,6 +183,27 @@ def _default_component_report_name(tool_name: str) -> str:
     return f"{tool_name}_integration_status.json"
 
 
+def _safe_git_commit(repo_root: Path) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return "unknown"
+    if proc.returncode != 0:
+        return "unknown"
+    commit = proc.stdout.strip()
+    return commit or "unknown"
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _detect_runtime_pressure() -> tuple[bool, str | None]:
     """Return whether RuntimeGuard currently detects memory pressure."""
     try:
@@ -322,6 +345,7 @@ def _build_payload(
     ]
 
     components: list[dict[str, Any]] = []
+    source_hashes: dict[str, str] = {}
     fleet_warnings: list[str] = []
     for tool, script_name, extra_args, report_path in component_specs:
         effective_report_path = report_path
@@ -342,6 +366,8 @@ def _build_payload(
             path = Path(effective_report_path)
             if not path.is_absolute():
                 path = repo_root / path
+            if path.exists():
+                source_hashes[tool] = _sha256_file(path)
             components.append(_component_from_report(tool, path))
             continue
         components.append(_run_validator(repo_root, tool, script_name, extra_args, timeout_s))
@@ -374,6 +400,19 @@ def _build_payload(
         "warnings": fleet_warnings,
         "summary": summary,
         "components": components,
+        "provenance": {
+            "schema_version": 1,
+            "tool": "validate_integration_fleet",
+            "script": str(Path(__file__).resolve()),
+            "generated_at_utc": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "run_id": effective_run_id,
+            "git_commit": _safe_git_commit(repo_root),
+            "inputs": {
+                "source_artifact_hashes": source_hashes,
+                "fallback_on_pressure": bool(fallback_on_pressure),
+                "fallback_report_dir": str(fallback_dir),
+            },
+        },
     }
     summary["run_id"] = effective_run_id
 

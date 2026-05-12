@@ -884,6 +884,9 @@ run and exits non-zero on selected policy failures. Use `--run-id` to align
 propagated into enforcement, integration, and runtime artifact payloads. When
 `--run-id` is omitted, the orchestrator generates one run ID and still enforces
 cross-artifact run_id consistency (non-zero exit on mismatch or missing run_id).
+Each artifact also includes a `provenance` block with tool identity,
+generation timestamp, git commit hint, run_id, and source artifact hashes to
+support downstream lineage and integrity verification.
 
 For standalone runtime report generation, use `repo_guard_fleet_report.py
 --fail-on-run-id-mismatch` to fail when source artifact run IDs are missing or

@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Any
@@ -315,6 +317,27 @@ def _extract_run_id(payload: dict[str, Any] | None) -> str:
     return ""
 
 
+def _safe_git_commit(repo_root: Path) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return "unknown"
+    if proc.returncode != 0:
+        return "unknown"
+    commit = proc.stdout.strip()
+    return commit or "unknown"
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _build_payload(
     enforcement: dict[str, Any],
     *,
@@ -473,6 +496,26 @@ def main() -> int:
     summary["source_enforcement_run_id"] = enforcement_run_id
     summary["source_integration_run_id"] = integration_run_id
     summary["run_id_consistent"] = run_id_consistent
+    repo_root = Path(__file__).resolve().parent.parent
+    provenance_inputs: dict[str, Any] = {
+        "source_artifact_hashes": {
+            "repo_guard_enforcement": _sha256_file(enforcement_path),
+        },
+        "enforcement_report": str(enforcement_path),
+    }
+    if integration_path.exists():
+        provenance_inputs["source_artifact_hashes"]["integration_fleet_status"] = _sha256_file(integration_path)
+        provenance_inputs["integration_report"] = str(integration_path)
+
+    payload["provenance"] = {
+        "schema_version": 1,
+        "tool": "repo_guard_fleet_report",
+        "script": str(Path(__file__).resolve()),
+        "generated_at_utc": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "run_id": run_id,
+        "git_commit": _safe_git_commit(repo_root),
+        "inputs": provenance_inputs,
+    }
     failed_gates: list[dict[str, Any]] = []
     evaluated_at_utc = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     extension_specs: dict[str, int] = {}

@@ -153,14 +153,27 @@
     "note": null,
     "pressure_detected": false
   },
-  "run_id": "ac21599c-521d-4dd1-9580-2a2fc8fcdd83",
+  "provenance": {
+    "generated_at_utc": "2026-05-12T09:39:33Z",
+    "git_commit": "1de5311",
+    "inputs": {
+      "fallback_on_pressure": true,
+      "fallback_report_dir": "/home/thomas_stening/runtime-guard/reports",
+      "source_artifact_hashes": {}
+    },
+    "run_id": "e685416b-a6c2-40b2-83e6-f1864d245c4a",
+    "schema_version": 1,
+    "script": "/home/thomas_stening/runtime-guard/scripts/validate_integration_fleet.py",
+    "tool": "validate_integration_fleet"
+  },
+  "run_id": "e685416b-a6c2-40b2-83e6-f1864d245c4a",
   "summary": {
     "components_healthy": 3,
     "components_total": 3,
     "components_unhealthy": 0,
     "overall_healthy": true,
     "risk_level": "low",
-    "run_id": "ac21599c-521d-4dd1-9580-2a2fc8fcdd83"
+    "run_id": "e685416b-a6c2-40b2-83e6-f1864d245c4a"
   },
   "tool": "validate_integration_fleet",
   "warnings": []

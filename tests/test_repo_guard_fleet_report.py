@@ -338,6 +338,13 @@ def test_source_run_ids_and_consistency_are_included_when_matching(tmp_path: Pat
     assert runtime.get("source_run_ids", {}).get("repo_guard_enforcement") == "ci-sync-1"
     assert runtime.get("source_run_ids", {}).get("integration_fleet_status") == "ci-sync-1"
     assert runtime.get("source_run_ids", {}).get("repo_guard_runtime_status") == "ci-sync-1"
+    provenance = runtime.get("provenance", {})
+    assert provenance.get("tool") == "repo_guard_fleet_report"
+    assert provenance.get("run_id") == "ci-sync-1"
+    assert str(provenance.get("generated_at_utc", "")).endswith("Z")
+    src_hashes = provenance.get("inputs", {}).get("source_artifact_hashes", {})
+    assert src_hashes.get("repo_guard_enforcement")
+    assert src_hashes.get("integration_fleet_status")
 
 
 def test_fail_on_run_id_mismatch_exits_nonzero(tmp_path: Path) -> None:

@@ -11,8 +11,11 @@ Behavior:
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import hashlib
 import json
 import os
+import subprocess
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -214,6 +217,31 @@ def _summarize(statuses: list[RepoStatus]) -> ReportSummary:
     )
 
 
+def _resolve_repo_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def _safe_git_commit(repo_root: Path) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return "unknown"
+    if proc.returncode != 0:
+        return "unknown"
+    commit = proc.stdout.strip()
+    return commit or "unknown"
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def main() -> int:
     args = _parse_args()
     root = Path(args.root).expanduser().resolve()
@@ -245,6 +273,34 @@ def main() -> int:
         run_id = str(uuid.uuid4())
     summary_payload = asdict(summary)
     summary_payload["run_id"] = run_id
+    repo_root = _resolve_repo_root()
+    generated_at_utc = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    provenance = {
+        "schema_version": 1,
+        "tool": "enforce_runtime_guard_all_repos",
+        "script": str(Path(__file__).resolve()),
+        "generated_at_utc": generated_at_utc,
+        "run_id": run_id,
+        "git_commit": _safe_git_commit(repo_root),
+        "inputs": {
+            "root": str(root),
+            "args_digest": _sha256_text(
+                json.dumps(
+                    {
+                        "stage": args.stage,
+                        "interval_s": args.interval_s,
+                        "cooldown_s": args.cooldown_s,
+                        "env_prefix": args.env_prefix,
+                        "posture": args.posture,
+                        "enforce_all_repos": bool(args.enforce_all_repos),
+                        "force_runtime_guard_sitecustomize": bool(args.force_runtime_guard_sitecustomize),
+                        "dry_run": bool(args.dry_run),
+                    },
+                    sort_keys=True,
+                )
+            ),
+        },
+    }
     payload: dict[str, Any] = {
         "root": str(root),
         "run_id": run_id,
@@ -252,6 +308,7 @@ def main() -> int:
         "env_prefix": args.env_prefix,
         "posture": args.posture,
         "dry_run": bool(args.dry_run),
+        "provenance": provenance,
         "summary": summary_payload,
         "repos": [asdict(s) for s in statuses],
     }

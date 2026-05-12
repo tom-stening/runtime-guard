@@ -292,36 +292,34 @@ def _validate_expected_integration_report_signature_policy(
     if not isinstance(inputs, dict):
         return ["integration_fleet_status: provenance.inputs missing for report-signature policy check"]
 
-    if bool(expected_require_signed_report_inputs):
-        if not bool(inputs.get("require_signed_report_inputs", False)):
-            errors.append(
-                "integration_fleet_status: expected require_signed_report_inputs=true but provenance.inputs does not match"
-            )
+    actual_require_signed = bool(inputs.get("require_signed_report_inputs", False))
+    if actual_require_signed != bool(expected_require_signed_report_inputs):
+        errors.append(
+            "integration_fleet_status: expected require_signed_report_inputs policy does not match provenance.inputs"
+        )
 
-    if bool(expected_verify_report_input_signatures):
-        if not bool(inputs.get("verify_report_input_signatures", False)):
-            errors.append(
-                "integration_fleet_status: expected verify_report_input_signatures=true but provenance.inputs does not match"
-            )
+    actual_verify = bool(inputs.get("verify_report_input_signatures", False))
+    if actual_verify != bool(expected_verify_report_input_signatures):
+        errors.append(
+            "integration_fleet_status: expected verify_report_input_signatures policy does not match provenance.inputs"
+        )
 
     expected_allowed = sorted({str(k).strip() for k in list(expected_report_allowed_key_ids or []) if str(k).strip()})
-    if expected_allowed:
-        actual_allowed_raw = inputs.get("report_allowed_key_ids", [])
-        actual_allowed: list[str] = []
-        if isinstance(actual_allowed_raw, list):
-            actual_allowed = sorted({str(k).strip() for k in actual_allowed_raw if str(k).strip()})
-        if actual_allowed != expected_allowed:
-            errors.append(
-                "integration_fleet_status: expected report_allowed_key_ids policy does not match provenance.inputs"
-            )
+    actual_allowed_raw = inputs.get("report_allowed_key_ids", [])
+    actual_allowed: list[str] = []
+    if isinstance(actual_allowed_raw, list):
+        actual_allowed = sorted({str(k).strip() for k in actual_allowed_raw if str(k).strip()})
+    if actual_allowed != expected_allowed:
+        errors.append(
+            "integration_fleet_status: expected report_allowed_key_ids policy does not match provenance.inputs"
+        )
 
     expected_age = int(expected_max_report_signature_age_hours or 0)
-    if expected_age > 0:
-        actual_age = int(inputs.get("max_report_signature_age_hours", 0) or 0)
-        if actual_age != expected_age:
-            errors.append(
-                "integration_fleet_status: expected max_report_signature_age_hours policy does not match provenance.inputs"
-            )
+    actual_age = int(inputs.get("max_report_signature_age_hours", 0) or 0)
+    if actual_age != expected_age:
+        errors.append(
+            "integration_fleet_status: expected max_report_signature_age_hours policy does not match provenance.inputs"
+        )
 
     return errors
 

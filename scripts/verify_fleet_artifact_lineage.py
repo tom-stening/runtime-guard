@@ -11,8 +11,12 @@ Checks:
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import hashlib
 import json
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +52,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--require-signed",
         action="store_true",
         help="Fail when artifacts are not detached-signed in provenance.signature",
+    )
+    parser.add_argument(
+        "--verify-signatures",
+        action="store_true",
+        help="Cryptographically verify detached signatures against artifact_sha256",
+    )
+    parser.add_argument(
+        "--signature-public-key",
+        default="",
+        help="Path to public key PEM used for detached signature verification",
     )
     return parser
 
@@ -131,6 +145,8 @@ def _validate_signature_envelope(
     payload: dict[str, Any],
     *,
     require_signed: bool,
+    verify_signatures: bool,
+    signature_public_key: str,
 ) -> list[str]:
     prov = payload.get("provenance")
     if not isinstance(prov, dict):
@@ -168,7 +184,107 @@ def _validate_signature_envelope(
         if not str(sig.get("algorithm") or "").strip():
             errors.append(f"{name}: detached signature algorithm missing")
 
+    if verify_signatures:
+        if mode != "detached":
+            errors.append(f"{name}: detached signature required for cryptographic verification")
+            return errors
+        key_path = str(signature_public_key or "").strip()
+        if not key_path:
+            errors.append(f"{name}: --signature-public-key is required when --verify-signatures is set")
+            return errors
+
+        ok, reason = _verify_detached_signature(
+            algorithm=str(sig.get("algorithm") or ""),
+            signed_value=str(sig.get("signed_value") or ""),
+            signature_text=str(sig.get("signature") or ""),
+            public_key_path=Path(key_path),
+        )
+        if not ok:
+            errors.append(f"{name}: signature verification failed: {reason}")
+
     return errors
+
+
+def _decode_signature_bytes(signature_text: str) -> bytes:
+    sig = signature_text.strip()
+    if not sig:
+        raise ValueError("empty signature")
+
+    # Prefer hex for deterministic shell workflows, fallback to base64.
+    try:
+        return bytes.fromhex(sig)
+    except ValueError:
+        pass
+
+    try:
+        return base64.b64decode(sig, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("signature must be hex or base64") from exc
+
+
+def _verify_signature_with_openssl(
+    *,
+    signed_value: str,
+    signature_bytes: bytes,
+    public_key_path: Path,
+) -> tuple[bool, str]:
+    if not public_key_path.exists():
+        return False, f"public key not found: {public_key_path}"
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="rg-sign-verify-") as tmp:
+            tmp_dir = Path(tmp)
+            data_path = tmp_dir / "signed_value.txt"
+            sig_path = tmp_dir / "signature.bin"
+            data_path.write_text(signed_value, encoding="utf-8")
+            sig_path.write_bytes(signature_bytes)
+
+            cmd = [
+                "openssl",
+                "pkeyutl",
+                "-verify",
+                "-pubin",
+                "-inkey",
+                str(public_key_path),
+                "-sigfile",
+                str(sig_path),
+                "-rawin",
+                "-in",
+                str(data_path),
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return False, "openssl binary not found"
+    except Exception as exc:
+        return False, str(exc)
+
+    if proc.returncode != 0:
+        stderr = (proc.stderr or "").strip()
+        return False, stderr or "openssl verification returned non-zero"
+    return True, "ok"
+
+
+def _verify_detached_signature(
+    *,
+    algorithm: str,
+    signed_value: str,
+    signature_text: str,
+    public_key_path: Path,
+) -> tuple[bool, str]:
+    algo = algorithm.strip().lower()
+    if algo != "ed25519":
+        return False, f"unsupported signature algorithm: {algorithm}"
+
+    try:
+        signature_bytes = _decode_signature_bytes(signature_text)
+    except ValueError as exc:
+        return False, str(exc)
+
+    return _verify_signature_with_openssl(
+        signed_value=signed_value,
+        signature_bytes=signature_bytes,
+        public_key_path=public_key_path,
+    )
 
 
 def _build_result(
@@ -177,6 +293,8 @@ def _build_result(
     runtime_path: Path,
     strict: bool,
     require_signed: bool,
+    verify_signatures: bool,
+    signature_public_key: str,
 ) -> tuple[bool, dict[str, Any]]:
     errors: list[str] = []
 
@@ -211,6 +329,8 @@ def _build_result(
             "repo_guard_enforcement",
             enforcement,
             require_signed=require_signed,
+            verify_signatures=verify_signatures,
+            signature_public_key=signature_public_key,
         )
     )
     errors.extend(
@@ -218,6 +338,8 @@ def _build_result(
             "integration_fleet_status",
             integration,
             require_signed=require_signed,
+            verify_signatures=verify_signatures,
+            signature_public_key=signature_public_key,
         )
     )
     errors.extend(
@@ -225,6 +347,8 @@ def _build_result(
             "repo_guard_runtime_status",
             runtime,
             require_signed=require_signed,
+            verify_signatures=verify_signatures,
+            signature_public_key=signature_public_key,
         )
     )
 
@@ -287,6 +411,8 @@ def main() -> int:
         runtime_path,
         strict=bool(args.strict),
         require_signed=bool(args.require_signed),
+        verify_signatures=bool(args.verify_signatures),
+        signature_public_key=str(args.signature_public_key),
     )
 
     if args.json:

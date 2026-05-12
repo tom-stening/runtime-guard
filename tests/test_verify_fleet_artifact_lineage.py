@@ -125,6 +125,8 @@ def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
         runtime_path,
         strict=True,
         require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
     )
     assert ok is True
     assert result["errors"] == []
@@ -189,6 +191,8 @@ def test_build_result_fails_on_hash_or_run_id_mismatch(tmp_path: Path):
         runtime_path,
         strict=False,
         require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
     )
     assert ok is False
     assert any("run_id values do not match" in row for row in result["errors"])
@@ -258,6 +262,8 @@ def test_build_result_fails_on_artifact_digest_mismatch(tmp_path: Path):
         runtime_path,
         strict=False,
         require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
     )
     assert ok is False
     assert any("artifact_sha256 mismatch" in row for row in result["errors"])
@@ -337,6 +343,94 @@ def test_build_result_requires_detached_signature_when_requested(tmp_path: Path)
         runtime_path,
         strict=True,
         require_signed=True,
+        verify_signatures=False,
+        signature_public_key="",
     )
     assert ok is False
     assert any("detached signature required" in row for row in result["errors"])
+
+
+def test_build_result_verify_signatures_calls_crypto_backend(tmp_path: Path, monkeypatch):
+    module = _load_module()
+
+    enforcement_path = tmp_path / "repo_guard_enforcement.json"
+    integration_path = tmp_path / "integration_fleet_status.json"
+    runtime_path = tmp_path / "repo_guard_runtime_status.json"
+
+    enforcement = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "enforce_runtime_guard_all_repos",
+                    "generated_at_utc": "2026-05-12T00:00:00Z",
+                    "run_id": "ci-1",
+                    "git_commit": "abc123",
+                    "script": "/repo/scripts/enforce_runtime_guard_all_repos.py",
+                    "inputs": {},
+                },
+            }
+        ),
+        detached=True,
+    )
+    integration = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "validate_integration_fleet",
+                    "generated_at_utc": "2026-05-12T00:00:01Z",
+                    "run_id": "ci-1",
+                    "git_commit": "abc123",
+                    "script": "/repo/scripts/validate_integration_fleet.py",
+                    "inputs": {},
+                },
+            }
+        ),
+        detached=True,
+    )
+    enforcement_path.write_text(json.dumps(enforcement), encoding="utf-8")
+    integration_path.write_text(json.dumps(integration), encoding="utf-8")
+
+    runtime = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "repo_guard_fleet_report",
+                    "generated_at_utc": "2026-05-12T00:00:02Z",
+                    "run_id": "ci-1",
+                    "git_commit": "abc123",
+                    "script": "/repo/scripts/repo_guard_fleet_report.py",
+                    "inputs": {
+                        "source_artifact_hashes": {
+                            "repo_guard_enforcement": _sha(enforcement_path),
+                            "integration_fleet_status": _sha(integration_path),
+                        }
+                    },
+                },
+            }
+        ),
+        detached=True,
+    )
+    runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
+
+    monkeypatch.setattr(module, "_verify_detached_signature", lambda **_k: (True, "ok"))
+
+    ok, result = module._build_result(
+        enforcement_path,
+        integration_path,
+        runtime_path,
+        strict=True,
+        require_signed=True,
+        verify_signatures=True,
+        signature_public_key="/tmp/pubkey.pem",
+    )
+    assert ok is True
+    assert result["errors"] == []

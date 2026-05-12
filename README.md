@@ -906,12 +906,21 @@ To require detached signatures in addition to digest/provenance validation:
 python scripts/verify_fleet_artifact_lineage.py --json --require-signed
 ```
 
+To cryptographically verify detached signatures (Ed25519 via OpenSSL):
+
+```bash
+python scripts/verify_fleet_artifact_lineage.py --json --require-signed \
+    --verify-signatures --signature-public-key /path/to/public.pem
+```
+
 `run_fleet_guard_cycle.py` executes this verifier by default after artifact
 generation (use `--skip-lineage-verify` to opt out).
 The cycle invokes the verifier in strict mode, requiring complete provenance
 metadata and canonical digest validity.
 Use `--require-signed-artifacts` to also require detached signatures during
 the cycle's lineage verification.
+Use `--verify-signed-artifacts --signature-public-key /path/to/public.pem`
+to require cryptographic verification during cycle execution.
 
 Artifacts now include a signature-ready envelope at
 `provenance.signature` (`mode`, `algorithm`, `key_id`, `signature`) and sign

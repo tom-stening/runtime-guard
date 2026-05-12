@@ -92,6 +92,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Require detached signatures during lineage verification",
     )
+    p.add_argument(
+        "--verify-signed-artifacts",
+        action="store_true",
+        help="Cryptographically verify detached signatures during lineage verification",
+    )
+    p.add_argument(
+        "--signature-public-key",
+        default="",
+        help="Public key PEM path used when --verify-signed-artifacts is enabled",
+    )
     return p
 
 
@@ -175,6 +185,8 @@ def _build_lineage_verify_command(
     runtime_report: Path,
     *,
     require_signed: bool,
+    verify_signatures: bool,
+    signature_public_key: str,
 ) -> list[str]:
     cmd = [
         sys.executable,
@@ -190,6 +202,11 @@ def _build_lineage_verify_command(
     ]
     if require_signed:
         cmd.append("--require-signed")
+    if verify_signatures:
+        cmd.append("--verify-signatures")
+        key_path = str(signature_public_key or "").strip()
+        if key_path:
+            cmd.extend(["--signature-public-key", key_path])
     return cmd
 
 
@@ -247,6 +264,8 @@ def main() -> int:
         integration_report,
         runtime_report,
         require_signed=bool(args.require_signed_artifacts),
+        verify_signatures=bool(args.verify_signed_artifacts),
+        signature_public_key=str(args.signature_public_key),
     )
 
     if bool(args.dry_run):

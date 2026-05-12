@@ -164,6 +164,8 @@ def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):
         integration,
         runtime,
         require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
     )
     rendered = " ".join(cmd)
 
@@ -186,5 +188,24 @@ def test_build_lineage_verify_command_includes_require_signed_flag(tmp_path: Pat
         tmp_path / "integration_fleet_status.json",
         tmp_path / "repo_guard_runtime_status.json",
         require_signed=True,
+        verify_signatures=False,
+        signature_public_key="",
     )
     assert "--require-signed" in cmd
+
+
+def test_build_lineage_verify_command_includes_signature_verification_flags(tmp_path: Path):
+    module = _load_module()
+    cmd = module._build_lineage_verify_command(
+        Path("/repo"),
+        tmp_path / "repo_guard_enforcement.json",
+        tmp_path / "integration_fleet_status.json",
+        tmp_path / "repo_guard_runtime_status.json",
+        require_signed=True,
+        verify_signatures=True,
+        signature_public_key="/tmp/public.pem",
+    )
+    assert "--require-signed" in cmd
+    assert "--verify-signatures" in cmd
+    assert "--signature-public-key" in cmd
+    assert "/tmp/public.pem" in cmd

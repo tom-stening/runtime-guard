@@ -241,20 +241,23 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
     (reports_dir / "polars_integration_status.json").write_text(
         '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
         '"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
-        '"native_callback_api": {"available": true}}',
+        '"native_callback_api": {"available": true}, '
+        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
         encoding="utf-8",
     )
     (reports_dir / "dask_integration_status.json").write_text(
         '{"tool": "validate_dask_integration", "milestone": "M1-I02", '
         '"ok": true, "api_importable": true, '
         '"task_graph_guard_api": {"available": true}, '
-        '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}}',
+        '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}, '
+        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
         encoding="utf-8",
     )
     (reports_dir / "ray_integration_status.json").write_text(
         '{"tool": "validate_ray_integration", "milestone": "M1-I03", '
         '"ok": true, "api_importable": true, '
-        '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}}',
+        '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}, '
+        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
         encoding="utf-8",
     )
 
@@ -272,12 +275,14 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
         ray_report=None,
         fallback_on_pressure=True,
         fallback_report_dir="reports",
+        max_fallback_report_age_hours=4,
         pressure_detected_override=True,
     )
 
     assert payload["execution_mode"] == "offline"
     assert payload["pressure_fallback"]["enabled"] is True
     assert payload["pressure_fallback"]["pressure_detected"] is True
+    assert payload["pressure_fallback"]["max_report_age_hours"] == 4
     assert payload["summary"]["overall_healthy"] is True
     assert [c["source"] for c in payload["components"]] == ["report", "report", "report"]
 
@@ -290,20 +295,23 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     (reports_dir / "polars_integration_status.json").write_text(
         '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
         '"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
-        '"native_callback_api": {"available": true}}',
+        '"native_callback_api": {"available": true}, '
+        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
         encoding="utf-8",
     )
     (reports_dir / "dask_integration_status.json").write_text(
         '{"tool": "validate_dask_integration", "milestone": "M1-I02", '
         '"ok": true, "api_importable": true, '
         '"task_graph_guard_api": {"available": true}, '
-        '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}}',
+        '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}, '
+        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
         encoding="utf-8",
     )
     (reports_dir / "ray_integration_status.json").write_text(
         '{"tool": "validate_ray_integration", "milestone": "M1-I03", '
         '"ok": true, "api_importable": true, '
-        '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}}',
+        '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}, '
+        '"provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"}}',
         encoding="utf-8",
     )
 
@@ -318,6 +326,7 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
         ray_report=None,
         fallback_on_pressure=True,
         fallback_report_dir="reports",
+        max_fallback_report_age_hours=12,
         run_id="ci-run-xyz",
         pressure_detected_override=True,
     )
@@ -333,6 +342,7 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     assert signature.get("mode") in {"unsigned", "detached"}
     assert signature.get("signed_field") == "artifact_sha256"
     src_hashes = provenance.get("inputs", {}).get("source_artifact_hashes", {})
+    assert provenance.get("inputs", {}).get("max_fallback_report_age_hours") == 12
     assert src_hashes.get("polars")
     assert src_hashes.get("dask")
     assert src_hashes.get("ray")

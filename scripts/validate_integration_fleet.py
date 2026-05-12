@@ -577,6 +577,7 @@ def _build_payload(
             "enabled": bool(fallback_on_pressure),
             "pressure_detected": bool(pressure_detected),
             "fallback_report_dir": str(fallback_dir),
+            "max_report_age_hours": int(max_fallback_report_age_hours or 0),
             "note": pressure_probe_note,
         },
         "warnings": fleet_warnings,
@@ -594,6 +595,7 @@ def _build_payload(
                 "validator_script_hashes": validator_script_hashes,
                 "fallback_on_pressure": bool(fallback_on_pressure),
                 "fallback_report_dir": str(fallback_dir),
+                "max_fallback_report_age_hours": int(max_fallback_report_age_hours or 0),
             },
         },
     }

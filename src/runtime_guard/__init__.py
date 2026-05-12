@@ -133,6 +133,37 @@ _POLARS_NATIVE_CALLBACK_KWARGS: tuple[str, ...] = (
     "post_optimization_callback",
     "collect_callback",
 )
+
+
+def _infer_polars_callback_kwargs(fn: Any) -> tuple[str, ...]:
+    """Infer callback kwarg names from a callable signature.
+
+    Keeps a stable preference order for known Polars callback kwargs while
+    accepting additional callback-like names (for version drift).
+    """
+    try:
+        signature = inspect.signature(fn)
+    except Exception:
+        return ()
+
+    callback_params: list[str] = []
+    for name, param in signature.parameters.items():
+        if param.kind not in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):
+            continue
+        if name in _POLARS_NATIVE_CALLBACK_KWARGS:
+            callback_params.append(name)
+            continue
+        lowered = name.lower()
+        if "callback" not in lowered:
+            continue
+        # Polars callback kwargs are typically optional and default to None.
+        if param.default is None or param.default is inspect._empty:
+            callback_params.append(name)
+
+    if not callback_params:
+        return ()
+    # De-duplicate while preserving declared order in the function signature.
+    return tuple(dict.fromkeys(callback_params).keys())
 _FIPS_HASH_ALGOS: set[str] = {"sha256", "sha384", "sha512"}
 _AUDIT_POLICY_SEVERITIES: set[str] = {"info", "warning", "critical"}
 _AUDIT_POLICY_CATEGORIES: set[str] = {
@@ -1871,16 +1902,7 @@ def attach_polars_guard(
         return _restore
 
     def _wrap_lazyframe_method(name: str, fn: Any) -> Any:
-        callback_kw_names: tuple[str, ...] = ()
-        try:
-            signature = inspect.signature(fn)
-            callback_kw_names = tuple(
-                kw_name
-                for kw_name in _POLARS_NATIVE_CALLBACK_KWARGS
-                if kw_name in signature.parameters
-            )
-        except Exception:
-            callback_kw_names = ()
+        callback_kw_names: tuple[str, ...] = _infer_polars_callback_kwargs(fn)
 
         native_callback_stage = f"{stage}-native-callback"
 

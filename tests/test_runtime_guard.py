@@ -1193,6 +1193,58 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_infers_nonstandard_collect_callback_kwarg(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    multiplier: int = 1,
+                    optimization_callback: Any | None = None,
+                ) -> int:
+                    if callable(optimization_callback):
+                        optimization_callback("logical-plan")
+                    return 21 * multiplier
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_callback_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                multiplier=2,
+                optimization_callback=lambda plan: user_callback_calls.append(plan),
+            )
+            assert result == 42
+            assert calls == ["polars-native", "polars-native-native-callback"]
+            assert user_callback_calls == ["logical-plan"]
+        finally:
+            restore()
+
+    def test_validate_polars_reports_inferred_callback_kwarg(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    multiplier: int = 1,
+                    optimization_callback: Any | None = None,
+                ) -> int:
+                    if callable(optimization_callback):
+                        optimization_callback("plan")
+                    return 21 * multiplier
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        restore = attach_polars_guard(guard, module=CallbackPolars)
+        try:
+            result = validate_polars_integration(guard, module=CallbackPolars)
+            assert result["native_callback_supported"] is True
+            assert result["native_callback_wrapped"] is True
+            assert "optimization_callback" in result["native_callback_kwargs"]
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask integration hook

@@ -52,11 +52,25 @@ def test_validate_cli_configuration_requires_public_key_for_report_signature_ver
 
     class _Args:
         verify_report_input_signatures = True
+        require_signed_report_inputs = True
         report_signature_public_key = ""
 
     errors = module._validate_cli_configuration(_Args())
     assert len(errors) == 1
     assert "--report-signature-public-key" in errors[0]
+
+
+def test_validate_cli_configuration_requires_signed_inputs_when_verifying_signatures():
+    module = _load_module()
+
+    class _Args:
+        verify_report_input_signatures = True
+        require_signed_report_inputs = False
+        report_signature_public_key = "/tmp/public.pem"
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--require-signed-report-inputs" in errors[0]
 
 
 def test_summarize_validator_stderr_filters_pressure_event_json_lines():

@@ -84,6 +84,7 @@ def test_validate_cli_configuration_requires_integration_report_signature_key():
 
     class _Args:
         integration_verify_report_input_signatures = True
+        integration_require_signed_report_inputs = True
         integration_report_signature_public_key = ""
         verify_signed_artifacts = False
         signature_public_key = ""
@@ -105,6 +106,21 @@ def test_validate_cli_configuration_requires_lineage_signature_key_when_verifyin
     errors = module._validate_cli_configuration(_Args())
     assert len(errors) == 1
     assert "--signature-public-key" in errors[0]
+
+
+def test_validate_cli_configuration_requires_integration_require_signed_when_verifying():
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = True
+        integration_require_signed_report_inputs = False
+        integration_report_signature_public_key = "/tmp/report-public.pem"
+        verify_signed_artifacts = False
+        signature_public_key = ""
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--integration-require-signed-report-inputs" in errors[0]
 
 
 def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_path: Path):

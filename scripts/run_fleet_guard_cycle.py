@@ -155,6 +155,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     errors: list[str] = []
+    if bool(args.integration_verify_report_input_signatures) and not bool(
+        args.integration_require_signed_report_inputs
+    ):
+        errors.append(
+            "--integration-require-signed-report-inputs must be set when --integration-verify-report-input-signatures is enabled"
+        )
     if bool(args.integration_verify_report_input_signatures) and not str(
         args.integration_report_signature_public_key or ""
     ).strip():

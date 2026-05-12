@@ -216,6 +216,39 @@ def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_pa
     assert enforce_run_id == integration_run_id == runtime_run_id
 
 
+def test_build_step_commands_rejects_non_string_run_id_and_generates_uuid(tmp_path: Path):
+    module = _load_module()
+
+    class _Args:
+        root = "/tmp/workspace"
+        reports_dir = str(tmp_path / "reports")
+        include_wsl_diagnosis = False
+        integration_fallback_on_pressure = False
+        integration_fallback_report_dir = "reports"
+        integration_max_fallback_report_age_hours = 0
+        integration_require_signed_report_inputs = False
+        integration_verify_report_input_signatures = False
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_report_signature_age_hours = 0
+        fail_on_unenforced = False
+        fail_on_integration_unhealthy = False
+        fail_on_wsl_risk = None
+        fail_on_extension_total_rss_mb = 0
+        fail_on_extension_rss: list[str] = []
+        run_id = 123
+
+    enforce_cmd, integration_cmd, runtime_cmd, _, _, _ = module._build_step_commands(_Args(), Path("/repo"))
+
+    enforce_run_id = enforce_cmd[enforce_cmd.index("--run-id") + 1]
+    integration_run_id = integration_cmd[integration_cmd.index("--run-id") + 1]
+    runtime_run_id = runtime_cmd[runtime_cmd.index("--run-id") + 1]
+
+    assert enforce_run_id
+    assert enforce_run_id != "123"
+    assert enforce_run_id == integration_run_id == runtime_run_id
+
+
 def test_build_step_commands_omits_fallback_age_flag_when_disabled(tmp_path: Path):
     module = _load_module()
 

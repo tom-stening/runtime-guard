@@ -969,7 +969,7 @@ def main() -> int:
         report_signature_public_key=str(args.report_signature_public_key),
         report_allowed_key_ids=list(args.report_allowed_key_id or []),
         max_report_signature_age_hours=int(args.max_report_signature_age_hours),
-        run_id=str(args.run_id),
+        run_id=_normalize_run_id(args.run_id),
     )
 
     rendered = json.dumps(payload, indent=2, sort_keys=True)

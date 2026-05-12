@@ -21,6 +21,12 @@ from pathlib import Path
 from typing import Any
 
 
+def _normalize_run_id(value: Any) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return ""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run RuntimeGuard fleet governance cycle")
     p.add_argument("--root", required=True, help="Root directory containing repositories")
@@ -218,7 +224,7 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
     enforcement_report = reports_dir / "repo_guard_enforcement.json"
     integration_report = reports_dir / "integration_fleet_status.json"
     runtime_report = reports_dir / "repo_guard_runtime_status.json"
-    run_id = str(args.run_id or "").strip()
+    run_id = _normalize_run_id(getattr(args, "run_id", ""))
     if not run_id:
         run_id = str(uuid.uuid4())
 

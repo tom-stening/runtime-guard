@@ -153,6 +153,45 @@ def _validate_artifact_sha256(name: str, payload: dict[str, Any]) -> list[str]:
     return []
 
 
+def _validate_integration_fallback_policy_consistency(payload: dict[str, Any]) -> list[str]:
+    """Validate integration fallback-age policy consistency across payload/provenance.
+
+    If either side includes the fallback age policy, both must be present and match.
+    """
+    errors: list[str] = []
+    pressure_fallback = payload.get("pressure_fallback")
+    provenance = payload.get("provenance")
+    inputs = provenance.get("inputs") if isinstance(provenance, dict) else None
+
+    fallback_age_payload: str | None = None
+    if isinstance(pressure_fallback, dict) and "max_report_age_hours" in pressure_fallback:
+        fallback_age_payload = str(pressure_fallback.get("max_report_age_hours")).strip()
+
+    fallback_age_provenance: str | None = None
+    if isinstance(inputs, dict) and "max_fallback_report_age_hours" in inputs:
+        fallback_age_provenance = str(inputs.get("max_fallback_report_age_hours")).strip()
+
+    if fallback_age_payload is None and fallback_age_provenance is None:
+        return errors
+
+    if fallback_age_payload is None:
+        errors.append(
+            "integration_fleet_status: pressure_fallback.max_report_age_hours missing while provenance fallback age is present"
+        )
+        return errors
+    if fallback_age_provenance is None:
+        errors.append(
+            "integration_fleet_status: provenance.inputs.max_fallback_report_age_hours missing while pressure_fallback fallback age is present"
+        )
+        return errors
+
+    if fallback_age_payload != fallback_age_provenance:
+        errors.append(
+            "integration_fleet_status: fallback age policy mismatch between pressure_fallback.max_report_age_hours and provenance.inputs.max_fallback_report_age_hours"
+        )
+    return errors
+
+
 def _validate_signature_envelope(
     name: str,
     payload: dict[str, Any],
@@ -378,6 +417,7 @@ def _build_result(
     errors.extend(_validate_artifact_sha256("repo_guard_enforcement", enforcement))
     errors.extend(_validate_artifact_sha256("integration_fleet_status", integration))
     errors.extend(_validate_artifact_sha256("repo_guard_runtime_status", runtime))
+    errors.extend(_validate_integration_fallback_policy_consistency(integration))
     errors.extend(
         _validate_signature_envelope(
             "repo_guard_enforcement",

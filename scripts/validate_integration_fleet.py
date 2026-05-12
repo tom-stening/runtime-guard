@@ -700,11 +700,16 @@ def _component_from_report(
 
     expected_run = str(expected_run_id or "").strip()
     if expected_run:
-        report_run_id = str(report_payload.get("run_id") or "").strip()
-        if not report_run_id:
+        report_run_id = ""
+        raw_root_run_id = report_payload.get("run_id")
+        if isinstance(raw_root_run_id, str) and raw_root_run_id.strip():
+            report_run_id = raw_root_run_id.strip()
+        else:
             summary = report_payload.get("summary")
             if isinstance(summary, dict):
-                report_run_id = str(summary.get("run_id") or "").strip()
+                raw_summary_run_id = summary.get("run_id")
+                if isinstance(raw_summary_run_id, str) and raw_summary_run_id.strip():
+                    report_run_id = raw_summary_run_id.strip()
         if report_run_id != expected_run:
             identity_errors.append(
                 f"report run_id mismatch for {tool_name}: expected {expected_run}"

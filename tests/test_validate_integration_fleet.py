@@ -442,6 +442,70 @@ def test_component_from_report_accepts_matching_summary_run_id(tmp_path: Path):
     assert comp["healthy"] is True
 
 
+def test_component_from_report_rejects_non_string_root_run_id(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "non-string-root-run.json"
+    report.write_text(
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_polars_integration",
+                    "milestone": "M1-I01",
+                    "run_id": 123,
+                    "ok": True,
+                    "api_importable": True,
+                    "scan_budget_api": {"available": True},
+                    "native_callback_api": {"available": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    comp = module._component_from_report(
+        "polars",
+        report,
+        expected_run_id="123",
+        max_report_age_hours=0,
+    )
+
+    assert comp["healthy"] is False
+    assert any("report run_id mismatch" in err for err in comp["errors"])
+
+
+def test_component_from_report_rejects_non_string_summary_run_id(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "non-string-summary-run.json"
+    report.write_text(
+        json.dumps(
+            _stamp_report_payload(
+                {
+                    "tool": "validate_polars_integration",
+                    "milestone": "M1-I01",
+                    "summary": {"run_id": ["ci-run-xyz"]},
+                    "ok": True,
+                    "api_importable": True,
+                    "scan_budget_api": {"available": True},
+                    "native_callback_api": {"available": True},
+                    "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+                }
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    comp = module._component_from_report(
+        "polars",
+        report,
+        expected_run_id="ci-run-xyz",
+        max_report_age_hours=0,
+    )
+
+    assert comp["healthy"] is False
+    assert any("report run_id mismatch" in err for err in comp["errors"])
+
+
 def test_component_from_report_rejects_artifact_sha_mismatch(tmp_path: Path):
     module = _load_module()
     report = tmp_path / "tampered.json"

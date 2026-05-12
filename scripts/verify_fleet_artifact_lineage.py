@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import datetime as dt
 import hashlib
 import json
 import subprocess
@@ -62,6 +63,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--signature-public-key",
         default="",
         help="Path to public key PEM used for detached signature verification",
+    )
+    parser.add_argument(
+        "--allowed-key-id",
+        action="append",
+        default=[],
+        help="Allowed signature key ID (repeatable). When set, artifacts signed by other keys fail.",
+    )
+    parser.add_argument(
+        "--max-signature-age-hours",
+        type=int,
+        default=0,
+        help="Maximum allowed artifact signature age in hours (0 disables age check).",
     )
     return parser
 
@@ -147,6 +160,8 @@ def _validate_signature_envelope(
     require_signed: bool,
     verify_signatures: bool,
     signature_public_key: str,
+    allowed_key_ids: set[str],
+    max_signature_age_hours: int,
 ) -> list[str]:
     prov = payload.get("provenance")
     if not isinstance(prov, dict):
@@ -184,6 +199,28 @@ def _validate_signature_envelope(
         if not str(sig.get("algorithm") or "").strip():
             errors.append(f"{name}: detached signature algorithm missing")
 
+    key_id = str(sig.get("key_id") or "").strip()
+    if allowed_key_ids:
+        if not key_id:
+            errors.append(f"{name}: signature key_id is required by allowed-key-id policy")
+        elif key_id not in allowed_key_ids:
+            errors.append(f"{name}: signature key_id '{key_id}' not in allowed-key-id policy")
+
+    if int(max_signature_age_hours or 0) > 0:
+        generated_at = ""
+        if isinstance(prov, dict):
+            generated_at = str(prov.get("generated_at_utc") or "").strip()
+        issued = _parse_utc_timestamp(generated_at)
+        if issued is None:
+            errors.append(f"{name}: invalid generated_at_utc for signature age policy")
+        else:
+            now = dt.datetime.now(dt.timezone.utc)
+            age_h = (now - issued).total_seconds() / 3600.0
+            if age_h > float(max_signature_age_hours):
+                errors.append(
+                    f"{name}: signature age {age_h:.2f}h exceeds max {int(max_signature_age_hours)}h"
+                )
+
     if verify_signatures:
         if mode != "detached":
             errors.append(f"{name}: detached signature required for cryptographic verification")
@@ -203,6 +240,21 @@ def _validate_signature_envelope(
             errors.append(f"{name}: signature verification failed: {reason}")
 
     return errors
+
+
+def _parse_utc_timestamp(value: str) -> dt.datetime | None:
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = dt.datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(dt.timezone.utc)
 
 
 def _decode_signature_bytes(signature_text: str) -> bytes:
@@ -295,6 +347,8 @@ def _build_result(
     require_signed: bool,
     verify_signatures: bool,
     signature_public_key: str,
+    allowed_key_ids: list[str],
+    max_signature_age_hours: int,
 ) -> tuple[bool, dict[str, Any]]:
     errors: list[str] = []
 
@@ -331,6 +385,8 @@ def _build_result(
             require_signed=require_signed,
             verify_signatures=verify_signatures,
             signature_public_key=signature_public_key,
+            allowed_key_ids={k for k in allowed_key_ids if str(k).strip()},
+            max_signature_age_hours=int(max_signature_age_hours or 0),
         )
     )
     errors.extend(
@@ -340,6 +396,8 @@ def _build_result(
             require_signed=require_signed,
             verify_signatures=verify_signatures,
             signature_public_key=signature_public_key,
+            allowed_key_ids={k for k in allowed_key_ids if str(k).strip()},
+            max_signature_age_hours=int(max_signature_age_hours or 0),
         )
     )
     errors.extend(
@@ -349,6 +407,8 @@ def _build_result(
             require_signed=require_signed,
             verify_signatures=verify_signatures,
             signature_public_key=signature_public_key,
+            allowed_key_ids={k for k in allowed_key_ids if str(k).strip()},
+            max_signature_age_hours=int(max_signature_age_hours or 0),
         )
     )
 
@@ -413,6 +473,8 @@ def main() -> int:
         require_signed=bool(args.require_signed),
         verify_signatures=bool(args.verify_signatures),
         signature_public_key=str(args.signature_public_key),
+        allowed_key_ids=list(args.allowed_key_id or []),
+        max_signature_age_hours=int(args.max_signature_age_hours or 0),
     )
 
     if args.json:

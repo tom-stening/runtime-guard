@@ -166,6 +166,8 @@ def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):
         require_signed=False,
         verify_signatures=False,
         signature_public_key="",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
     )
     rendered = " ".join(cmd)
 
@@ -190,6 +192,8 @@ def test_build_lineage_verify_command_includes_require_signed_flag(tmp_path: Pat
         require_signed=True,
         verify_signatures=False,
         signature_public_key="",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
     )
     assert "--require-signed" in cmd
 
@@ -204,8 +208,30 @@ def test_build_lineage_verify_command_includes_signature_verification_flags(tmp_
         require_signed=True,
         verify_signatures=True,
         signature_public_key="/tmp/public.pem",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
     )
     assert "--require-signed" in cmd
     assert "--verify-signatures" in cmd
     assert "--signature-public-key" in cmd
     assert "/tmp/public.pem" in cmd
+
+
+def test_build_lineage_verify_command_includes_key_policy_flags(tmp_path: Path):
+    module = _load_module()
+    cmd = module._build_lineage_verify_command(
+        Path("/repo"),
+        tmp_path / "repo_guard_enforcement.json",
+        tmp_path / "integration_fleet_status.json",
+        tmp_path / "repo_guard_runtime_status.json",
+        require_signed=True,
+        verify_signatures=False,
+        signature_public_key="",
+        allowed_key_ids=["key-a", "key-b"],
+        max_signature_age_hours=24,
+    )
+    assert cmd.count("--allowed-key-id") == 2
+    assert "key-a" in cmd
+    assert "key-b" in cmd
+    assert "--max-signature-age-hours" in cmd
+    assert "24" in cmd

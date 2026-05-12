@@ -154,9 +154,9 @@
     "pressure_detected": false
   },
   "provenance": {
-    "artifact_sha256": "a17552332f6ae4e871e84118538e05d487516299cf3e60ca4d81bc5107e47f85",
-    "generated_at_utc": "2026-05-12T10:02:05Z",
-    "git_commit": "19fea44",
+    "artifact_sha256": "e50f646c90d41258253b27ce61fd6946b0c067ab987a8b935273075e1b79b4f8",
+    "generated_at_utc": "2026-05-12T10:06:29Z",
+    "git_commit": "d27cd33",
     "inputs": {
       "fallback_on_pressure": true,
       "fallback_report_dir": "/home/thomas_stening/runtime-guard/reports",
@@ -167,7 +167,7 @@
         "ray": "bc4b40d2cd107743b8abca254cf0e4ddf16914e4d3a88610eea5107e319ff37f"
       }
     },
-    "run_id": "14e329b8-9ef5-4abf-8d7b-70f6c1e492b4",
+    "run_id": "472b9852-d786-4c67-93e5-cf0ad5f278d7",
     "schema_version": 1,
     "script": "/home/thomas_stening/runtime-guard/scripts/validate_integration_fleet.py",
     "signature": {
@@ -176,18 +176,18 @@
       "mode": "detached",
       "signature": "deadbeef",
       "signed_field": "artifact_sha256",
-      "signed_value": "a17552332f6ae4e871e84118538e05d487516299cf3e60ca4d81bc5107e47f85"
+      "signed_value": "e50f646c90d41258253b27ce61fd6946b0c067ab987a8b935273075e1b79b4f8"
     },
     "tool": "validate_integration_fleet"
   },
-  "run_id": "14e329b8-9ef5-4abf-8d7b-70f6c1e492b4",
+  "run_id": "472b9852-d786-4c67-93e5-cf0ad5f278d7",
   "summary": {
     "components_healthy": 3,
     "components_total": 3,
     "components_unhealthy": 0,
     "overall_healthy": true,
     "risk_level": "low",
-    "run_id": "14e329b8-9ef5-4abf-8d7b-70f6c1e492b4"
+    "run_id": "472b9852-d786-4c67-93e5-cf0ad5f278d7"
   },
   "tool": "validate_integration_fleet",
   "warnings": []

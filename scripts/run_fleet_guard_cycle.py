@@ -102,6 +102,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="Public key PEM path used when --verify-signed-artifacts is enabled",
     )
+    p.add_argument(
+        "--allowed-key-id",
+        action="append",
+        default=[],
+        help="Allowed signature key ID for lineage verification (repeatable)",
+    )
+    p.add_argument(
+        "--max-signature-age-hours",
+        type=int,
+        default=0,
+        help="Maximum allowed signature age in hours for lineage verification (0 disables)",
+    )
     return p
 
 
@@ -187,6 +199,8 @@ def _build_lineage_verify_command(
     require_signed: bool,
     verify_signatures: bool,
     signature_public_key: str,
+    allowed_key_ids: list[str],
+    max_signature_age_hours: int,
 ) -> list[str]:
     cmd = [
         sys.executable,
@@ -207,6 +221,12 @@ def _build_lineage_verify_command(
         key_path = str(signature_public_key or "").strip()
         if key_path:
             cmd.extend(["--signature-public-key", key_path])
+    for key_id in list(allowed_key_ids or []):
+        key = str(key_id or "").strip()
+        if key:
+            cmd.extend(["--allowed-key-id", key])
+    if int(max_signature_age_hours or 0) > 0:
+        cmd.extend(["--max-signature-age-hours", str(int(max_signature_age_hours))])
     return cmd
 
 
@@ -266,6 +286,8 @@ def main() -> int:
         require_signed=bool(args.require_signed_artifacts),
         verify_signatures=bool(args.verify_signed_artifacts),
         signature_public_key=str(args.signature_public_key),
+        allowed_key_ids=list(args.allowed_key_id or []),
+        max_signature_age_hours=int(args.max_signature_age_hours or 0),
     )
 
     if bool(args.dry_run):

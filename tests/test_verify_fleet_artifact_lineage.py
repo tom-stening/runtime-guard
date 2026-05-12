@@ -373,6 +373,37 @@ def test_build_result_fails_on_hash_or_run_id_mismatch(tmp_path: Path):
     assert any("source hash mismatch" in row for row in result["errors"])
 
 
+def test_build_result_fails_safely_on_invalid_artifact_json(tmp_path: Path):
+    module = _load_module()
+
+    enforcement_path = tmp_path / "repo_guard_enforcement.json"
+    integration_path = tmp_path / "integration_fleet_status.json"
+    runtime_path = tmp_path / "repo_guard_runtime_status.json"
+
+    enforcement_path.write_text("{not json", encoding="utf-8")
+    integration_path.write_text("[]", encoding="utf-8")
+    runtime_path.write_text("{}", encoding="utf-8")
+
+    ok, result = module._build_result(
+        enforcement_path,
+        integration_path,
+        runtime_path,
+        strict=False,
+        require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
+    )
+    assert ok is False
+    assert any("repo_guard_enforcement: unable to parse artifact JSON" in row for row in result["errors"])
+    assert any("integration_fleet_status: unable to parse artifact JSON" in row for row in result["errors"])
+
+
 def test_build_result_fails_on_artifact_digest_mismatch(tmp_path: Path):
     module = _load_module()
 

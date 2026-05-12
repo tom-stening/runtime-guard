@@ -650,16 +650,35 @@ def _build_result(
     expected_max_report_signature_age_hours: int,
 ) -> tuple[bool, dict[str, Any]]:
     errors: list[str] = []
+    artifacts = {
+        "repo_guard_enforcement": str(enforcement_path),
+        "integration_fleet_status": str(integration_path),
+        "repo_guard_runtime_status": str(runtime_path),
+    }
 
     for path in [enforcement_path, integration_path, runtime_path]:
         if not path.exists():
             errors.append(f"missing artifact: {path}")
     if errors:
-        return False, {"ok": False, "errors": errors}
+        return False, {"ok": False, "errors": errors, "artifacts": artifacts}
 
-    enforcement = _load_json(enforcement_path)
-    integration = _load_json(integration_path)
-    runtime = _load_json(runtime_path)
+    parsed_payloads: dict[str, dict[str, Any]] = {}
+    for name, path in [
+        ("repo_guard_enforcement", enforcement_path),
+        ("integration_fleet_status", integration_path),
+        ("repo_guard_runtime_status", runtime_path),
+    ]:
+        try:
+            parsed_payloads[name] = _load_json(path)
+        except Exception as exc:
+            errors.append(f"{name}: unable to parse artifact JSON: {exc}")
+
+    if errors:
+        return False, {"ok": False, "errors": errors, "artifacts": artifacts}
+
+    enforcement = parsed_payloads["repo_guard_enforcement"]
+    integration = parsed_payloads["integration_fleet_status"]
+    runtime = parsed_payloads["repo_guard_runtime_status"]
 
     run_ids = {
         "repo_guard_enforcement": _extract_run_id(enforcement),
@@ -772,11 +791,7 @@ def _build_result(
         "errors": errors,
         "run_id": next(iter(set(run_ids.values()))) if len(set(run_ids.values())) == 1 else "",
         "run_ids": run_ids,
-        "artifacts": {
-            "repo_guard_enforcement": str(enforcement_path),
-            "integration_fleet_status": str(integration_path),
-            "repo_guard_runtime_status": str(runtime_path),
-        },
+        "artifacts": artifacts,
         "runtime_expected_source_hashes": expected_source_hashes,
     }
     return ok, result

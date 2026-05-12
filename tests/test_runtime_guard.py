@@ -1355,6 +1355,7 @@ class TestDaskIntegration:
             assert result["ok"] is True
             assert result["dask_available"] is True
             assert result["methods_wrapped"] is True
+            assert result["scheduler_telemetry_counters_present"] is True
             assert result["compute_present"] is True
             assert result["persist_present"] is True
             assert result["base_module_present"] is True
@@ -1379,6 +1380,7 @@ class TestDaskIntegration:
             assert evidence["validation_ok"] is True
             assert "dask_integration_validated" in evidence["evidence_items"]
             assert "dask_hooks_installed" in evidence["evidence_items"]
+            assert "dask_scheduler_telemetry_counters_present" in evidence["evidence_items"]
             assert "dask_scheduler_callback_api_available" not in evidence["evidence_items"]
             assert evidence["dask_version"] == "unknown"
         finally:

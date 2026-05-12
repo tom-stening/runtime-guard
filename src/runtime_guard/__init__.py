@@ -2317,6 +2317,7 @@ def validate_dask_integration(
     errors: list[str] = []
     dask_available = False
     methods_wrapped = False
+    scheduler_telemetry_counters_present = False
 
     try:
         dask_mod = module
@@ -2350,6 +2351,21 @@ def validate_dask_integration(
         callbacks_mod = getattr(dask_mod, "callbacks", None)
         callback_cls = getattr(callbacks_mod, "Callback", None) if callbacks_mod else None
 
+        # Validate scheduler telemetry report surface for machine-verifiable evidence.
+        try:
+            callback_reporter = install_dask_scheduler_callbacks(guard, module=dask_mod)
+            callback_summary = callback_reporter()
+            required_counter_fields = {
+                "total_tasks",
+                "total_healthy_events",
+                "total_pressure_events",
+            }
+            scheduler_telemetry_counters_present = required_counter_fields.issubset(
+                set(callback_summary.keys()) if isinstance(callback_summary, dict) else set()
+            )
+        except Exception:
+            scheduler_telemetry_counters_present = False
+
         methods_wrapped = bool(getattr(compute_fn, "_runtime_guard_wrapped", False))
         scheduler_callbacks_wrapped = bool(
             getattr(compute_fn, "_runtime_guard_scheduler_callbacks_enabled", False)
@@ -2364,6 +2380,7 @@ def validate_dask_integration(
             "methods_wrapped": methods_wrapped,
             "scheduler_callbacks_wrapped": scheduler_callbacks_wrapped,
             "scheduler_callback_context_available": scheduler_callback_context_available,
+            "scheduler_telemetry_counters_present": scheduler_telemetry_counters_present,
             "compute_present": compute_fn is not None,
             "persist_present": persist_fn is not None,
             "base_module_present": base_mod is not None,
@@ -2378,6 +2395,7 @@ def validate_dask_integration(
             "ok": False,
             "dask_available": dask_available,
             "methods_wrapped": methods_wrapped,
+            "scheduler_telemetry_counters_present": scheduler_telemetry_counters_present,
             "errors": errors,
         }
 
@@ -2421,6 +2439,9 @@ def collect_dask_integration_evidence(
 
     if validation.get("scheduler_callbacks_wrapped"):
         evidence_items.append("dask_scheduler_callback_context_wrapped")
+
+    if validation.get("scheduler_telemetry_counters_present"):
+        evidence_items.append("dask_scheduler_telemetry_counters_present")
 
     runtime_guard_version = "0.3.0"
     try:

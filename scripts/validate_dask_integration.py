@@ -162,6 +162,23 @@ def _check_scheduler_api() -> dict[str, Any]:
             stage_prefix="sched-check",
             module=_MockDask,
         )
+        callback_summary = callback_report()
+        if not isinstance(callback_summary, dict):
+            result["errors"].append("scheduler callback reporter did not return dict")
+            return result
+        required_counter_fields = {
+            "total_tasks",
+            "total_healthy_events",
+            "total_pressure_events",
+        }
+        missing_counter_fields = sorted(required_counter_fields - set(callback_summary.keys()))
+        if missing_counter_fields:
+            result["errors"].append(
+                "scheduler callback report missing telemetry counters: "
+                + ", ".join(missing_counter_fields)
+            )
+            return result
+
         create_ctx = getattr(callback_report, "create_callback_context", None)
         if not callable(create_ctx):
             result["errors"].append("create_callback_context metadata missing")

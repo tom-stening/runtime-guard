@@ -244,6 +244,25 @@ def test_validate_provenance_rejects_invalid_core_field_types():
     assert any("provenance.script missing in strict mode" in row for row in errors)
 
 
+def test_extract_run_id_rejects_non_string_fields():
+    module = _load_module()
+
+    payload = {
+        "run_id": 123,
+        "summary": {
+            "run_id": ["ci-1"],
+        },
+    }
+    assert module._extract_run_id(payload) == ""
+
+    summary_payload = {
+        "summary": {
+            "run_id": "  ci-2  ",
+        }
+    }
+    assert module._extract_run_id(summary_payload) == "ci-2"
+
+
 def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
     module = _load_module()
 

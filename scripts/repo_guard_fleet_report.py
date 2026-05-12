@@ -306,14 +306,14 @@ def _compute_overall_runtime_healthy(summary: dict[str, Any]) -> bool:
 def _extract_run_id(payload: dict[str, Any] | None) -> str:
     if not isinstance(payload, dict):
         return ""
-    root = str(payload.get("run_id") or "").strip()
-    if root:
-        return root
+    root = payload.get("run_id")
+    if isinstance(root, str) and root.strip():
+        return root.strip()
     summary = payload.get("summary")
     if isinstance(summary, dict):
-        nested = str(summary.get("run_id") or "").strip()
-        if nested:
-            return nested
+        nested = summary.get("run_id")
+        if isinstance(nested, str) and nested.strip():
+            return nested.strip()
     return ""
 
 

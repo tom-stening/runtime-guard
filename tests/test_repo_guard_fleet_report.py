@@ -393,3 +393,44 @@ def test_fail_on_run_id_mismatch_exits_nonzero(tmp_path: Path) -> None:
         if isinstance(row, dict) and row.get("gate") == "fail-on-run-id-mismatch"
     ]
     assert failed
+
+
+def test_non_string_source_run_ids_are_not_coerced(tmp_path: Path) -> None:
+    payload = {
+        "run_id": 101,
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ],
+    }
+    integration_path = tmp_path / "integration.json"
+    integration_path.write_text(
+        json.dumps(
+            {
+                "run_id": "101",
+                "summary": {
+                    "overall_healthy": True,
+                    "components_total": 1,
+                    "components_healthy": 1,
+                    "risk_level": "low",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--integration-report",
+        str(integration_path),
+        "--run-id",
+        "101",
+        "--fail-on-run-id-mismatch",
+    )
+    assert result.returncode == 1
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    assert runtime.get("run_id_consistent") is False
+    source_ids = runtime.get("source_run_ids", {})
+    assert source_ids.get("repo_guard_enforcement") == ""
+    assert source_ids.get("integration_fleet_status") == "101"

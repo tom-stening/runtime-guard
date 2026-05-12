@@ -123,6 +123,42 @@ def test_validate_cli_configuration_requires_integration_require_signed_when_ver
     assert "--integration-require-signed-report-inputs" in errors[0]
 
 
+def test_validate_cli_configuration_requires_integration_verification_when_key_ids_are_constrained():
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = False
+        integration_require_signed_report_inputs = True
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id = ["report-key-a"]
+        integration_max_report_signature_age_hours = 0
+        verify_signed_artifacts = False
+        signature_public_key = ""
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--integration-verify-report-input-signatures" in errors[0]
+    assert "--integration-report-allowed-key-id" in errors[0]
+
+
+def test_validate_cli_configuration_requires_integration_verification_when_signature_age_policy_enabled():
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = False
+        integration_require_signed_report_inputs = True
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_report_signature_age_hours = 8
+        verify_signed_artifacts = False
+        signature_public_key = ""
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--integration-verify-report-input-signatures" in errors[0]
+    assert "--integration-max-report-signature-age-hours" in errors[0]
+
+
 def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_path: Path):
     module = _load_module()
 

@@ -125,13 +125,31 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     errors: list[str] = []
-    if bool(args.verify_report_input_signatures) and not bool(args.require_signed_report_inputs):
+    verify_signatures = bool(getattr(args, "verify_report_input_signatures", False))
+    require_signed = bool(getattr(args, "require_signed_report_inputs", False))
+    public_key = str(getattr(args, "report_signature_public_key", "") or "").strip()
+    allowed_key_ids = [
+        str(key_id).strip()
+        for key_id in list(getattr(args, "report_allowed_key_id", []) or [])
+        if str(key_id).strip()
+    ]
+    max_signature_age_hours = int(getattr(args, "max_report_signature_age_hours", 0) or 0)
+
+    if verify_signatures and not require_signed:
         errors.append(
             "--require-signed-report-inputs must be set when --verify-report-input-signatures is enabled"
         )
-    if bool(args.verify_report_input_signatures) and not str(args.report_signature_public_key or "").strip():
+    if verify_signatures and not public_key:
         errors.append(
             "--report-signature-public-key is required when --verify-report-input-signatures is set"
+        )
+    if allowed_key_ids and not verify_signatures:
+        errors.append(
+            "--verify-report-input-signatures must be set when --report-allowed-key-id is used"
+        )
+    if max_signature_age_hours > 0 and not verify_signatures:
+        errors.append(
+            "--verify-report-input-signatures must be set when --max-report-signature-age-hours is greater than 0"
         )
     return errors
 

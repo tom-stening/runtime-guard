@@ -73,6 +73,38 @@ def test_validate_cli_configuration_requires_signed_inputs_when_verifying_signat
     assert "--require-signed-report-inputs" in errors[0]
 
 
+def test_validate_cli_configuration_requires_verification_when_key_ids_are_constrained():
+    module = _load_module()
+
+    class _Args:
+        verify_report_input_signatures = False
+        require_signed_report_inputs = True
+        report_signature_public_key = ""
+        report_allowed_key_id = ["trusted-key"]
+        max_report_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--verify-report-input-signatures" in errors[0]
+    assert "--report-allowed-key-id" in errors[0]
+
+
+def test_validate_cli_configuration_requires_verification_when_signature_age_policy_enabled():
+    module = _load_module()
+
+    class _Args:
+        verify_report_input_signatures = False
+        require_signed_report_inputs = True
+        report_signature_public_key = ""
+        report_allowed_key_id: list[str] = []
+        max_report_signature_age_hours = 6
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--verify-report-input-signatures" in errors[0]
+    assert "--max-report-signature-age-hours" in errors[0]
+
+
 def test_summarize_validator_stderr_filters_pressure_event_json_lines():
     module = _load_module()
     stderr = (

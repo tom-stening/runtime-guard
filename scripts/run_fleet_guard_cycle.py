@@ -155,19 +155,40 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     errors: list[str] = []
-    if bool(args.integration_verify_report_input_signatures) and not bool(
-        args.integration_require_signed_report_inputs
-    ):
+    integration_verify = bool(getattr(args, "integration_verify_report_input_signatures", False))
+    integration_require_signed = bool(getattr(args, "integration_require_signed_report_inputs", False))
+    integration_public_key = str(
+        getattr(args, "integration_report_signature_public_key", "") or ""
+    ).strip()
+    integration_allowed_key_ids = [
+        str(key_id).strip()
+        for key_id in list(getattr(args, "integration_report_allowed_key_id", []) or [])
+        if str(key_id).strip()
+    ]
+    integration_max_signature_age_hours = int(
+        getattr(args, "integration_max_report_signature_age_hours", 0) or 0
+    )
+
+    if integration_verify and not integration_require_signed:
         errors.append(
             "--integration-require-signed-report-inputs must be set when --integration-verify-report-input-signatures is enabled"
         )
-    if bool(args.integration_verify_report_input_signatures) and not str(
-        args.integration_report_signature_public_key or ""
-    ).strip():
+    if integration_verify and not integration_public_key:
         errors.append(
             "--integration-report-signature-public-key is required when --integration-verify-report-input-signatures is set"
         )
-    if bool(args.verify_signed_artifacts) and not str(args.signature_public_key or "").strip():
+    if integration_allowed_key_ids and not integration_verify:
+        errors.append(
+            "--integration-verify-report-input-signatures must be set when --integration-report-allowed-key-id is used"
+        )
+    if integration_max_signature_age_hours > 0 and not integration_verify:
+        errors.append(
+            "--integration-verify-report-input-signatures must be set when --integration-max-report-signature-age-hours is greater than 0"
+        )
+
+    if bool(getattr(args, "verify_signed_artifacts", False)) and not str(
+        getattr(args, "signature_public_key", "") or ""
+    ).strip():
         errors.append(
             "--signature-public-key is required when --verify-signed-artifacts is set"
         )

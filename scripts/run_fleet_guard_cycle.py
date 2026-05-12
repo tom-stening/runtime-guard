@@ -87,6 +87,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip final verify_fleet_artifact_lineage.py integrity check",
     )
+    p.add_argument(
+        "--require-signed-artifacts",
+        action="store_true",
+        help="Require detached signatures during lineage verification",
+    )
     return p
 
 
@@ -168,8 +173,10 @@ def _build_lineage_verify_command(
     enforcement_report: Path,
     integration_report: Path,
     runtime_report: Path,
+    *,
+    require_signed: bool,
 ) -> list[str]:
-    return [
+    cmd = [
         sys.executable,
         str(repo_root / "scripts" / "verify_fleet_artifact_lineage.py"),
         "--json",
@@ -181,6 +188,9 @@ def _build_lineage_verify_command(
         "--runtime-report",
         str(runtime_report),
     ]
+    if require_signed:
+        cmd.append("--require-signed")
+    return cmd
 
 
 def _summarize_runtime_report(runtime_report_path: Path) -> dict[str, Any]:
@@ -236,6 +246,7 @@ def main() -> int:
         enforcement_report,
         integration_report,
         runtime_report,
+        require_signed=bool(args.require_signed_artifacts),
     )
 
     if bool(args.dry_run):

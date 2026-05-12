@@ -156,9 +156,9 @@
       "pressure_detected": false
     },
     "provenance": {
-      "artifact_sha256": "6ec16dac3856c4ef6220a0effad8b4f64f7ad5790418f06f1b1c4cf6acd21ee4",
-      "generated_at_utc": "2026-05-12T09:56:48Z",
-      "git_commit": "fabc5d4",
+      "artifact_sha256": "88be52a15a7288afc457eab4d9fffb3edf60d79fd4a1f093b0ac399044abbdc3",
+      "generated_at_utc": "2026-05-12T09:58:43Z",
+      "git_commit": "fd99e0b",
       "inputs": {
         "fallback_on_pressure": true,
         "fallback_report_dir": "/home/thomas_stening/runtime-guard/reports",
@@ -169,53 +169,53 @@
           "ray": "bc4b40d2cd107743b8abca254cf0e4ddf16914e4d3a88610eea5107e319ff37f"
         }
       },
-      "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+      "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
       "schema_version": 1,
       "script": "/home/thomas_stening/runtime-guard/scripts/validate_integration_fleet.py",
       "signature": {
-        "algorithm": "",
-        "key_id": "",
-        "mode": "unsigned",
-        "signature": "",
+        "algorithm": "ed25519",
+        "key_id": "test-key-1",
+        "mode": "detached",
+        "signature": "deadbeef",
         "signed_field": "artifact_sha256",
-        "signed_value": "6ec16dac3856c4ef6220a0effad8b4f64f7ad5790418f06f1b1c4cf6acd21ee4"
+        "signed_value": "88be52a15a7288afc457eab4d9fffb3edf60d79fd4a1f093b0ac399044abbdc3"
       },
       "tool": "validate_integration_fleet"
     },
-    "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+    "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
     "summary": {
       "components_healthy": 3,
       "components_total": 3,
       "components_unhealthy": 0,
       "overall_healthy": true,
       "risk_level": "low",
-      "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077"
+      "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a"
     },
     "tool": "validate_integration_fleet",
     "warnings": []
   },
   "provenance": {
-    "artifact_sha256": "f851a5e4c99ad1d6eb3da6509b5aa1b608a9d2546afcf89a9af63e3912c0b0bd",
-    "generated_at_utc": "2026-05-12T09:56:50Z",
-    "git_commit": "fabc5d4",
+    "artifact_sha256": "3c3574cb0f3d62c2f49cde518439410cdd8111c7fa90310ee1f235689ee5dd98",
+    "generated_at_utc": "2026-05-12T09:58:45Z",
+    "git_commit": "fd99e0b",
     "inputs": {
       "enforcement_report": "/home/thomas_stening/runtime-guard/reports/repo_guard_enforcement.json",
       "integration_report": "/home/thomas_stening/runtime-guard/reports/integration_fleet_status.json",
       "source_artifact_hashes": {
-        "integration_fleet_status": "e92aa5e1a33b405ba944410764cc2f3870d407e33cc3b1790e12b9adcf98d823",
-        "repo_guard_enforcement": "0e56cc9b7fadce44c41b2c09f3dcc0ca89f6638f8250264d3546141b1dcc88d0"
+        "integration_fleet_status": "e088a0524bc8eb6f9219aa98661b37c6545534702f4ecefb1adc6a9c77bd3eed",
+        "repo_guard_enforcement": "7febb43f9a41ae580c7a11924f0560c30104f52d59d680ffb7abb5336f11c43f"
       }
     },
-    "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+    "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
     "schema_version": 1,
     "script": "/home/thomas_stening/runtime-guard/scripts/repo_guard_fleet_report.py",
     "signature": {
-      "algorithm": "",
-      "key_id": "",
-      "mode": "unsigned",
-      "signature": "",
+      "algorithm": "ed25519",
+      "key_id": "test-key-1",
+      "mode": "detached",
+      "signature": "deadbeef",
       "signed_field": "artifact_sha256",
-      "signed_value": "f851a5e4c99ad1d6eb3da6509b5aa1b608a9d2546afcf89a9af63e3912c0b0bd"
+      "signed_value": "3c3574cb0f3d62c2f49cde518439410cdd8111c7fa90310ee1f235689ee5dd98"
     },
     "tool": "repo_guard_fleet_report"
   },
@@ -822,30 +822,30 @@
       "status": "enforced"
     }
   ],
-  "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+  "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
   "run_id_consistent": true,
   "source_enforcement_report": {
     "dry_run": false,
     "env_prefix": "RUNTIME_GUARD",
     "posture": "wsl_dev",
     "provenance": {
-      "artifact_sha256": "e3c9c9ad5323504365c922334778ca75f12d4428951afca2478aca0496c6da53",
-      "generated_at_utc": "2026-05-12T09:56:43Z",
-      "git_commit": "fabc5d4",
+      "artifact_sha256": "e45a7bd469a5dcb02199b13887b2101434e9dc774338e7e239f289ed477cd3ee",
+      "generated_at_utc": "2026-05-12T09:58:38Z",
+      "git_commit": "fd99e0b",
       "inputs": {
         "args_digest": "856493dd4dce5c2c3e8fd306de4b7209fd94f6a6813b591388a065abe7f67215",
         "root": "/home/thomas_stening"
       },
-      "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+      "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
       "schema_version": 1,
       "script": "/home/thomas_stening/runtime-guard/scripts/enforce_runtime_guard_all_repos.py",
       "signature": {
-        "algorithm": "",
-        "key_id": "",
-        "mode": "unsigned",
-        "signature": "",
+        "algorithm": "ed25519",
+        "key_id": "test-key-1",
+        "mode": "detached",
+        "signature": "deadbeef",
         "signed_field": "artifact_sha256",
-        "signed_value": "e3c9c9ad5323504365c922334778ca75f12d4428951afca2478aca0496c6da53"
+        "signed_value": "e45a7bd469a5dcb02199b13887b2101434e9dc774338e7e239f289ed477cd3ee"
       },
       "tool": "enforce_runtime_guard_all_repos"
     },
@@ -1284,7 +1284,7 @@
       }
     ],
     "root": "/home/thomas_stening",
-    "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+    "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
     "stage": "repo-autostart",
     "summary": {
       "already_enforced": 0,
@@ -1293,15 +1293,15 @@
       "enforced": 54,
       "non_python_repos": 0,
       "python_repos": 54,
-      "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+      "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
       "total_repos": 54,
       "watcher_only_candidates": 0
     }
   },
   "source_run_ids": {
-    "integration_fleet_status": "3ee0903f-d83f-427d-af6d-fd20e448a077",
-    "repo_guard_enforcement": "3ee0903f-d83f-427d-af6d-fd20e448a077",
-    "repo_guard_runtime_status": "3ee0903f-d83f-427d-af6d-fd20e448a077"
+    "integration_fleet_status": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
+    "repo_guard_enforcement": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
+    "repo_guard_runtime_status": "8953e5d0-5a6f-4c84-8cc4-0c288733245a"
   },
   "summary": {
     "active_repos": 8,
@@ -1318,10 +1318,10 @@
     "overall_runtime_healthy": true,
     "proc_scan_enabled": true,
     "recommendation_count": 5,
-    "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+    "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
     "run_id_consistent": true,
-    "source_enforcement_run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
-    "source_integration_run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+    "source_enforcement_run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
+    "source_integration_run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
     "total_repos": 54,
     "unenforced_repos": 0,
     "wsl_docker_desktop_running": true,
@@ -1330,29 +1330,29 @@
     "wsl_running_distro_count": 2,
     "wsl_top_process_command": "/home/thomas_stening/ML-Trading/venv/bin/python main.py",
     "wsl_top_process_pid": 72473,
-    "wsl_top_process_rss_mb": 2166,
-    "wsl_vscode_extension_total_rss_mb": 1383
+    "wsl_top_process_rss_mb": 2184,
+    "wsl_vscode_extension_total_rss_mb": 1365
   },
   "wsl_diagnosis": {
     "docker_desktop_running": true,
-    "drift_mem_available_mb": -26552,
+    "drift_mem_available_mb": -26633,
     "drift_mem_total_mb": -49453,
-    "drift_swap_used_pct": -7,
-    "guest_mem_available_mb": 3856,
+    "drift_swap_used_pct": -6,
+    "guest_mem_available_mb": 4055,
     "guest_mem_total_mb": 15995,
-    "guest_swap_free_mb": 9017,
+    "guest_swap_free_mb": 8995,
     "guest_swap_total_mb": 16384,
-    "guest_swap_used_pct": 44,
+    "guest_swap_used_pct": 45,
     "guest_top_memory_processes": [
       {
         "command": "/home/thomas_stening/ML-Trading/venv/bin/python main.py",
         "pid": 72473,
-        "rss_mb": 2166
+        "rss_mb": 2184
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 2668,
-        "rss_mb": 1793
+        "rss_mb": 1560
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
@@ -1362,7 +1362,7 @@
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node /home/thomas_stening/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js --cancellationReceive=file:ad61...",
         "pid": 33628,
-        "rss_mb": 766
+        "rss_mb": 748
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node /home/thomas_stening/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js --cancellationReceive=file:3c29...",
@@ -1372,7 +1372,7 @@
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 2263,
-        "rss_mb": 512
+        "rss_mb": 513
       },
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
@@ -1382,7 +1382,7 @@
       {
         "command": "/home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node --dns-result-order=ipv4first /home/thomas_stening/.vscode-server/bin/034f571df509819cc10b0c8129f66ef77a542f0e/out/bootstrap-fork --typ...",
         "pid": 2257,
-        "rss_mb": 482
+        "rss_mb": 483
       }
     ],
     "guest_vscode_extension_rss": [
@@ -1393,10 +1393,10 @@
           94258
         ],
         "process_count": 2,
-        "rss_mb": 1383
+        "rss_mb": 1365
       }
     ],
-    "guest_vscode_extension_total_rss_mb": 1383,
+    "guest_vscode_extension_total_rss_mb": 1365,
     "host_error_event_count": 2,
     "host_error_events": [
       {
@@ -1424,15 +1424,15 @@
       "System"
     ],
     "host_high_relevance_event_count": 0,
-    "host_mem_free_mb": 30408,
+    "host_mem_free_mb": 30688,
     "host_mem_total_mb": 65448,
-    "host_vm_free_mb": 49207,
+    "host_vm_free_mb": 48915,
     "host_vm_total_mb": 100448,
     "host_vm_used_pct": 51,
     "likely_causes": [
       "host warning/error events were detected (low relevance to WSL)",
-      "VS Code extension hosts account for elevated guest RSS (~1383 MB across top processes)",
-      "top extension memory consumers: ms-python.vscode-pylance (1383 MB)"
+      "VS Code extension hosts account for elevated guest RSS (~1365 MB across top processes)",
+      "top extension memory consumers: ms-python.vscode-pylance (1365 MB)"
     ],
     "prevention_actions": [
       "review host events, but prioritize guest memory pressure signals first",

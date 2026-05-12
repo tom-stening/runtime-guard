@@ -910,6 +910,8 @@ python scripts/verify_fleet_artifact_lineage.py --json --require-signed
 generation (use `--skip-lineage-verify` to opt out).
 The cycle invokes the verifier in strict mode, requiring complete provenance
 metadata and canonical digest validity.
+Use `--require-signed-artifacts` to also require detached signatures during
+the cycle's lineage verification.
 
 Artifacts now include a signature-ready envelope at
 `provenance.signature` (`mode`, `algorithm`, `key_id`, `signature`) and sign

@@ -3,23 +3,23 @@
   "env_prefix": "RUNTIME_GUARD",
   "posture": "wsl_dev",
   "provenance": {
-    "artifact_sha256": "e3c9c9ad5323504365c922334778ca75f12d4428951afca2478aca0496c6da53",
-    "generated_at_utc": "2026-05-12T09:56:43Z",
-    "git_commit": "fabc5d4",
+    "artifact_sha256": "e45a7bd469a5dcb02199b13887b2101434e9dc774338e7e239f289ed477cd3ee",
+    "generated_at_utc": "2026-05-12T09:58:38Z",
+    "git_commit": "fd99e0b",
     "inputs": {
       "args_digest": "856493dd4dce5c2c3e8fd306de4b7209fd94f6a6813b591388a065abe7f67215",
       "root": "/home/thomas_stening"
     },
-    "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+    "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
     "schema_version": 1,
     "script": "/home/thomas_stening/runtime-guard/scripts/enforce_runtime_guard_all_repos.py",
     "signature": {
-      "algorithm": "",
-      "key_id": "",
-      "mode": "unsigned",
-      "signature": "",
+      "algorithm": "ed25519",
+      "key_id": "test-key-1",
+      "mode": "detached",
+      "signature": "deadbeef",
       "signed_field": "artifact_sha256",
-      "signed_value": "e3c9c9ad5323504365c922334778ca75f12d4428951afca2478aca0496c6da53"
+      "signed_value": "e45a7bd469a5dcb02199b13887b2101434e9dc774338e7e239f289ed477cd3ee"
     },
     "tool": "enforce_runtime_guard_all_repos"
   },
@@ -458,7 +458,7 @@
     }
   ],
   "root": "/home/thomas_stening",
-  "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+  "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
   "stage": "repo-autostart",
   "summary": {
     "already_enforced": 0,
@@ -467,7 +467,7 @@
     "enforced": 54,
     "non_python_repos": 0,
     "python_repos": 54,
-    "run_id": "3ee0903f-d83f-427d-af6d-fd20e448a077",
+    "run_id": "8953e5d0-5a6f-4c84-8cc4-0c288733245a",
     "total_repos": 54,
     "watcher_only_candidates": 0
   }

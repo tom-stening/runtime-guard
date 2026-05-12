@@ -158,7 +158,13 @@ def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):
     integration = tmp_path / "integration_fleet_status.json"
     runtime = tmp_path / "repo_guard_runtime_status.json"
 
-    cmd = module._build_lineage_verify_command(repo_root, enforcement, integration, runtime)
+    cmd = module._build_lineage_verify_command(
+        repo_root,
+        enforcement,
+        integration,
+        runtime,
+        require_signed=False,
+    )
     rendered = " ".join(cmd)
 
     assert "verify_fleet_artifact_lineage.py" in rendered
@@ -170,3 +176,15 @@ def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):
     assert str(integration) in cmd
     assert "--runtime-report" in cmd
     assert str(runtime) in cmd
+
+
+def test_build_lineage_verify_command_includes_require_signed_flag(tmp_path: Path):
+    module = _load_module()
+    cmd = module._build_lineage_verify_command(
+        Path("/repo"),
+        tmp_path / "repo_guard_enforcement.json",
+        tmp_path / "integration_fleet_status.json",
+        tmp_path / "repo_guard_runtime_status.json",
+        require_signed=True,
+    )
+    assert "--require-signed" in cmd

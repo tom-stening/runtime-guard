@@ -688,6 +688,75 @@ class TestDiagnoseWslCrash:
         assert any("Pylance" in item for item in diag["prevention_actions"])
         assert any("Python jobs" in item for item in diag["prevention_actions"])
 
+    def test_diagnose_wsl_crash_flags_vscode_extension_memory_concentration(self, monkeypatch):
+        from runtime_guard import diagnose_wsl_crash
+
+        monkeypatch.setattr(
+            "runtime_guard._read_snapshot",
+            lambda: MemSnapshot(
+                mem_total_mb=16384,
+                mem_available_mb=3500,
+                swap_total_mb=8192,
+                swap_free_mb=7200,
+                swap_used_pct=12,
+                rss_mb=120,
+                vm_swap_mb=0,
+            ),
+        )
+        monkeypatch.setattr(
+            "runtime_guard._read_linux_memory_psi",
+            lambda: {
+                "psi_some_avg10": 0.8,
+                "psi_some_avg60": 0.5,
+                "psi_full_avg10": 0.2,
+                "psi_full_avg60": 0.1,
+            },
+        )
+        monkeypatch.setattr(
+            "runtime_guard._top_memory_process_details",
+            lambda n=8: [
+                {
+                    "pid": 101,
+                    "rss_mb": 2100,
+                    "command": "/home/thomas_stening/.vscode-server/bin/.../node --type=extensionHost",
+                },
+                {
+                    "pid": 102,
+                    "rss_mb": 1700,
+                    "command": "/home/thomas_stening/.vscode-server/extensions/ms-python.vscode-pylance/dist/server.bundle.js",
+                },
+                {
+                    "pid": 103,
+                    "rss_mb": 900,
+                    "command": "/home/thomas_stening/.vscode-server/extensions/tamasfe.even-better-toml/dist/server.js",
+                },
+            ],
+        )
+        monkeypatch.setattr(
+            "runtime_guard._read_wsl_running_distros",
+            lambda: {
+                "wsl_running_distros": [
+                    {"name": "Ubuntu-24.04", "state": "Running", "version": 2}
+                ],
+                "wsl_running_distro_count": 1,
+                "docker_desktop_running": False,
+            },
+        )
+        monkeypatch.setattr(
+            "runtime_guard._read_windows_wsl_event_hints",
+            lambda max_events=6: {
+                "host_event_logs_checked": ["System"],
+                "host_error_event_count": 0,
+                "host_high_relevance_event_count": 0,
+                "host_error_events": [],
+            },
+        )
+
+        diag = diagnose_wsl_crash()
+        assert diag["risk_level"] in {"moderate", "high", "critical"}
+        assert any("VS Code extension hosts" in item for item in diag["likely_causes"])
+        assert any("reload VS Code window" in item for item in diag["prevention_actions"])
+
 
 class TestPressureReportNewFields:
     def test_missing_mem_mb_populated(self):

@@ -5671,6 +5671,52 @@ def _derive_guest_pressure_offender_hints(metrics: dict[str, Any]) -> tuple[list
     return causes, prevention
 
 
+def _derive_vscode_extension_pressure_hints(
+    metrics: dict[str, Any],
+) -> tuple[int, list[str], list[str]]:
+    """Derive proactive hints for VS Code extension-host memory concentration.
+
+    Returns (score_delta, causes, prevention_actions).
+    """
+    rows_raw = metrics.get("guest_top_memory_processes", [])
+    if not isinstance(rows_raw, list):
+        return 0, [], []
+
+    vscode_rows: list[dict[str, Any]] = []
+    for item in rows_raw:
+        if not isinstance(item, dict):
+            continue
+        cmd = str(item.get("command", "") or "").lower()
+        if ".vscode-server" in cmd or "extensionhost" in cmd or "/extensions/" in cmd:
+            vscode_rows.append(item)
+
+    if not vscode_rows:
+        return 0, [], []
+
+    total_vscode_rss_mb = 0
+    for row in vscode_rows:
+        try:
+            total_vscode_rss_mb += int(row.get("rss_mb", 0) or 0)
+        except Exception:
+            continue
+
+    score_delta = 0
+    if total_vscode_rss_mb >= 5000:
+        score_delta = 2
+    elif total_vscode_rss_mb >= 3000:
+        score_delta = 1
+
+    causes = [
+        "VS Code extension hosts account for elevated guest RSS "
+        f"(~{total_vscode_rss_mb} MB across top processes)"
+    ]
+    prevention = [
+        "reload VS Code window and disable high-RSS extensions not needed for the current task",
+        "split large multi-root workspaces to reduce concurrent language-server indexing load",
+    ]
+    return score_delta, causes, prevention
+
+
 def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], list[str]]:
     """Return (risk_level, score, likely_causes, prevention_actions)."""
     score = 0
@@ -5726,6 +5772,11 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
     offender_causes, offender_prevention = _derive_guest_pressure_offender_hints(metrics)
     causes.extend(offender_causes)
     prevention.extend(offender_prevention)
+
+    vscode_score, vscode_causes, vscode_prevention = _derive_vscode_extension_pressure_hints(metrics)
+    score += vscode_score
+    causes.extend(vscode_causes)
+    prevention.extend(vscode_prevention)
 
     if score >= 5:
         level = "critical"

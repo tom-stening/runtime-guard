@@ -141,6 +141,28 @@ def test_component_from_payload_marks_healthy_with_required_checks():
     assert "runtime warning" in comp["warnings"]
 
 
+def test_component_from_payload_hard_errors_force_unhealthy():
+    module = _load_module()
+    comp = module._component_from_payload(
+        "ray",
+        {
+            "ok": True,
+            "api_importable": True,
+            "actor_monitoring_api": {
+                "available": True,
+                "hotspot_fields_present": True,
+            },
+        },
+        source="report",
+        command=None,
+        exit_code=0,
+        hard_errors=["identity mismatch"],
+        warnings=[],
+    )
+    assert comp["healthy"] is False
+    assert any("identity mismatch" in err for err in comp["errors"])
+
+
 def test_component_from_report_invalid_file(tmp_path: Path):
     module = _load_module()
     bad = tmp_path / "bad.json"
@@ -153,6 +175,22 @@ def test_component_from_report_invalid_file(tmp_path: Path):
     assert any("unable to read report" in err for err in comp["errors"])
 
 
+def test_component_from_report_rejects_identity_mismatch(tmp_path: Path):
+    module = _load_module()
+    wrong = tmp_path / "wrong.json"
+    wrong.write_text(
+        '{"tool": "validate_ray_integration", "milestone": "M1-I03", "ok": true, '
+        '"api_importable": true, "scan_budget_api": {"available": true}, '
+        '"native_callback_api": {"available": true}}',
+        encoding="utf-8",
+    )
+
+    comp = module._component_from_report("polars", wrong)
+    assert comp["healthy"] is False
+    assert any("report tool mismatch" in err for err in comp["errors"])
+    assert any("report milestone mismatch" in err for err in comp["errors"])
+
+
 def test_build_payload_uses_report_fallback_when_pressure_detected(
     tmp_path: Path,
     monkeypatch,
@@ -163,18 +201,21 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
     reports_dir.mkdir(parents=True)
 
     (reports_dir / "polars_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
+        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
+        '"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
         '"native_callback_api": {"available": true}}',
         encoding="utf-8",
     )
     (reports_dir / "dask_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, '
+        '{"tool": "validate_dask_integration", "milestone": "M1-I02", '
+        '"ok": true, "api_importable": true, '
         '"task_graph_guard_api": {"available": true}, '
         '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}}',
         encoding="utf-8",
     )
     (reports_dir / "ray_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, '
+        '{"tool": "validate_ray_integration", "milestone": "M1-I03", '
+        '"ok": true, "api_importable": true, '
         '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}}',
         encoding="utf-8",
     )
@@ -209,18 +250,21 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir(parents=True)
     (reports_dir / "polars_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
+        '{"tool": "validate_polars_integration", "milestone": "M1-I01", '
+        '"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
         '"native_callback_api": {"available": true}}',
         encoding="utf-8",
     )
     (reports_dir / "dask_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, '
+        '{"tool": "validate_dask_integration", "milestone": "M1-I02", '
+        '"ok": true, "api_importable": true, '
         '"task_graph_guard_api": {"available": true}, '
         '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}}',
         encoding="utf-8",
     )
     (reports_dir / "ray_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, '
+        '{"tool": "validate_ray_integration", "milestone": "M1-I03", '
+        '"ok": true, "api_importable": true, '
         '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}}',
         encoding="utf-8",
     )

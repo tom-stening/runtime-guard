@@ -186,7 +186,13 @@ def _component_from_payload(
     if effective_exit_code != 0:
         errors.append(f"validator exited non-zero: {effective_exit_code}")
 
-    healthy = validator_ok and api_importable and checks_ok and effective_exit_code == 0
+    healthy = (
+        validator_ok
+        and api_importable
+        and checks_ok
+        and effective_exit_code == 0
+        and len(errors) == 0
+    )
 
     return {
         "tool": tool_name,
@@ -360,13 +366,36 @@ def _component_from_report(tool_name: str, report_path: Path) -> dict[str, Any]:
             warnings=[],
         )
 
+    expected_tool = {
+        "polars": "validate_polars_integration",
+        "dask": "validate_dask_integration",
+        "ray": "validate_ray_integration",
+    }.get(tool_name, "")
+    expected_milestone = {
+        "polars": "M1-I01",
+        "dask": "M1-I02",
+        "ray": "M1-I03",
+    }.get(tool_name, "")
+
+    identity_errors: list[str] = []
+    if expected_tool:
+        if str(payload.get("tool", "")).strip() != expected_tool:
+            identity_errors.append(
+                f"report tool mismatch for {tool_name}: expected {expected_tool}"
+            )
+    if expected_milestone:
+        if str(payload.get("milestone", "")).strip() != expected_milestone:
+            identity_errors.append(
+                f"report milestone mismatch for {tool_name}: expected {expected_milestone}"
+            )
+
     return _component_from_payload(
         tool_name,
         payload or {},
         source="report",
         command=None,
         exit_code=0,
-        hard_errors=[],
+        hard_errors=identity_errors,
         warnings=[],
     )
 

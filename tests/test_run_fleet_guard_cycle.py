@@ -163,6 +163,7 @@ def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):
 
     assert "verify_fleet_artifact_lineage.py" in rendered
     assert "--json" in cmd
+    assert "--strict" in cmd
     assert "--enforcement-report" in cmd
     assert str(enforcement) in cmd
     assert "--integration-report" in cmd

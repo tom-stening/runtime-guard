@@ -3,14 +3,14 @@
   "env_prefix": "RUNTIME_GUARD",
   "posture": "wsl_dev",
   "provenance": {
-    "artifact_sha256": "ab4cd08e818d5550dd451667122ccafd34927d5125e64be47a1427128dc83d2a",
-    "generated_at_utc": "2026-05-12T09:49:58Z",
-    "git_commit": "0233f7e",
+    "artifact_sha256": "5dd0c7c95e5eeebef731ee8566f10ab2c029e640b048ca9d8d9291a83c610b12",
+    "generated_at_utc": "2026-05-12T09:51:50Z",
+    "git_commit": "38af0f9",
     "inputs": {
       "args_digest": "856493dd4dce5c2c3e8fd306de4b7209fd94f6a6813b591388a065abe7f67215",
       "root": "/home/thomas_stening"
     },
-    "run_id": "1e47c153-57df-49df-9b38-c24281634891",
+    "run_id": "9cbcafef-b442-4e2d-8434-364475e028f0",
     "schema_version": 1,
     "script": "/home/thomas_stening/runtime-guard/scripts/enforce_runtime_guard_all_repos.py",
     "tool": "enforce_runtime_guard_all_repos"
@@ -450,7 +450,7 @@
     }
   ],
   "root": "/home/thomas_stening",
-  "run_id": "1e47c153-57df-49df-9b38-c24281634891",
+  "run_id": "9cbcafef-b442-4e2d-8434-364475e028f0",
   "stage": "repo-autostart",
   "summary": {
     "already_enforced": 0,
@@ -459,7 +459,7 @@
     "enforced": 54,
     "non_python_repos": 0,
     "python_repos": 54,
-    "run_id": "1e47c153-57df-49df-9b38-c24281634891",
+    "run_id": "9cbcafef-b442-4e2d-8434-364475e028f0",
     "total_repos": 54,
     "watcher_only_candidates": 0
   }

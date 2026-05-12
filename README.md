@@ -902,6 +902,8 @@ python scripts/verify_fleet_artifact_lineage.py --json
 
 `run_fleet_guard_cycle.py` executes this verifier by default after artifact
 generation (use `--skip-lineage-verify` to opt out).
+The cycle invokes the verifier in strict mode, requiring complete provenance
+metadata and canonical digest validity.
 
 ### Measuring success
 

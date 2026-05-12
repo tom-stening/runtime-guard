@@ -173,6 +173,7 @@ def _build_lineage_verify_command(
         sys.executable,
         str(repo_root / "scripts" / "verify_fleet_artifact_lineage.py"),
         "--json",
+        "--strict",
         "--enforcement-report",
         str(enforcement_report),
         "--integration-report",

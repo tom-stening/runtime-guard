@@ -106,9 +106,12 @@ def _required_checks_for(tool_name: str, payload: dict[str, Any]) -> tuple[bool,
     errors: list[str] = []
 
     if tool_name == "polars":
-        check = payload.get("scan_budget_api", {})
-        if not isinstance(check, dict) or not bool(check.get("available", False)):
+        budget_check = payload.get("scan_budget_api", {})
+        callback_check = payload.get("native_callback_api", {})
+        if not isinstance(budget_check, dict) or not bool(budget_check.get("available", False)):
             errors.append("scan_budget_api check failed")
+        if not isinstance(callback_check, dict) or not bool(callback_check.get("available", False)):
+            errors.append("native_callback_api check failed")
     elif tool_name == "dask":
         guard_check = payload.get("task_graph_guard_api", {})
         scheduler_check = payload.get("scheduler_callback_api", {})
@@ -370,7 +373,7 @@ def _build_payload(
         (
             "polars",
             "validate_polars_integration.py",
-            ["--check-budget-api"],
+            ["--check-budget-api", "--check-callback-api"],
             polars_report,
         ),
         (

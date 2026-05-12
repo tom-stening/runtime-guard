@@ -26,7 +26,11 @@ def test_required_checks_for_each_component():
     module = _load_module()
 
     polars_ok, polars_errors = module._required_checks_for(
-        "polars", {"scan_budget_api": {"available": True}}
+        "polars",
+        {
+            "scan_budget_api": {"available": True},
+            "native_callback_api": {"available": True},
+        },
     )
     assert polars_ok is True
     assert polars_errors == []
@@ -122,7 +126,8 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
     reports_dir.mkdir(parents=True)
 
     (reports_dir / "polars_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, "scan_budget_api": {"available": true}}',
+        '{"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
+        '"native_callback_api": {"available": true}}',
         encoding="utf-8",
     )
     (reports_dir / "dask_integration_status.json").write_text(
@@ -166,7 +171,8 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir(parents=True)
     (reports_dir / "polars_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, "scan_budget_api": {"available": true}}',
+        '{"ok": true, "api_importable": true, "scan_budget_api": {"available": true}, '
+        '"native_callback_api": {"available": true}}',
         encoding="utf-8",
     )
     (reports_dir / "dask_integration_status.json").write_text(

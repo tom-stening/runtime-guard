@@ -39,6 +39,8 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
     assert "enforce_runtime_guard_all_repos.py" in " ".join(enforce_cmd)
     assert "--enforce-all-repos" in enforce_cmd
     assert "--force-runtime-guard-sitecustomize" in enforce_cmd
+    assert "--run-id" in enforce_cmd
+    assert "ci-run-12345" in enforce_cmd
     assert str(enforcement_report).endswith("repo_guard_enforcement.json")
 
     assert "validate_integration_fleet.py" in " ".join(integration_cmd)

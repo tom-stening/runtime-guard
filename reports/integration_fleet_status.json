@@ -153,14 +153,14 @@
     "note": null,
     "pressure_detected": false
   },
-  "run_id": "ci-run-abc123",
+  "run_id": "ci-run-enf123",
   "summary": {
     "components_healthy": 3,
     "components_total": 3,
     "components_unhealthy": 0,
     "overall_healthy": true,
     "risk_level": "low",
-    "run_id": "ci-run-abc123"
+    "run_id": "ci-run-enf123"
   },
   "tool": "validate_integration_fleet",
   "warnings": []

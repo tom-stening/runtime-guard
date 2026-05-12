@@ -93,3 +93,17 @@ def test_enforce_all_repos_writes_sitecustomize_for_non_python_repo(tmp_path: Pa
 
     report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
     assert report["summary"]["watcher_only_candidates"] == 0
+
+
+def test_run_id_override_is_written_to_enforcement_payload(tmp_path: Path) -> None:
+    repo = tmp_path / "py-repo"
+    repo.mkdir(parents=True)
+    (repo / ".git").mkdir()
+    (repo / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+
+    result = _run_script(tmp_path, "--run-id", "ci-run-xyz")
+    assert result.returncode == 0, result.stderr
+
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    assert report.get("run_id") == "ci-run-xyz"
+    assert report.get("summary", {}).get("run_id") == "ci-run-xyz"

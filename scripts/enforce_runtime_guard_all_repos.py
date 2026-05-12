@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -76,6 +77,11 @@ def _parse_args() -> argparse.Namespace:
         "--force-runtime-guard-sitecustomize",
         action="store_true",
         help="Overwrite existing sitecustomize.py only when it already contains RuntimeGuard marker.",
+    )
+    parser.add_argument(
+        "--run-id",
+        default="",
+        help="Optional external run identifier for cross-artifact correlation.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Report actions without writing files")
     return parser.parse_args()
@@ -234,13 +240,19 @@ def main() -> int:
         )
 
     summary = _summarize(statuses)
+    run_id = str(args.run_id or "").strip()
+    if not run_id:
+        run_id = str(uuid.uuid4())
+    summary_payload = asdict(summary)
+    summary_payload["run_id"] = run_id
     payload: dict[str, Any] = {
         "root": str(root),
+        "run_id": run_id,
         "stage": args.stage,
         "env_prefix": args.env_prefix,
         "posture": args.posture,
         "dry_run": bool(args.dry_run),
-        "summary": asdict(summary),
+        "summary": summary_payload,
         "repos": [asdict(s) for s in statuses],
     }
 

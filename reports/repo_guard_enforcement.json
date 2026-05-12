@@ -437,6 +437,7 @@
     }
   ],
   "root": "/home/thomas_stening",
+  "run_id": "ci-run-enf123",
   "stage": "repo-autostart",
   "summary": {
     "already_enforced": 0,
@@ -445,6 +446,7 @@
     "enforced": 54,
     "non_python_repos": 0,
     "python_repos": 54,
+    "run_id": "ci-run-enf123",
     "total_repos": 54,
     "watcher_only_candidates": 0
   }

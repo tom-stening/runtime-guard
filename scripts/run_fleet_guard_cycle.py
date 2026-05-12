@@ -92,6 +92,7 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
     enforcement_report = reports_dir / "repo_guard_enforcement.json"
     integration_report = reports_dir / "integration_fleet_status.json"
     runtime_report = reports_dir / "repo_guard_runtime_status.json"
+    run_id = str(args.run_id or "").strip()
 
     enforce_cmd = [
         sys.executable,
@@ -103,6 +104,8 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
         "--report-path",
         str(enforcement_report),
     ]
+    if run_id:
+        enforce_cmd.extend(["--run-id", run_id])
 
     integration_cmd = [
         sys.executable,
@@ -113,7 +116,6 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
     ]
     if bool(args.integration_fallback_on_pressure):
         integration_cmd.extend(["--fallback-on-pressure", "--fallback-report-dir", str(args.integration_fallback_report_dir)])
-    run_id = str(args.run_id or "").strip()
     if run_id:
         integration_cmd.extend(["--run-id", run_id])
 
@@ -141,7 +143,6 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
         )
     for spec in list(args.fail_on_extension_rss or []):
         runtime_cmd.extend(["--fail-on-extension-rss", str(spec)])
-    run_id = str(args.run_id or "").strip()
     if run_id:
         runtime_cmd.extend(["--run-id", run_id])
 

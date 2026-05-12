@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import uuid
 from pathlib import Path
 from typing import Any
@@ -140,6 +141,26 @@ def _scan_repo_activity(repo_paths: list[str]) -> dict[str, int]:
 
 def sys_platform_linux_proc_available() -> bool:
     return os.name == "posix" and os.path.isdir("/proc")
+
+
+def _strict_bool(value: Any) -> tuple[bool, bool]:
+    if isinstance(value, bool):
+        return value, True
+    return False, False
+
+
+def _strict_non_negative_int(value: Any) -> tuple[int, bool]:
+    if isinstance(value, bool):
+        return 0, False
+    if isinstance(value, int) and value >= 0:
+        return value, True
+    return 0, False
+
+
+def _strict_non_empty_string(value: Any, default: str) -> tuple[str, bool]:
+    if isinstance(value, str) and value.strip():
+        return value.strip(), True
+    return default, False
 
 
 def _build_recommendations(
@@ -399,7 +420,9 @@ def _build_payload(
     enforced_count = sum(1 for r in runtime_repos if r["is_enforced"])
     active_count = sum(1 for r in runtime_repos if r["is_active"])
 
-    summary = {
+    parse_warnings: list[str] = []
+
+    summary: dict[str, Any] = {
         "total_repos": len(runtime_repos),
         "enforced_repos": enforced_count,
         "unenforced_repos": len(runtime_repos) - enforced_count,
@@ -411,29 +434,62 @@ def _build_payload(
     if isinstance(integration_report, dict):
         integ_summary = integration_report.get("summary", {})
         if isinstance(integ_summary, dict):
-            summary["integration_overall_healthy"] = bool(
+            overall_healthy, overall_ok = _strict_bool(
                 integ_summary.get("overall_healthy", False)
             )
-            summary["integration_risk_level"] = str(
-                integ_summary.get("risk_level", "unknown")
+            summary["integration_overall_healthy"] = overall_healthy
+            if not overall_ok:
+                parse_warnings.append("integration.summary.overall_healthy must be boolean")
+
+            risk_level, risk_ok = _strict_non_empty_string(
+                integ_summary.get("risk_level", "unknown"),
+                "unknown",
             )
-            summary["integration_components_total"] = int(
+            summary["integration_risk_level"] = risk_level
+            if not risk_ok:
+                parse_warnings.append("integration.summary.risk_level must be non-empty string")
+
+            components_total, total_ok = _strict_non_negative_int(
                 integ_summary.get("components_total", 0)
             )
-            summary["integration_components_healthy"] = int(
+            summary["integration_components_total"] = components_total
+            if not total_ok:
+                parse_warnings.append(
+                    "integration.summary.components_total must be a non-negative integer"
+                )
+
+            components_healthy, healthy_ok = _strict_non_negative_int(
                 integ_summary.get("components_healthy", 0)
             )
-        summary["integration_execution_mode"] = str(
-            integration_report.get("execution_mode", "unknown")
+            summary["integration_components_healthy"] = components_healthy
+            if not healthy_ok:
+                parse_warnings.append(
+                    "integration.summary.components_healthy must be a non-negative integer"
+                )
+        execution_mode, execution_ok = _strict_non_empty_string(
+            integration_report.get("execution_mode", "unknown"),
+            "unknown",
         )
+        summary["integration_execution_mode"] = execution_mode
+        if not execution_ok:
+            parse_warnings.append("integration.execution_mode must be non-empty string")
         pressure_meta = integration_report.get("pressure_fallback", {})
         if isinstance(pressure_meta, dict):
-            summary["integration_pressure_fallback_enabled"] = bool(
+            pressure_enabled, pressure_enabled_ok = _strict_bool(
                 pressure_meta.get("enabled", False)
             )
-            summary["integration_pressure_detected"] = bool(
+            summary["integration_pressure_fallback_enabled"] = pressure_enabled
+            if not pressure_enabled_ok:
+                parse_warnings.append("integration.pressure_fallback.enabled must be boolean")
+
+            pressure_detected, pressure_detected_ok = _strict_bool(
                 pressure_meta.get("pressure_detected", False)
             )
+            summary["integration_pressure_detected"] = pressure_detected
+            if not pressure_detected_ok:
+                parse_warnings.append(
+                    "integration.pressure_fallback.pressure_detected must be boolean"
+                )
 
     wsl_diag: dict[str, Any] | None = None
 
@@ -444,22 +500,74 @@ def _build_payload(
     }
 
     if include_wsl_diagnosis:
-        wsl_diag = diagnose_wsl_crash()
+        raw_wsl_diag = diagnose_wsl_crash()
+        if isinstance(raw_wsl_diag, dict):
+            wsl_diag = raw_wsl_diag
+        else:
+            wsl_diag = {}
+            parse_warnings.append("wsl_diagnosis payload must be an object")
         payload["wsl_diagnosis"] = wsl_diag
-        summary["wsl_risk_level"] = str(wsl_diag.get("risk_level", "unknown"))
-        summary["wsl_risk_score"] = int(wsl_diag.get("risk_score", 0) or 0)
-        summary["wsl_running_distro_count"] = int(wsl_diag.get("wsl_running_distro_count", 0) or 0)
-        summary["wsl_docker_desktop_running"] = bool(wsl_diag.get("docker_desktop_running", False))
-        summary["wsl_vscode_extension_total_rss_mb"] = int(
-            wsl_diag.get("guest_vscode_extension_total_rss_mb", 0) or 0
+        risk_level, risk_ok = _strict_non_empty_string(wsl_diag.get("risk_level", "unknown"), "unknown")
+        summary["wsl_risk_level"] = risk_level
+        if not risk_ok:
+            parse_warnings.append("wsl_diagnosis.risk_level must be non-empty string")
+
+        risk_score, risk_score_ok = _strict_non_negative_int(wsl_diag.get("risk_score", 0))
+        summary["wsl_risk_score"] = risk_score
+        if not risk_score_ok:
+            parse_warnings.append("wsl_diagnosis.risk_score must be a non-negative integer")
+
+        distro_count, distro_count_ok = _strict_non_negative_int(
+            wsl_diag.get("wsl_running_distro_count", 0)
         )
+        summary["wsl_running_distro_count"] = distro_count
+        if not distro_count_ok:
+            parse_warnings.append(
+                "wsl_diagnosis.wsl_running_distro_count must be a non-negative integer"
+            )
+
+        docker_running, docker_ok = _strict_bool(
+            wsl_diag.get("docker_desktop_running", False)
+        )
+        summary["wsl_docker_desktop_running"] = docker_running
+        if not docker_ok:
+            parse_warnings.append("wsl_diagnosis.docker_desktop_running must be boolean")
+
+        extension_total, extension_total_ok = _strict_non_negative_int(
+            wsl_diag.get("guest_vscode_extension_total_rss_mb", 0)
+        )
+        summary["wsl_vscode_extension_total_rss_mb"] = extension_total
+        if not extension_total_ok:
+            parse_warnings.append(
+                "wsl_diagnosis.guest_vscode_extension_total_rss_mb must be a non-negative integer"
+            )
         top_rows = wsl_diag.get("guest_top_memory_processes", [])
         if isinstance(top_rows, list) and top_rows:
             first = top_rows[0]
             if isinstance(first, dict):
-                summary["wsl_top_process_pid"] = int(first.get("pid", 0) or 0)
-                summary["wsl_top_process_rss_mb"] = int(first.get("rss_mb", 0) or 0)
-                summary["wsl_top_process_command"] = str(first.get("command", ""))
+                top_pid, top_pid_ok = _strict_non_negative_int(first.get("pid", 0))
+                summary["wsl_top_process_pid"] = top_pid
+                if not top_pid_ok:
+                    parse_warnings.append(
+                        "wsl_diagnosis.guest_top_memory_processes[0].pid must be a non-negative integer"
+                    )
+
+                top_rss, top_rss_ok = _strict_non_negative_int(first.get("rss_mb", 0))
+                summary["wsl_top_process_rss_mb"] = top_rss
+                if not top_rss_ok:
+                    parse_warnings.append(
+                        "wsl_diagnosis.guest_top_memory_processes[0].rss_mb must be a non-negative integer"
+                    )
+
+                top_cmd, top_cmd_ok = _strict_non_empty_string(first.get("command", ""), "")
+                summary["wsl_top_process_command"] = top_cmd
+                if not top_cmd_ok:
+                    parse_warnings.append(
+                        "wsl_diagnosis.guest_top_memory_processes[0].command must be a string"
+                    )
+
+    if parse_warnings:
+        summary["parse_warnings"] = parse_warnings
 
     payload["recommendations"] = _build_recommendations(
         summary,
@@ -554,7 +662,7 @@ def main() -> int:
     try:
         extension_specs = _parse_extension_rss_specs(list(args.fail_on_extension_rss))
     except ValueError as exc:
-        print(f"error: {exc}", file=os.sys.stderr)
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     if args.fail_on_unenforced and int(summary.get("unenforced_repos", 0) or 0) > 0:

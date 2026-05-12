@@ -163,6 +163,49 @@ def test_fail_on_integration_unhealthy_exits_nonzero(tmp_path: Path) -> None:
     assert result.returncode == 1
 
 
+def test_integration_report_invalid_types_fail_closed_with_parse_warnings(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ]
+    }
+    integration_path = tmp_path / "integration.json"
+    integration_path.write_text(
+        json.dumps(
+            {
+                "summary": {
+                    "overall_healthy": "false",
+                    "components_total": "many",
+                    "components_healthy": -1,
+                    "risk_level": 7,
+                },
+                "execution_mode": ["live"],
+                "pressure_fallback": {"enabled": "true", "pressure_detected": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--integration-report",
+        str(integration_path),
+        "--fail-on-integration-unhealthy",
+    )
+    assert result.returncode == 1
+
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    summary = runtime.get("summary", {})
+    assert summary.get("integration_overall_healthy") is False
+    warnings = summary.get("parse_warnings", [])
+    assert isinstance(warnings, list)
+    assert any("integration.summary.overall_healthy must be boolean" in row for row in warnings)
+    assert any("integration.summary.components_total must be a non-negative integer" in row for row in warnings)
+    assert any("integration.execution_mode must be non-empty string" in row for row in warnings)
+
+
 def test_fail_on_wsl_risk_requires_threshold_exits_nonzero(tmp_path: Path) -> None:
     payload = {
         "repos": [

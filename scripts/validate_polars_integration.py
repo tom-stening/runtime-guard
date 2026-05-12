@@ -18,8 +18,11 @@ Usage::
     # Also check scan budget API is callable
     python scripts/validate_polars_integration.py --check-budget-api
 
+    # Also check native callback bridging API/behavior
+    python scripts/validate_polars_integration.py --check-callback-api
+
     # Full CI gate: all checks, JSON output
-    python scripts/validate_polars_integration.py --json --require-hooks --check-budget-api
+    python scripts/validate_polars_integration.py --json --require-hooks --check-budget-api --check-callback-api
 """
 
 from __future__ import annotations
@@ -48,6 +51,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--check-budget-api",
         action="store_true",
         help="Verify that install_polars_scan_budget() is importable and callable",
+    )
+    p.add_argument(
+        "--check-callback-api",
+        action="store_true",
+        help=(
+            "Verify native callback bridging behavior in attach_polars_guard() for "
+            "kwarg and positional callback signatures"
+        ),
     )
     p.add_argument(
         "--stage",
@@ -93,6 +104,73 @@ def _check_budget_api() -> dict[str, Any]:
         # Invoking collect() on a frame with 2 columns should warn (>1) but not raise.
         try:
             _MockPolars.LazyFrame().collect()
+        finally:
+            restore()
+
+        result["available"] = True
+    except Exception as exc:
+        result["errors"].append(str(exc))
+    return result
+
+
+def _check_callback_api() -> dict[str, Any]:
+    """Verify native callback bridging behavior is available and functional."""
+    result: dict[str, Any] = {"available": False, "errors": []}
+    try:
+        from runtime_guard import attach_polars_guard, validate_polars_integration
+
+        class _MockFrame:
+            def collect(
+                self,
+                multiplier: int = 1,
+                optimization_callback: Any | None = None,
+            ) -> int:
+                if callable(optimization_callback):
+                    optimization_callback("plan")
+                return 21 * multiplier
+
+        class _MockPolars:
+            LazyFrame = _MockFrame
+
+        import runtime_guard as rg
+
+        guard = rg.RuntimeGuard()
+        calls: list[str] = []
+        setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="callback-check", module=_MockPolars)
+        try:
+            kw_calls: list[str] = []
+            out_kw = _MockPolars.LazyFrame().collect(
+                multiplier=2,
+                optimization_callback=lambda plan: kw_calls.append(str(plan)),
+            )
+            if out_kw != 42:
+                result["errors"].append("callback kwarg bridging produced unexpected collect result")
+                return result
+            if kw_calls != ["plan"]:
+                result["errors"].append("callback kwarg bridging did not chain user callback")
+                return result
+
+            pos_calls: list[str] = []
+            out_pos = _MockPolars.LazyFrame().collect(2, lambda plan: pos_calls.append(str(plan)))
+            if out_pos != 42:
+                result["errors"].append("callback positional bridging produced unexpected collect result")
+                return result
+            if pos_calls != ["plan"]:
+                result["errors"].append("callback positional bridging did not chain user callback")
+                return result
+
+            validation = validate_polars_integration(guard, module=_MockPolars)
+            if not validation.get("native_callback_supported"):
+                result["errors"].append("native_callback_supported marker not set")
+                return result
+            if not validation.get("native_callback_wrapped"):
+                result["errors"].append("native_callback_wrapped marker not set")
+                return result
+            if "optimization_callback" not in validation.get("native_callback_kwargs", []):
+                result["errors"].append("native callback kwarg metadata missing optimization_callback")
+                return result
         finally:
             restore()
 
@@ -180,6 +258,12 @@ def main() -> int:
         if budget_check.get("errors"):
             report["errors"].extend(budget_check["errors"])
 
+    if args.check_callback_api:
+        callback_check = _check_callback_api()
+        report["native_callback_api"] = callback_check
+        if callback_check.get("errors"):
+            report["errors"].extend(callback_check["errors"])
+
     # ---- 7. Determine pass/fail -------------------------------------------
     ok = report.get("api_importable", False)
     if args.require_hooks:
@@ -203,6 +287,9 @@ def main() -> int:
         if report.get("scan_budget_api"):
             budget_ok = report["scan_budget_api"].get("available", False)
             print(f"  scan_budget_api: {'ok' if budget_ok else 'FAIL'}")
+        if report.get("native_callback_api"):
+            callback_ok = report["native_callback_api"].get("available", False)
+            print(f"  native_callback_api: {'ok' if callback_ok else 'FAIL'}")
         if report["errors"]:
             for err in report["errors"]:
                 print(f"  WARN: {err}", file=sys.stderr)

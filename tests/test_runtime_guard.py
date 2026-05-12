@@ -2033,6 +2033,77 @@ class TestDaskSchedulerCallbacks:
         with pytest.raises(RuntimeError, match="callback API unavailable"):
             create_ctx()
 
+    def test_scheduler_callback_counts_healthy_tasks(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _FakeDask:
+            class callbacks:
+                class Callback:
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, exc_type, exc, tb):
+                        return False
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard, module=_FakeDask)
+        ctx = reporter.create_callback_context()
+        ctx._pretask("task-1", worker_id="worker-a")
+        ctx._pretask("task-2", worker_id="worker-a")
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 2
+        assert worker_report["pressure_events"] == 0
+        assert worker_report["healthy_events"] == 2
+
+        agg = reporter()
+        assert agg["workers_monitored"] == 1
+        assert agg["total_tasks"] == 2
+        assert agg["total_pressure_events"] == 0
+        assert agg["total_healthy_events"] == 2
+
+    def test_scheduler_callback_counts_pressure_events_separately(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _FakeDask:
+            class callbacks:
+                class Callback:
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, exc_type, exc, tb):
+                        return False
+
+        class _FakeReport:
+            is_critical = False
+            cause = "low-memory"
+            missing_mem_mb = 256
+
+        guard = RuntimeGuard()
+
+        calls = {"n": 0}
+
+        def _fake_check(*, stage=""):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return _FakeReport()
+            return None
+
+        monkeypatch.setattr(guard, "check_and_log", _fake_check)
+
+        reporter = install_dask_scheduler_callbacks(guard, module=_FakeDask)
+        ctx = reporter.create_callback_context()
+        ctx._pretask("task-1", worker_id="worker-a")
+        ctx._pretask("task-2", worker_id="worker-a")
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 2
+        assert worker_report["pressure_events"] == 1
+        assert worker_report["healthy_events"] == 1
+        assert len(worker_report["snapshots"]) == 1
+
 
 # ---------------------------------------------------------------------------
 # M1-C03 — Ray integration hook

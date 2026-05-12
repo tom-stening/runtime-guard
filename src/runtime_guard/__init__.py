@@ -2161,25 +2161,29 @@ def install_dask_scheduler_callbacks(
         # Check memory before task
         report = guard.check_and_log(stage=stage)
 
-        if enable_worker_reports and report is not None:
+        if enable_worker_reports:
             if worker_label not in worker_snapshots:
                 worker_snapshots[worker_label] = {
                     "worker_id": worker_label,
                     "task_count": 0,
                     "pressure_events": 0,
+                    "healthy_events": 0,
                     "snapshots": [],
                 }
             worker_snapshots[worker_label]["task_count"] += 1
-            worker_snapshots[worker_label]["pressure_events"] += 1
-            worker_snapshots[worker_label]["snapshots"].append(
-                {
-                    "key": str(key),
-                    "timestamp": int(time.time()),
-                    "severity": "critical" if report.is_critical else "warning",
-                    "cause": report.cause,
-                    "missing_mem_mb": report.missing_mem_mb,
-                }
-            )
+            if report is not None:
+                worker_snapshots[worker_label]["pressure_events"] += 1
+                worker_snapshots[worker_label]["snapshots"].append(
+                    {
+                        "key": str(key),
+                        "timestamp": int(time.time()),
+                        "severity": "critical" if report.is_critical else "warning",
+                        "cause": report.cause,
+                        "missing_mem_mb": report.missing_mem_mb,
+                    }
+                )
+            else:
+                worker_snapshots[worker_label]["healthy_events"] += 1
 
     def _callback_finish(key: str, value: Any, *_: Any, worker_id: str | None = None) -> None:
         """Called after task execution (requires dask.callbacks.Callback.finish)."""
@@ -2191,10 +2195,14 @@ def install_dask_scheduler_callbacks(
         if worker_id is None:
             # Return aggregated view
             total_events = sum(w.get("pressure_events", 0) for w in worker_snapshots.values())
+            total_tasks = sum(w.get("task_count", 0) for w in worker_snapshots.values())
+            total_healthy_events = sum(w.get("healthy_events", 0) for w in worker_snapshots.values())
             return {
                 "ok": True,
                 "workers_monitored": len(worker_snapshots),
                 "total_pressure_events": total_events,
+                "total_tasks": total_tasks,
+                "total_healthy_events": total_healthy_events,
                 "worker_details": worker_snapshots,
             }
 
@@ -2205,6 +2213,7 @@ def install_dask_scheduler_callbacks(
                 "worker_id": worker_id,
                 "pressure_events": 0,
                 "task_count": 0,
+                "healthy_events": 0,
             }
 
         return {
@@ -2212,6 +2221,7 @@ def install_dask_scheduler_callbacks(
             "worker_id": worker_id,
             "task_count": worker_data.get("task_count", 0),
             "pressure_events": worker_data.get("pressure_events", 0),
+            "healthy_events": worker_data.get("healthy_events", 0),
             "snapshots": worker_data.get("snapshots", []),
         }
 

@@ -129,6 +129,9 @@ With no options, prints a compact status line and exits 1 if pressure is detecte
 | `--audit-policy-taxonomy` | Print the audit policy taxonomy catalog (`severity`, `category`, `action`) as JSON. |
 | `--report` | Print full WSL 2 system report (kernel params, memory, recommendations). |
 | `--diagnose-wsl-crash` | Print host+guest WSL crash diagnostics, including PSI pressure, active distros/docker load, and top guest RSS offenders. |
+| `--fail-on-risk {none,high,critical}` | With `--diagnose-wsl-crash`, exit non-zero when risk meets threshold. |
+| `--fail-on-extension-total-rss-mb MB` | With `--diagnose-wsl-crash`, exit non-zero when summed extension RSS meets/exceeds `MB`. |
+| `--fail-on-extension-rss EXTENSION=MB` | With `--diagnose-wsl-crash`, exit non-zero when named extension RSS meets/exceeds `MB` (repeatable). |
 | `--generate-wslconfig [MEM_GB]` | Generate `.wslconfig` content. Defaults to half of detected total RAM. |
 | `--write PATH` | Write generated `.wslconfig` to PATH instead of printing. Backs up existing file. |
 | `--policy-file PATH` | Load threshold/posture overrides from a JSON policy file. |
@@ -151,6 +154,11 @@ runtime-guard --generate-wslconfig 8 --write ~/.wslconfig
 
 # Diagnose likely host+guest causes after a WSL crash or restart
 runtime-guard --diagnose-wsl-crash --json
+
+# Fail CI if extension memory concentration is too high
+runtime-guard --diagnose-wsl-crash --json \
+    --fail-on-extension-total-rss-mb 2500 \
+    --fail-on-extension-rss ms-python.vscode-pylance=800
 
 # Check version
 runtime-guard --version

@@ -4197,6 +4197,72 @@ class TestCLI:
         assert "memory" in payload["category"]
         assert "policy_violation" in payload["action"]
 
+    def test_diagnose_wsl_crash_fails_on_extension_total_rss_gate(self, monkeypatch):
+        monkeypatch.setattr(
+            "runtime_guard.diagnose_wsl_crash",
+            lambda: {
+                "risk_level": "low",
+                "risk_score": 0,
+                "guest_mem_available_mb": 4000,
+                "guest_swap_used_pct": 5,
+                "prevention_actions": ["none"],
+                "guest_vscode_extension_rss": [
+                    {"extension": "ms-python.vscode-pylance", "rss_mb": 900}
+                ],
+                "guest_vscode_extension_total_rss_mb": 900,
+            },
+        )
+        code, _ = self._run_cli(
+            "--diagnose-wsl-crash",
+            "--fail-on-extension-total-rss-mb",
+            "800",
+        )
+        assert code == 1
+
+    def test_diagnose_wsl_crash_fails_on_named_extension_rss_gate(self, monkeypatch):
+        monkeypatch.setattr(
+            "runtime_guard.diagnose_wsl_crash",
+            lambda: {
+                "risk_level": "low",
+                "risk_score": 0,
+                "guest_mem_available_mb": 4000,
+                "guest_swap_used_pct": 5,
+                "prevention_actions": ["none"],
+                "guest_vscode_extension_rss": [
+                    {"extension": "ms-python.vscode-pylance", "rss_mb": 700},
+                    {"extension": "tamasfe.even-better-toml", "rss_mb": 600},
+                ],
+                "guest_vscode_extension_total_rss_mb": 1300,
+            },
+        )
+        code, _ = self._run_cli(
+            "--diagnose-wsl-crash",
+            "--fail-on-extension-rss",
+            "ms-python.vscode-pylance=600",
+        )
+        assert code == 1
+
+    def test_diagnose_wsl_crash_invalid_extension_gate_spec_exits_2(self, monkeypatch):
+        monkeypatch.setattr(
+            "runtime_guard.diagnose_wsl_crash",
+            lambda: {
+                "risk_level": "low",
+                "risk_score": 0,
+                "guest_mem_available_mb": 4000,
+                "guest_swap_used_pct": 5,
+                "prevention_actions": ["none"],
+                "guest_vscode_extension_rss": [],
+                "guest_vscode_extension_total_rss_mb": 0,
+            },
+        )
+        code, stderr = self._run_cli(
+            "--diagnose-wsl-crash",
+            "--fail-on-extension-rss",
+            "broken-spec",
+        )
+        assert code == 2
+        assert "expected EXTENSION=MB" in stderr
+
 
 # ---------------------------------------------------------------------------
 # M2-C04 — JSONL worker-report transport adapters for process-pool coordination

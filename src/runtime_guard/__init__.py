@@ -6005,6 +6005,11 @@ def diagnose_wsl_crash() -> dict[str, Any]:
         metrics.get("guest_top_memory_processes", []),
         limit=5,
     )
+    metrics["guest_vscode_extension_total_rss_mb"] = sum(
+        int(row.get("rss_mb", 0) or 0)
+        for row in metrics.get("guest_vscode_extension_rss", [])
+        if isinstance(row, dict)
+    )
     metrics.update(psi)
     metrics.update(_read_wsl_running_distros())
     metrics.update(_read_windows_wsl_event_hints())
@@ -6339,6 +6344,25 @@ def _cli() -> None:  # pragma: no cover
         default="none",
         help="With --diagnose-wsl-crash, exit non-zero when risk meets threshold.",
     )
+    parser.add_argument(
+        "--fail-on-extension-total-rss-mb",
+        type=int,
+        default=0,
+        help=(
+            "With --diagnose-wsl-crash, exit non-zero when summed RSS of "
+            "guest_vscode_extension_rss meets/exceeds this threshold."
+        ),
+    )
+    parser.add_argument(
+        "--fail-on-extension-rss",
+        action="append",
+        default=[],
+        metavar="EXTENSION=MB",
+        help=(
+            "With --diagnose-wsl-crash, exit non-zero when a named extension "
+            "meets/exceeds MB threshold. May be repeated."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -6382,10 +6406,77 @@ def _cli() -> None:  # pragma: no cover
             for action in diag["prevention_actions"]:
                 print(f"    - {action}")
 
-        if args.fail_on_risk == "critical":
-            sys.exit(1 if diag["risk_level"] == "critical" else 0)
-        if args.fail_on_risk == "high":
-            sys.exit(1 if diag["risk_level"] in {"high", "critical"} else 0)
+        fail_reasons: list[str] = []
+
+        if args.fail_on_risk == "critical" and diag["risk_level"] == "critical":
+            fail_reasons.append("risk threshold met: critical")
+        elif args.fail_on_risk == "high" and diag["risk_level"] in {"high", "critical"}:
+            fail_reasons.append(f"risk threshold met: {diag['risk_level']}")
+
+        ext_rows = [
+            row
+            for row in diag.get("guest_vscode_extension_rss", [])
+            if isinstance(row, dict)
+        ]
+        ext_totals: dict[str, int] = {
+            str(row.get("extension", "")): int(row.get("rss_mb", 0) or 0)
+            for row in ext_rows
+            if str(row.get("extension", ""))
+        }
+        total_ext_rss_mb = int(
+            diag.get("guest_vscode_extension_total_rss_mb", 0)
+            or sum(ext_totals.values())
+        )
+
+        if args.fail_on_extension_total_rss_mb > 0 and total_ext_rss_mb >= args.fail_on_extension_total_rss_mb:
+            fail_reasons.append(
+                "extension total RSS threshold met: "
+                f"{total_ext_rss_mb}MB >= {args.fail_on_extension_total_rss_mb}MB"
+            )
+
+        for spec in args.fail_on_extension_rss:
+            if "=" not in spec:
+                print(
+                    "[RuntimeGuard] Invalid --fail-on-extension-rss spec "
+                    f"'{spec}' (expected EXTENSION=MB)",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            ext_name_raw, mb_raw = spec.split("=", 1)
+            ext_name = ext_name_raw.strip()
+            if not ext_name:
+                print(
+                    "[RuntimeGuard] Invalid --fail-on-extension-rss spec "
+                    f"'{spec}' (empty extension name)",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            try:
+                threshold_mb = int(mb_raw)
+            except ValueError:
+                print(
+                    "[RuntimeGuard] Invalid --fail-on-extension-rss spec "
+                    f"'{spec}' (MB must be integer)",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            if threshold_mb <= 0:
+                print(
+                    "[RuntimeGuard] Invalid --fail-on-extension-rss spec "
+                    f"'{spec}' (MB must be > 0)",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            rss_mb = int(ext_totals.get(ext_name, 0) or 0)
+            if rss_mb >= threshold_mb:
+                fail_reasons.append(
+                    f"extension RSS threshold met: {ext_name} {rss_mb}MB >= {threshold_mb}MB"
+                )
+
+        if fail_reasons:
+            for reason in fail_reasons:
+                print(f"[RuntimeGuard] FAIL gate: {reason}", file=sys.stderr)
+            sys.exit(1)
         sys.exit(0)
 
     if args.verify_audit_log:

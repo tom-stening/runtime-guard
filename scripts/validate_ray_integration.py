@@ -196,16 +196,20 @@ def main() -> int:
         )
 
     # ---- 6. Actor monitoring API check (optional) -------------------------
+    actor_check_ok = True
     if args.check_actor_api:
         actor_check = _check_actor_api()
         report["actor_monitoring_api"] = actor_check
         if actor_check.get("errors"):
             report["errors"].extend(actor_check["errors"])
+        actor_check_ok = bool(actor_check.get("available", False))
 
     # ---- 7. Determine pass/fail -------------------------------------------
     ok = report.get("api_importable", False)
     if args.require_hooks:
         ok = ok and hooks_installed
+    if args.check_actor_api:
+        ok = ok and actor_check_ok
 
     report["ok"] = ok
 

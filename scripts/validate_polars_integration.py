@@ -252,22 +252,31 @@ def main() -> int:
         )
 
     # ---- 6. Budget API check (optional) -----------------------------------
+    budget_check_ok = True
+    callback_check_ok = True
+
     if args.check_budget_api:
         budget_check = _check_budget_api()
         report["scan_budget_api"] = budget_check
         if budget_check.get("errors"):
             report["errors"].extend(budget_check["errors"])
+        budget_check_ok = bool(budget_check.get("available", False))
 
     if args.check_callback_api:
         callback_check = _check_callback_api()
         report["native_callback_api"] = callback_check
         if callback_check.get("errors"):
             report["errors"].extend(callback_check["errors"])
+        callback_check_ok = bool(callback_check.get("available", False))
 
     # ---- 7. Determine pass/fail -------------------------------------------
     ok = report.get("api_importable", False)
     if args.require_hooks:
         ok = ok and hooks_installed
+    if args.check_budget_api:
+        ok = ok and budget_check_ok
+    if args.check_callback_api:
+        ok = ok and callback_check_ok
 
     report["ok"] = ok
 

@@ -284,22 +284,31 @@ def main() -> int:
         )
 
     # ---- 6. Task-graph guard API check (optional) -------------------------
+    guard_check_ok = True
+    scheduler_check_ok = True
+
     if args.check_guard_api:
         guard_check = _check_guard_api()
         report["task_graph_guard_api"] = guard_check
         if guard_check.get("errors"):
             report["errors"].extend(guard_check["errors"])
+        guard_check_ok = bool(guard_check.get("available", False))
 
     if args.check_scheduler_api:
         scheduler_check = _check_scheduler_api()
         report["scheduler_callback_api"] = scheduler_check
         if scheduler_check.get("errors"):
             report["errors"].extend(scheduler_check["errors"])
+        scheduler_check_ok = bool(scheduler_check.get("available", False))
 
     # ---- 7. Determine pass/fail -------------------------------------------
     ok = report.get("api_importable", False)
     if args.require_hooks:
         ok = ok and hooks_installed
+    if args.check_guard_api:
+        ok = ok and guard_check_ok
+    if args.check_scheduler_api:
+        ok = ok and scheduler_check_ok
 
     report["ok"] = ok
 

@@ -102,6 +102,31 @@ def _extract_last_json_object(text: str) -> dict[str, Any] | None:
     return None
 
 
+def _summarize_validator_stderr(text: str) -> str:
+    """Summarize validator stderr into a compact, actionable warning string."""
+    raw_lines = [line.rstrip() for line in text.splitlines() if line.strip()]
+    if not raw_lines:
+        return ""
+
+    # RuntimeGuard JSON event rows can be very noisy in aggregate reports.
+    filtered_lines = [
+        line for line in raw_lines if not line.lstrip().startswith('{"event":"runtime_guard.pressure"')
+    ]
+    lines = filtered_lines or raw_lines
+
+    max_lines = 40
+    if len(lines) > max_lines:
+        kept = lines[:max_lines]
+        kept.append(f"... ({len(lines) - max_lines} stderr lines truncated)")
+        lines = kept
+
+    rendered = "\n".join(lines)
+    max_chars = 4000
+    if len(rendered) > max_chars:
+        rendered = rendered[:max_chars].rstrip() + "\n... (stderr text truncated)"
+    return rendered
+
+
 def _required_checks_for(tool_name: str, payload: dict[str, Any]) -> tuple[bool, list[str]]:
     errors: list[str] = []
 
@@ -307,7 +332,9 @@ def _run_validator(repo_root: Path, tool_name: str, script_name: str, extra_args
         payload = {}
 
     if proc.stderr.strip():
-        warnings.append(proc.stderr.strip())
+        summarized = _summarize_validator_stderr(proc.stderr)
+        if summarized:
+            warnings.append(summarized)
 
     return _component_from_payload(
         tool_name,

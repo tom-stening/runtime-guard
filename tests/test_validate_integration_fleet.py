@@ -23,6 +23,30 @@ def test_extract_last_json_object_handles_prefixed_lines():
     assert payload == {"ok": True, "value": 3}
 
 
+def test_summarize_validator_stderr_filters_pressure_event_json_lines():
+    module = _load_module()
+    stderr = (
+        "[RuntimeGuard] HIGH warning\n"
+        '{"event":"runtime_guard.pressure","severity":"warning"}\n'
+        "Dask not installed\n"
+    )
+    summarized = module._summarize_validator_stderr(stderr)
+    assert "[RuntimeGuard] HIGH warning" in summarized
+    assert "Dask not installed" in summarized
+    assert '"event":"runtime_guard.pressure"' not in summarized
+
+
+def test_summarize_validator_stderr_truncates_lines_and_text():
+    module = _load_module()
+    many_lines = "\n".join(f"line-{idx:03d}" for idx in range(80))
+    summarized = module._summarize_validator_stderr(many_lines)
+    assert "stderr lines truncated" in summarized
+
+    oversized = "x" * 10000
+    summarized_big = module._summarize_validator_stderr(oversized)
+    assert "stderr text truncated" in summarized_big
+
+
 def test_required_checks_for_each_component():
     module = _load_module()
 

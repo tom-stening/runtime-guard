@@ -216,6 +216,34 @@ def test_validate_cli_configuration_rejects_negative_age_policies():
     assert any("--expected-max-report-signature-age-hours" in row for row in errors)
 
 
+def test_validate_provenance_rejects_invalid_core_field_types():
+    module = _load_module()
+    errors = module._validate_provenance(
+        "integration_fleet_status",
+        {
+            "provenance": {
+                "schema_version": "1",
+                "tool": "",
+                "generated_at_utc": "2026-05-12T00:00:00",
+                "run_id": "",
+                "inputs": [],
+                "artifact_sha256": 123,
+                "git_commit": 123,
+                "script": None,
+            }
+        },
+        strict=True,
+    )
+    assert any("provenance.schema_version must be a positive integer" in row for row in errors)
+    assert any("provenance.tool must be a non-empty string" in row for row in errors)
+    assert any("provenance.generated_at_utc must be UTC Z format" in row for row in errors)
+    assert any("provenance.run_id must be a non-empty string" in row for row in errors)
+    assert any("provenance.inputs must be an object" in row for row in errors)
+    assert any("provenance.artifact_sha256 must be a non-empty string" in row for row in errors)
+    assert any("provenance.git_commit missing in strict mode" in row for row in errors)
+    assert any("provenance.script missing in strict mode" in row for row in errors)
+
+
 def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
     module = _load_module()
 

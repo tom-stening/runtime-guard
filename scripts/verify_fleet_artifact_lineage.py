@@ -205,14 +205,46 @@ def _validate_provenance(name: str, payload: dict[str, Any], strict: bool) -> li
         if key not in prov:
             errors.append(f"{name}: provenance missing '{key}'")
 
-    generated = str(prov.get("generated_at_utc") or "")
-    if generated and not generated.endswith("Z"):
-        errors.append(f"{name}: provenance.generated_at_utc must be UTC Z format")
+    if "schema_version" in prov:
+        schema_version = prov.get("schema_version")
+        if not isinstance(schema_version, int) or isinstance(schema_version, bool) or schema_version <= 0:
+            errors.append(f"{name}: provenance.schema_version must be a positive integer")
+
+    if "tool" in prov:
+        tool = prov.get("tool")
+        if not isinstance(tool, str) or not tool.strip():
+            errors.append(f"{name}: provenance.tool must be a non-empty string")
+
+    if "run_id" in prov:
+        run_id = prov.get("run_id")
+        if not isinstance(run_id, str) or not run_id.strip():
+            errors.append(f"{name}: provenance.run_id must be a non-empty string")
+
+    if "inputs" in prov and not isinstance(prov.get("inputs"), dict):
+        errors.append(f"{name}: provenance.inputs must be an object")
+
+    if "artifact_sha256" in prov:
+        artifact_sha = prov.get("artifact_sha256")
+        if not isinstance(artifact_sha, str) or not artifact_sha.strip():
+            errors.append(f"{name}: provenance.artifact_sha256 must be a non-empty string")
+
+    if "generated_at_utc" in prov:
+        generated_raw = prov.get("generated_at_utc")
+        if not isinstance(generated_raw, str) or not generated_raw.strip():
+            errors.append(f"{name}: provenance.generated_at_utc must be a non-empty string")
+        else:
+            generated = generated_raw.strip()
+            if not generated.endswith("Z"):
+                errors.append(f"{name}: provenance.generated_at_utc must be UTC Z format")
+            elif _parse_utc_timestamp(generated) is None:
+                errors.append(f"{name}: provenance.generated_at_utc must be an ISO-8601 UTC timestamp")
 
     if strict:
-        if not str(prov.get("git_commit") or "").strip():
+        git_commit = prov.get("git_commit")
+        if not isinstance(git_commit, str) or not git_commit.strip():
             errors.append(f"{name}: provenance.git_commit missing in strict mode")
-        if not str(prov.get("script") or "").strip():
+        script = prov.get("script")
+        if not isinstance(script, str) or not script.strip():
             errors.append(f"{name}: provenance.script missing in strict mode")
 
     return errors

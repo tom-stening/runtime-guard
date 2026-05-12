@@ -205,3 +205,7 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     assert src_hashes.get("polars")
     assert src_hashes.get("dask")
     assert src_hashes.get("ray")
+    script_hashes = provenance.get("inputs", {}).get("validator_script_hashes", {})
+    assert script_hashes.get("polars")
+    assert script_hashes.get("dask")
+    assert script_hashes.get("ray")

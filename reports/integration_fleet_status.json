@@ -154,26 +154,31 @@
     "pressure_detected": false
   },
   "provenance": {
-    "generated_at_utc": "2026-05-12T09:44:08Z",
-    "git_commit": "1584cd2",
+    "generated_at_utc": "2026-05-12T09:46:54Z",
+    "git_commit": "cf13e0d",
     "inputs": {
       "fallback_on_pressure": true,
       "fallback_report_dir": "/home/thomas_stening/runtime-guard/reports",
-      "source_artifact_hashes": {}
+      "source_artifact_hashes": {},
+      "validator_script_hashes": {
+        "dask": "4f9361a1f2656b6a5214a2d85797e7256608144eef0631a9638cc5a1f9ec8af1",
+        "polars": "d4439151c75e2e9f1b2951f28ea6f92d9b999cac033d9a77313ea5e61b2a3aa7",
+        "ray": "bc4b40d2cd107743b8abca254cf0e4ddf16914e4d3a88610eea5107e319ff37f"
+      }
     },
-    "run_id": "aaac69e2-52be-42d5-bcf7-31867fedceb3",
+    "run_id": "26cd349e-17eb-46a7-af44-cdb214775157",
     "schema_version": 1,
     "script": "/home/thomas_stening/runtime-guard/scripts/validate_integration_fleet.py",
     "tool": "validate_integration_fleet"
   },
-  "run_id": "aaac69e2-52be-42d5-bcf7-31867fedceb3",
+  "run_id": "26cd349e-17eb-46a7-af44-cdb214775157",
   "summary": {
     "components_healthy": 3,
     "components_total": 3,
     "components_unhealthy": 0,
     "overall_healthy": true,
     "risk_level": "low",
-    "run_id": "aaac69e2-52be-42d5-bcf7-31867fedceb3"
+    "run_id": "26cd349e-17eb-46a7-af44-cdb214775157"
   },
   "tool": "validate_integration_fleet",
   "warnings": []

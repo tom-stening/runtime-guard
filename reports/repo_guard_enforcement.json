@@ -3,13 +3,13 @@
   "env_prefix": "RUNTIME_GUARD",
   "posture": "wsl_dev",
   "provenance": {
-    "generated_at_utc": "2026-05-12T09:44:04Z",
-    "git_commit": "1584cd2",
+    "generated_at_utc": "2026-05-12T09:46:50Z",
+    "git_commit": "cf13e0d",
     "inputs": {
       "args_digest": "856493dd4dce5c2c3e8fd306de4b7209fd94f6a6813b591388a065abe7f67215",
       "root": "/home/thomas_stening"
     },
-    "run_id": "aaac69e2-52be-42d5-bcf7-31867fedceb3",
+    "run_id": "26cd349e-17eb-46a7-af44-cdb214775157",
     "schema_version": 1,
     "script": "/home/thomas_stening/runtime-guard/scripts/enforce_runtime_guard_all_repos.py",
     "tool": "enforce_runtime_guard_all_repos"
@@ -449,7 +449,7 @@
     }
   ],
   "root": "/home/thomas_stening",
-  "run_id": "aaac69e2-52be-42d5-bcf7-31867fedceb3",
+  "run_id": "26cd349e-17eb-46a7-af44-cdb214775157",
   "stage": "repo-autostart",
   "summary": {
     "already_enforced": 0,
@@ -458,7 +458,7 @@
     "enforced": 54,
     "non_python_repos": 0,
     "python_repos": 54,
-    "run_id": "aaac69e2-52be-42d5-bcf7-31867fedceb3",
+    "run_id": "26cd349e-17eb-46a7-af44-cdb214775157",
     "total_repos": 54,
     "watcher_only_candidates": 0
   }

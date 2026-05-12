@@ -204,6 +204,16 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _resolve_validator_script_path(repo_root: Path, script_name: str) -> Path | None:
+    candidate = repo_root / "scripts" / script_name
+    if candidate.exists():
+        return candidate
+    fallback = Path(__file__).resolve().parent / script_name
+    if fallback.exists():
+        return fallback
+    return None
+
+
 def _detect_runtime_pressure() -> tuple[bool, str | None]:
     """Return whether RuntimeGuard currently detects memory pressure."""
     try:
@@ -346,8 +356,13 @@ def _build_payload(
 
     components: list[dict[str, Any]] = []
     source_hashes: dict[str, str] = {}
+    validator_script_hashes: dict[str, str] = {}
     fleet_warnings: list[str] = []
     for tool, script_name, extra_args, report_path in component_specs:
+        script_path = _resolve_validator_script_path(repo_root, script_name)
+        if script_path is not None:
+            validator_script_hashes[tool] = _sha256_file(script_path)
+
         effective_report_path = report_path
         if (
             not effective_report_path
@@ -409,6 +424,7 @@ def _build_payload(
             "git_commit": _safe_git_commit(repo_root),
             "inputs": {
                 "source_artifact_hashes": source_hashes,
+                "validator_script_hashes": validator_script_hashes,
                 "fallback_on_pressure": bool(fallback_on_pressure),
                 "fallback_report_dir": str(fallback_dir),
             },

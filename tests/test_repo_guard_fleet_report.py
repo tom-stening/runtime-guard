@@ -274,3 +274,27 @@ def test_failed_gates_share_single_run_id(tmp_path: Path) -> None:
     failed_gates = [row for row in runtime.get("failed_gates", []) if isinstance(row, dict)]
     assert len(failed_gates) >= 2
     assert all(row.get("run_id") == run_id for row in failed_gates)
+
+
+def test_run_id_override_is_propagated_to_output_and_failed_gates(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "watcher_only_candidate"},
+        ]
+    }
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--fail-on-unenforced",
+        "--run-id",
+        "ci-run-12345",
+    )
+    assert result.returncode == 1
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    assert runtime.get("run_id") == "ci-run-12345"
+    assert runtime.get("summary", {}).get("run_id") == "ci-run-12345"
+    failed_gates = [row for row in runtime.get("failed_gates", []) if isinstance(row, dict)]
+    assert failed_gates
+    assert all(row.get("run_id") == "ci-run-12345" for row in failed_gates)

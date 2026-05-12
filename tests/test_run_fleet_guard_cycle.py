@@ -30,6 +30,7 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
         fail_on_wsl_risk = "high"
         fail_on_extension_total_rss_mb = 2500
         fail_on_extension_rss = ["ms-python.vscode-pylance=800"]
+        run_id = "ci-run-12345"
 
     enforce_cmd, integration_cmd, runtime_cmd, enforcement_report, integration_report, runtime_report = module._build_step_commands(
         _Args(), Path("/repo")
@@ -51,6 +52,8 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
     assert "--fail-on-wsl-risk" in runtime_cmd
     assert "--fail-on-extension-total-rss-mb" in runtime_cmd
     assert "--fail-on-extension-rss" in runtime_cmd
+    assert "--run-id" in runtime_cmd
+    assert "ci-run-12345" in runtime_cmd
     assert str(runtime_report).endswith("repo_guard_runtime_status.json")
 
 

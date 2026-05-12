@@ -89,6 +89,11 @@ def _parse_args() -> argparse.Namespace:
             "meets/exceeds MB threshold. May be repeated."
         ),
     )
+    parser.add_argument(
+        "--run-id",
+        default="",
+        help="Optional external run identifier for cross-system correlation.",
+    )
     return parser.parse_args()
 
 
@@ -421,7 +426,9 @@ def main() -> int:
     )
 
     summary = payload.get("summary", {})
-    run_id = str(uuid.uuid4())
+    run_id = str(args.run_id or "").strip()
+    if not run_id:
+        run_id = str(uuid.uuid4())
     payload["run_id"] = run_id
     summary["run_id"] = run_id
     failed_gates: list[dict[str, Any]] = []

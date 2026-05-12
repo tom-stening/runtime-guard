@@ -2265,6 +2265,7 @@ class TestRayIntegration:
             assert result["actor_monitoring_keys_present"] is True
             assert result["actor_node_telemetry_api_available"] is True
             assert result["actor_cluster_summary_api_available"] is True
+            assert result["actor_cluster_hotspot_fields_present"] is True
         finally:
             restore()
 
@@ -2290,6 +2291,7 @@ class TestRayIntegration:
             assert "ray_actor_node_telemetry_keys_available" in evidence["evidence_items"]
             assert "ray_actor_node_telemetry_api_available" in evidence["evidence_items"]
             assert "ray_actor_cluster_summary_api_available" in evidence["evidence_items"]
+            assert "ray_actor_cluster_hotspot_fields_present" in evidence["evidence_items"]
             assert evidence["ray_version"] == "unknown"
         finally:
             restore()

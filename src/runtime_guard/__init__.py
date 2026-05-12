@@ -2846,6 +2846,7 @@ def validate_ray_integration(
     actor_monitoring_keys_present = False
     actor_node_telemetry_api_available = False
     actor_cluster_summary_api_available = False
+    actor_cluster_hotspot_fields_present = False
 
     try:
         ray_mod = module
@@ -2895,6 +2896,20 @@ def validate_ray_integration(
             for k in ("node_report", "reset_node_reports", "get_all_node_reports")
         )
         actor_cluster_summary_api_available = callable(actor_cfg.get("cluster_summary"))
+        if actor_cluster_summary_api_available:
+            try:
+                summary = actor_cfg["cluster_summary"]()
+                required_hotspot_fields = {
+                    "busiest_node",
+                    "busiest_node_events",
+                    "busiest_actor",
+                    "busiest_actor_events",
+                }
+                actor_cluster_hotspot_fields_present = required_hotspot_fields.issubset(
+                    set(summary.keys()) if isinstance(summary, dict) else set()
+                )
+            except Exception:
+                actor_cluster_hotspot_fields_present = False
 
         return {
             "ok": True,
@@ -2904,6 +2919,7 @@ def validate_ray_integration(
             "actor_monitoring_keys_present": actor_monitoring_keys_present,
             "actor_node_telemetry_api_available": actor_node_telemetry_api_available,
             "actor_cluster_summary_api_available": actor_cluster_summary_api_available,
+            "actor_cluster_hotspot_fields_present": actor_cluster_hotspot_fields_present,
             "get_present": get_fn is not None,
             "wait_present": wait_fn is not None,
             "put_present": put_fn is not None,
@@ -2919,6 +2935,7 @@ def validate_ray_integration(
             "actor_monitoring_keys_present": actor_monitoring_keys_present,
             "actor_node_telemetry_api_available": actor_node_telemetry_api_available,
             "actor_cluster_summary_api_available": actor_cluster_summary_api_available,
+            "actor_cluster_hotspot_fields_present": actor_cluster_hotspot_fields_present,
             "errors": errors,
         }
 
@@ -2965,6 +2982,9 @@ def collect_ray_integration_evidence(
 
     if validation.get("actor_cluster_summary_api_available"):
         evidence_items.append("ray_actor_cluster_summary_api_available")
+
+    if validation.get("actor_cluster_hotspot_fields_present"):
+        evidence_items.append("ray_actor_cluster_hotspot_fields_present")
 
     runtime_guard_version = "0.3.0"
     try:

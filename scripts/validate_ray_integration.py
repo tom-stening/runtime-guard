@@ -97,6 +97,24 @@ def _check_actor_api() -> dict[str, Any]:
             result["errors"].append(f"remote_wrapper smoke-test returned unexpected value: {ret!r}")
             return result
 
+        summary = config["cluster_summary"]()
+        if not isinstance(summary, dict):
+            result["errors"].append("cluster_summary did not return a dict")
+            return result
+        hotspot_fields = {
+            "busiest_node",
+            "busiest_node_events",
+            "busiest_actor",
+            "busiest_actor_events",
+        }
+        missing_summary_fields = sorted(hotspot_fields - set(summary.keys()))
+        if missing_summary_fields:
+            result["errors"].append(
+                "cluster_summary missing hotspot fields: "
+                + ", ".join(missing_summary_fields)
+            )
+            return result
+
         result["available"] = True
     except Exception as exc:
         result["errors"].append(str(exc))

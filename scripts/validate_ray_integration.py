@@ -59,7 +59,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _check_actor_api() -> dict[str, Any]:
     """Verify the actor memory monitoring API surface is present and callable."""
-    result: dict[str, Any] = {"available": False, "errors": []}
+    result: dict[str, Any] = {
+        "available": False,
+        "hotspot_fields_present": False,
+        "errors": [],
+    }
     try:
         from runtime_guard import enable_ray_actor_memory_monitoring
 
@@ -114,6 +118,7 @@ def _check_actor_api() -> dict[str, Any]:
                 + ", ".join(missing_summary_fields)
             )
             return result
+        result["hotspot_fields_present"] = True
 
         result["available"] = True
     except Exception as exc:

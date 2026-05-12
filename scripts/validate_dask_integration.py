@@ -118,7 +118,11 @@ def _check_guard_api() -> dict[str, Any]:
 
 def _check_scheduler_api() -> dict[str, Any]:
     """Verify scheduler callback integration API surface and behavior."""
-    result: dict[str, Any] = {"available": False, "errors": []}
+    result: dict[str, Any] = {
+        "available": False,
+        "telemetry_counters_present": False,
+        "errors": [],
+    }
     try:
         from runtime_guard import attach_dask_guard, install_dask_scheduler_callbacks, validate_dask_integration
 
@@ -178,6 +182,7 @@ def _check_scheduler_api() -> dict[str, Any]:
                 + ", ".join(missing_counter_fields)
             )
             return result
+        result["telemetry_counters_present"] = True
 
         create_ctx = getattr(callback_report, "create_callback_context", None)
         if not callable(create_ctx):

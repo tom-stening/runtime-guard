@@ -119,10 +119,18 @@ def _required_checks_for(tool_name: str, payload: dict[str, Any]) -> tuple[bool,
             errors.append("task_graph_guard_api check failed")
         if not isinstance(scheduler_check, dict) or not bool(scheduler_check.get("available", False)):
             errors.append("scheduler_callback_api check failed")
+        if not isinstance(scheduler_check, dict) or not bool(
+            scheduler_check.get("telemetry_counters_present", False)
+        ):
+            errors.append("scheduler_callback_api telemetry counter check failed")
     elif tool_name == "ray":
         actor_check = payload.get("actor_monitoring_api", {})
         if not isinstance(actor_check, dict) or not bool(actor_check.get("available", False)):
             errors.append("actor_monitoring_api check failed")
+        if not isinstance(actor_check, dict) or not bool(
+            actor_check.get("hotspot_fields_present", False)
+        ):
+            errors.append("actor_monitoring_api hotspot field check failed")
 
     return len(errors) == 0, errors
 

@@ -40,14 +40,23 @@ def test_required_checks_for_each_component():
         "dask",
         {
             "task_graph_guard_api": {"available": True},
-            "scheduler_callback_api": {"available": True},
+            "scheduler_callback_api": {
+                "available": True,
+                "telemetry_counters_present": True,
+            },
         },
     )
     assert dask_ok is True
     assert dask_errors == []
 
     ray_ok, ray_errors = module._required_checks_for(
-        "ray", {"actor_monitoring_api": {"available": True}}
+        "ray",
+        {
+            "actor_monitoring_api": {
+                "available": True,
+                "hotspot_fields_present": True,
+            }
+        },
     )
     assert ray_ok is True
     assert ray_errors == []
@@ -89,7 +98,10 @@ def test_component_from_payload_marks_healthy_with_required_checks():
             "ok": True,
             "api_importable": True,
             "task_graph_guard_api": {"available": True},
-            "scheduler_callback_api": {"available": True},
+            "scheduler_callback_api": {
+                "available": True,
+                "telemetry_counters_present": True,
+            },
             "errors": ["runtime warning"],
         },
         source="report",
@@ -134,11 +146,12 @@ def test_build_payload_uses_report_fallback_when_pressure_detected(
     (reports_dir / "dask_integration_status.json").write_text(
         '{"ok": true, "api_importable": true, '
         '"task_graph_guard_api": {"available": true}, '
-        '"scheduler_callback_api": {"available": true}}',
+        '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}}',
         encoding="utf-8",
     )
     (reports_dir / "ray_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, "actor_monitoring_api": {"available": true}}',
+        '{"ok": true, "api_importable": true, '
+        '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}}',
         encoding="utf-8",
     )
 
@@ -179,11 +192,12 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     (reports_dir / "dask_integration_status.json").write_text(
         '{"ok": true, "api_importable": true, '
         '"task_graph_guard_api": {"available": true}, '
-        '"scheduler_callback_api": {"available": true}}',
+        '"scheduler_callback_api": {"available": true, "telemetry_counters_present": true}}',
         encoding="utf-8",
     )
     (reports_dir / "ray_integration_status.json").write_text(
-        '{"ok": true, "api_importable": true, "actor_monitoring_api": {"available": true}}',
+        '{"ok": true, "api_importable": true, '
+        '"actor_monitoring_api": {"available": true, "hotspot_fields_present": true}}',
         encoding="utf-8",
     )
 

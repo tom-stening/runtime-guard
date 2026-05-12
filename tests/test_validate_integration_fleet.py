@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 from pathlib import Path
 
 
@@ -219,3 +220,25 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     assert script_hashes.get("polars")
     assert script_hashes.get("dask")
     assert script_hashes.get("ray")
+
+
+def test_run_validator_timeout_returns_unhealthy_component(tmp_path: Path, monkeypatch):
+    module = _load_module()
+
+    def _raise_timeout(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd="validator", timeout=1)
+
+    monkeypatch.setattr(module.subprocess, "run", _raise_timeout)
+
+    component = module._run_validator(
+        tmp_path,
+        "polars",
+        "validate_polars_integration.py",
+        ["--check-budget-api", "--check-callback-api"],
+        timeout_s=1,
+    )
+
+    assert component["tool"] == "polars"
+    assert component["healthy"] is False
+    assert component["exit_code"] == 124
+    assert any("timed out" in row for row in component["errors"])

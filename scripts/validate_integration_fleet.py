@@ -271,15 +271,25 @@ def _run_validator(repo_root: Path, tool_name: str, script_name: str, extra_args
         "--json",
         *extra_args,
     ]
-
-    proc = subprocess.run(
-        cmd,
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        timeout=timeout_s,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return _component_from_payload(
+            tool_name,
+            {},
+            source="live",
+            command=cmd,
+            exit_code=124,
+            hard_errors=[f"validator timed out after {int(timeout_s)}s"],
+            warnings=[],
+        )
 
     payload = _extract_last_json_object(proc.stdout)
     errors: list[str] = []

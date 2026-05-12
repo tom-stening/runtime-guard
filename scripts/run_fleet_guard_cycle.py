@@ -424,8 +424,17 @@ def _summarize_runtime_report(runtime_report_path: Path) -> dict[str, Any]:
     else:
         parse_warnings.append("summary.recommendation_count must be a non-negative integer")
 
+    run_id = ""
+    root_run_id = payload.get("run_id")
+    if isinstance(root_run_id, str) and root_run_id.strip():
+        run_id = root_run_id.strip()
+    else:
+        summary_run_id = summary.get("run_id")
+        if isinstance(summary_run_id, str) and summary_run_id.strip():
+            run_id = summary_run_id.strip()
+
     return {
-        "run_id": payload.get("run_id") or summary.get("run_id"),
+        "run_id": run_id,
         "overall_runtime_healthy": overall_runtime_healthy,
         "fully_enforced": fully_enforced,
         "integration_overall_healthy": integration_overall_healthy,
@@ -443,14 +452,14 @@ def _read_run_id_from_report(report_path: Path) -> str:
         return ""
     if not isinstance(payload, dict):
         return ""
-    root_run_id = str(payload.get("run_id") or "").strip()
-    if root_run_id:
-        return root_run_id
+    root_run_id = payload.get("run_id")
+    if isinstance(root_run_id, str) and root_run_id.strip():
+        return root_run_id.strip()
     summary = payload.get("summary")
     if isinstance(summary, dict):
-        summary_run_id = str(summary.get("run_id") or "").strip()
-        if summary_run_id:
-            return summary_run_id
+        summary_run_id = summary.get("run_id")
+        if isinstance(summary_run_id, str) and summary_run_id.strip():
+            return summary_run_id.strip()
     return ""
 
 

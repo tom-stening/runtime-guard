@@ -293,6 +293,24 @@ def test_validate_run_id_consistency_returns_false_for_mismatched_reports(tmp_pa
         assert run_ids["repo_guard_runtime_status"] == "ci-a"
 
 
+    def test_validate_run_id_consistency_rejects_non_string_run_ids(tmp_path: Path):
+        module = _load_module()
+
+        enforcement = tmp_path / "repo_guard_enforcement.json"
+        integration = tmp_path / "integration_fleet_status.json"
+        runtime = tmp_path / "repo_guard_runtime_status.json"
+
+        enforcement.write_text(json.dumps({"run_id": 123}), encoding="utf-8")
+        integration.write_text(json.dumps({"summary": {"run_id": "ci-a"}}), encoding="utf-8")
+        runtime.write_text(json.dumps({"run_id": "ci-a"}), encoding="utf-8")
+
+        ok, run_ids = module._validate_run_id_consistency(enforcement, integration, runtime)
+        assert ok is False
+        assert run_ids["repo_guard_enforcement"] == ""
+        assert run_ids["integration_fleet_status"] == "ci-a"
+        assert run_ids["repo_guard_runtime_status"] == "ci-a"
+
+
 def test_summarize_runtime_report(tmp_path: Path):
     module = _load_module()
     path = tmp_path / "runtime.json"
@@ -376,6 +394,32 @@ def test_summarize_runtime_report(tmp_path: Path):
         assert any("summary.integration_overall_healthy must be boolean or null" in row for row in summary["parse_warnings"])
         assert any("summary.wsl_risk_level must be string or null" in row for row in summary["parse_warnings"])
         assert any("summary.recommendation_count must be a non-negative integer" in row for row in summary["parse_warnings"])
+
+
+    def test_summarize_runtime_report_rejects_non_string_run_id_fields(tmp_path: Path):
+        module = _load_module()
+        path = tmp_path / "runtime.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "run_id": 321,
+                    "summary": {
+                        "run_id": ["ci-1"],
+                        "overall_runtime_healthy": True,
+                        "fully_enforced": True,
+                        "integration_overall_healthy": True,
+                        "wsl_risk_level": "low",
+                        "recommendation_count": 1,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        summary = module._summarize_runtime_report(path)
+        assert summary["run_id"] == ""
+        assert summary["overall_runtime_healthy"] is True
+        assert summary["fully_enforced"] is True
 
 
 def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):

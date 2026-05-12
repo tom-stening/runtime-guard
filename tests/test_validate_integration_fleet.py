@@ -201,6 +201,7 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     assert provenance.get("tool") == "validate_integration_fleet"
     assert provenance.get("run_id") == "ci-run-xyz"
     assert str(provenance.get("generated_at_utc", "")).endswith("Z")
+    assert provenance.get("artifact_sha256")
     src_hashes = provenance.get("inputs", {}).get("source_artifact_hashes", {})
     assert src_hashes.get("polars")
     assert src_hashes.get("dask")

@@ -242,6 +242,18 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _stamp_artifact_sha256(payload: dict[str, Any]) -> None:
+    prov = payload.get("provenance")
+    if not isinstance(prov, dict):
+        return
+    canonical_payload = json.loads(json.dumps(payload, sort_keys=True))
+    canonical_prov = canonical_payload.get("provenance")
+    if isinstance(canonical_prov, dict):
+        canonical_prov.pop("artifact_sha256", None)
+    canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
+    prov["artifact_sha256"] = _sha256_text(canonical)
+
+
 def main() -> int:
     args = _parse_args()
     root = Path(args.root).expanduser().resolve()
@@ -312,6 +324,7 @@ def main() -> int:
         "summary": summary_payload,
         "repos": [asdict(s) for s in statuses],
     }
+    _stamp_artifact_sha256(payload)
 
     report_path = Path(args.report_path)
     if not report_path.is_absolute():

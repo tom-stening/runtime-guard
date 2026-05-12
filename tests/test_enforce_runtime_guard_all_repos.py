@@ -112,3 +112,4 @@ def test_run_id_override_is_written_to_enforcement_payload(tmp_path: Path) -> No
     assert provenance.get("run_id") == "ci-run-xyz"
     assert str(provenance.get("generated_at_utc", "")).endswith("Z")
     assert provenance.get("inputs", {}).get("args_digest")
+    assert provenance.get("artifact_sha256")

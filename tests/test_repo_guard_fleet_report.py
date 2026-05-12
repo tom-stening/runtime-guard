@@ -342,6 +342,7 @@ def test_source_run_ids_and_consistency_are_included_when_matching(tmp_path: Pat
     assert provenance.get("tool") == "repo_guard_fleet_report"
     assert provenance.get("run_id") == "ci-sync-1"
     assert str(provenance.get("generated_at_utc", "")).endswith("Z")
+    assert provenance.get("artifact_sha256")
     src_hashes = provenance.get("inputs", {}).get("source_artifact_hashes", {})
     assert src_hashes.get("repo_guard_enforcement")
     assert src_hashes.get("integration_fleet_status")

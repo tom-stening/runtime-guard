@@ -887,6 +887,8 @@ cross-artifact run_id consistency (non-zero exit on mismatch or missing run_id).
 Each artifact also includes a `provenance` block with tool identity,
 generation timestamp, git commit hint, run_id, and source artifact hashes to
 support downstream lineage and integrity verification.
+Each `provenance` block now includes `artifact_sha256`, a canonical self-digest
+verified by `verify_fleet_artifact_lineage.py` for tamper-evident validation.
 
 For standalone runtime report generation, use `repo_guard_fleet_report.py
 --fail-on-run-id-mismatch` to fail when source artifact run IDs are missing or

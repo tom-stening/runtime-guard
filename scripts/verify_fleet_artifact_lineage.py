@@ -70,13 +70,26 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _expected_artifact_sha256(payload: dict[str, Any]) -> str:
+    canonical_payload = json.loads(json.dumps(payload, sort_keys=True))
+    prov = canonical_payload.get("provenance")
+    if isinstance(prov, dict):
+        prov.pop("artifact_sha256", None)
+    canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
+    return _sha256_text(canonical)
+
+
 def _validate_provenance(name: str, payload: dict[str, Any], strict: bool) -> list[str]:
     errors: list[str] = []
     prov = payload.get("provenance")
     if not isinstance(prov, dict):
         return [f"{name}: missing provenance block"]
 
-    required = ["schema_version", "tool", "generated_at_utc", "run_id", "inputs"]
+    required = ["schema_version", "tool", "generated_at_utc", "run_id", "inputs", "artifact_sha256"]
     for key in required:
         if key not in prov:
             errors.append(f"{name}: provenance missing '{key}'")
@@ -92,6 +105,19 @@ def _validate_provenance(name: str, payload: dict[str, Any], strict: bool) -> li
             errors.append(f"{name}: provenance.script missing in strict mode")
 
     return errors
+
+
+def _validate_artifact_sha256(name: str, payload: dict[str, Any]) -> list[str]:
+    prov = payload.get("provenance")
+    if not isinstance(prov, dict):
+        return [f"{name}: missing provenance block"]
+    actual = str(prov.get("artifact_sha256") or "").strip()
+    if not actual:
+        return [f"{name}: missing provenance artifact_sha256"]
+    expected = _expected_artifact_sha256(payload)
+    if actual != expected:
+        return [f"{name}: artifact_sha256 mismatch"]
+    return []
 
 
 def _build_result(
@@ -125,6 +151,9 @@ def _build_result(
     errors.extend(_validate_provenance("repo_guard_enforcement", enforcement, strict))
     errors.extend(_validate_provenance("integration_fleet_status", integration, strict))
     errors.extend(_validate_provenance("repo_guard_runtime_status", runtime, strict))
+    errors.extend(_validate_artifact_sha256("repo_guard_enforcement", enforcement))
+    errors.extend(_validate_artifact_sha256("integration_fleet_status", integration))
+    errors.extend(_validate_artifact_sha256("repo_guard_runtime_status", runtime))
 
     runtime_prov = runtime.get("provenance", {})
     runtime_inputs = runtime_prov.get("inputs", {}) if isinstance(runtime_prov, dict) else {}

@@ -338,6 +338,22 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _stamp_artifact_sha256(payload: dict[str, Any]) -> None:
+    prov = payload.get("provenance")
+    if not isinstance(prov, dict):
+        return
+    canonical_payload = json.loads(json.dumps(payload, sort_keys=True))
+    canonical_prov = canonical_payload.get("provenance")
+    if isinstance(canonical_prov, dict):
+        canonical_prov.pop("artifact_sha256", None)
+    canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
+    prov["artifact_sha256"] = _sha256_text(canonical)
+
+
 def _build_payload(
     enforcement: dict[str, Any],
     *,
@@ -622,6 +638,7 @@ def main() -> int:
 
     payload["failed_gates"] = failed_gates
     summary["failed_gate_count"] = len(failed_gates)
+    _stamp_artifact_sha256(payload)
 
     output_path = Path(args.output)
     if not output_path.is_absolute():

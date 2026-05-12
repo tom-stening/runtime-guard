@@ -246,7 +246,12 @@ def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
             "run_id": "ci-1",
             "git_commit": "abc123",
             "script": "/repo/scripts/validate_integration_fleet.py",
-            "inputs": {},
+            "inputs": {
+                "require_signed_report_inputs": False,
+                "verify_report_input_signatures": False,
+                "report_allowed_key_ids": [],
+                "max_report_signature_age_hours": 0,
+            },
         },
     }
 
@@ -643,7 +648,12 @@ def test_build_result_verify_signatures_calls_crypto_backend(tmp_path: Path, mon
                     "run_id": "ci-1",
                     "git_commit": "abc123",
                     "script": "/repo/scripts/validate_integration_fleet.py",
-                    "inputs": {},
+                    "inputs": {
+                        "require_signed_report_inputs": False,
+                        "verify_report_input_signatures": False,
+                        "report_allowed_key_ids": [],
+                        "max_report_signature_age_hours": 0,
+                    },
                 },
             }
         ),
@@ -1165,3 +1175,94 @@ def test_build_result_fails_when_default_expected_report_signature_policy_does_n
     assert any("expected verify_report_input_signatures policy does not match" in row for row in result["errors"])
     assert any("expected report_allowed_key_ids policy does not match" in row for row in result["errors"])
     assert any("expected max_report_signature_age_hours policy does not match" in row for row in result["errors"])
+
+
+def test_build_result_fails_when_report_signature_policy_keys_missing_from_provenance_inputs(tmp_path: Path):
+    module = _load_module()
+
+    enforcement_path = tmp_path / "repo_guard_enforcement.json"
+    integration_path = tmp_path / "integration_fleet_status.json"
+    runtime_path = tmp_path / "repo_guard_runtime_status.json"
+
+    enforcement = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "enforce_runtime_guard_all_repos",
+                    "generated_at_utc": "2026-05-12T00:00:00Z",
+                    "run_id": "ci-1",
+                    "inputs": {},
+                },
+            }
+        )
+    )
+    enforcement_path.write_text(json.dumps(enforcement), encoding="utf-8")
+
+    integration = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "validate_integration_fleet",
+                    "generated_at_utc": "2026-05-12T00:00:01Z",
+                    "run_id": "ci-1",
+                    "inputs": {
+                        "source_artifact_hashes": {},
+                        "validator_script_hashes": {},
+                        "fallback_on_pressure": False,
+                        "fallback_report_dir": "",
+                        "max_fallback_report_age_hours": 0,
+                    },
+                },
+            }
+        )
+    )
+    integration_path.write_text(json.dumps(integration), encoding="utf-8")
+
+    runtime = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "repo_guard_fleet_report",
+                    "generated_at_utc": "2026-05-12T00:00:02Z",
+                    "run_id": "ci-1",
+                    "inputs": {
+                        "source_artifact_hashes": {
+                            "repo_guard_enforcement": _sha(enforcement_path),
+                            "integration_fleet_status": _sha(integration_path),
+                        }
+                    },
+                },
+            }
+        )
+    )
+    runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
+
+    ok, result = module._build_result(
+        enforcement_path,
+        integration_path,
+        runtime_path,
+        strict=False,
+        require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
+    )
+    assert ok is False
+    assert any("missing 'require_signed_report_inputs'" in row for row in result["errors"])
+    assert any("missing 'verify_report_input_signatures'" in row for row in result["errors"])
+    assert any("missing 'report_allowed_key_ids'" in row for row in result["errors"])
+    assert any("missing 'max_report_signature_age_hours'" in row for row in result["errors"])

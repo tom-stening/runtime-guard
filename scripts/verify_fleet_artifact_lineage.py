@@ -299,6 +299,20 @@ def _validate_expected_integration_report_signature_policy(
     if not isinstance(inputs, dict):
         return ["integration_fleet_status: provenance.inputs missing for report-signature policy check"]
 
+    required_policy_keys = [
+        "require_signed_report_inputs",
+        "verify_report_input_signatures",
+        "report_allowed_key_ids",
+        "max_report_signature_age_hours",
+    ]
+    for key in required_policy_keys:
+        if key not in inputs:
+            errors.append(
+                f"integration_fleet_status: provenance.inputs missing '{key}' for report-signature policy check"
+            )
+    if errors:
+        return errors
+
     actual_require_signed = bool(inputs.get("require_signed_report_inputs", False))
     if actual_require_signed != bool(expected_require_signed_report_inputs):
         errors.append(

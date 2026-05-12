@@ -8,11 +8,14 @@ verifiable payload that can be used as a CI gate for integration readiness.
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import datetime as dt
 import hashlib
 import json
 import os
 import subprocess
+import tempfile
 import sys
 import uuid
 from pathlib import Path
@@ -89,6 +92,33 @@ def _build_parser() -> argparse.ArgumentParser:
             "Maximum age allowed for fallback/explicit report inputs in hours "
             "(0 disables staleness enforcement)"
         ),
+    )
+    parser.add_argument(
+        "--require-signed-report-inputs",
+        action="store_true",
+        help="Fail when explicit/fallback report inputs are not detached-signed",
+    )
+    parser.add_argument(
+        "--verify-report-input-signatures",
+        action="store_true",
+        help="Cryptographically verify detached signatures for explicit/fallback report inputs",
+    )
+    parser.add_argument(
+        "--report-signature-public-key",
+        default="",
+        help="Path to public key PEM used when --verify-report-input-signatures is enabled",
+    )
+    parser.add_argument(
+        "--report-allowed-key-id",
+        action="append",
+        default=[],
+        help="Allowed signature key ID for explicit/fallback report inputs (repeatable)",
+    )
+    parser.add_argument(
+        "--max-report-signature-age-hours",
+        type=int,
+        default=0,
+        help="Maximum age allowed for explicit/fallback report signatures in hours (0 disables)",
     )
     return parser
 
@@ -313,6 +343,161 @@ def _build_signature_envelope(artifact_sha256: str) -> dict[str, str]:
     }
 
 
+def _decode_signature_bytes(signature_text: str) -> bytes:
+    sig = signature_text.strip()
+    if not sig:
+        raise ValueError("empty signature")
+
+    try:
+        return bytes.fromhex(sig)
+    except ValueError:
+        pass
+
+    try:
+        return base64.b64decode(sig, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("signature must be hex or base64") from exc
+
+
+def _verify_signature_with_openssl(
+    *,
+    signed_value: str,
+    signature_bytes: bytes,
+    public_key_path: Path,
+) -> tuple[bool, str]:
+    if not public_key_path.exists():
+        return False, f"public key not found: {public_key_path}"
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="rg-report-sign-verify-") as tmp:
+            tmp_dir = Path(tmp)
+            data_path = tmp_dir / "signed_value.txt"
+            sig_path = tmp_dir / "signature.bin"
+            data_path.write_text(signed_value, encoding="utf-8")
+            sig_path.write_bytes(signature_bytes)
+
+            cmd = [
+                "openssl",
+                "pkeyutl",
+                "-verify",
+                "-pubin",
+                "-inkey",
+                str(public_key_path),
+                "-sigfile",
+                str(sig_path),
+                "-rawin",
+                "-in",
+                str(data_path),
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return False, "openssl binary not found"
+    except Exception as exc:
+        return False, str(exc)
+
+    if proc.returncode != 0:
+        stderr = (proc.stderr or "").strip()
+        return False, stderr or "openssl verification returned non-zero"
+    return True, "ok"
+
+
+def _verify_detached_signature(
+    *,
+    algorithm: str,
+    signed_value: str,
+    signature_text: str,
+    public_key_path: Path,
+) -> tuple[bool, str]:
+    algo = algorithm.strip().lower()
+    if algo != "ed25519":
+        return False, f"unsupported signature algorithm: {algorithm}"
+
+    try:
+        signature_bytes = _decode_signature_bytes(signature_text)
+    except ValueError as exc:
+        return False, str(exc)
+
+    return _verify_signature_with_openssl(
+        signed_value=signed_value,
+        signature_bytes=signature_bytes,
+        public_key_path=public_key_path,
+    )
+
+
+def _validate_report_signature(
+    *,
+    tool_name: str,
+    provenance: dict[str, Any],
+    require_signed: bool,
+    verify_signatures: bool,
+    signature_public_key: str,
+    allowed_key_ids: set[str],
+    max_signature_age_hours: int,
+) -> list[str]:
+    signature = provenance.get("signature")
+    if not isinstance(signature, dict):
+        return [f"report signature envelope missing for {tool_name}"]
+
+    errors: list[str] = []
+    mode = str(signature.get("mode") or "").strip()
+    if mode not in {"unsigned", "detached"}:
+        errors.append(f"report signature mode invalid for {tool_name}: {mode or 'missing'}")
+
+    if str(signature.get("signed_field") or "").strip() != "artifact_sha256":
+        errors.append(f"report signature.signed_field invalid for {tool_name}")
+
+    artifact_sha = str(provenance.get("artifact_sha256") or "").strip()
+    if str(signature.get("signed_value") or "").strip() != artifact_sha:
+        errors.append(f"report signature.signed_value mismatch for {tool_name}")
+
+    if require_signed:
+        if mode != "detached":
+            errors.append(f"report detached signature required for {tool_name}")
+        if not str(signature.get("signature") or "").strip():
+            errors.append(f"report detached signature payload missing for {tool_name}")
+        if not str(signature.get("key_id") or "").strip():
+            errors.append(f"report detached signature key_id missing for {tool_name}")
+        if not str(signature.get("algorithm") or "").strip():
+            errors.append(f"report detached signature algorithm missing for {tool_name}")
+
+    key_id = str(signature.get("key_id") or "").strip()
+    if allowed_key_ids:
+        if not key_id:
+            errors.append(f"report signature key_id is required by policy for {tool_name}")
+        elif key_id not in allowed_key_ids:
+            errors.append(f"report signature key_id '{key_id}' not allowed for {tool_name}")
+
+    if int(max_signature_age_hours or 0) > 0:
+        issued = _parse_utc_timestamp(str(provenance.get("generated_at_utc") or "").strip())
+        if issued is None:
+            errors.append(f"report generated_at_utc missing/invalid for {tool_name} signature age policy")
+        else:
+            age_h = (dt.datetime.now(dt.timezone.utc) - issued).total_seconds() / 3600.0
+            if age_h > float(max_signature_age_hours):
+                errors.append(
+                    f"report signature age {age_h:.2f}h exceeds max {int(max_signature_age_hours)}h for {tool_name}"
+                )
+
+    if verify_signatures:
+        if mode != "detached":
+            errors.append(f"report detached signature required for cryptographic verification of {tool_name}")
+            return errors
+        key_path = str(signature_public_key or "").strip()
+        if not key_path:
+            errors.append("--report-signature-public-key is required when --verify-report-input-signatures is set")
+            return errors
+        ok, reason = _verify_detached_signature(
+            algorithm=str(signature.get("algorithm") or ""),
+            signed_value=str(signature.get("signed_value") or ""),
+            signature_text=str(signature.get("signature") or ""),
+            public_key_path=Path(key_path),
+        )
+        if not ok:
+            errors.append(f"report signature verification failed for {tool_name}: {reason}")
+
+    return errors
+
+
 def _resolve_validator_script_path(repo_root: Path, script_name: str) -> Path | None:
     candidate = repo_root / "scripts" / script_name
     if candidate.exists():
@@ -393,6 +578,11 @@ def _component_from_report(
     *,
     max_report_age_hours: int = 0,
     expected_run_id: str = "",
+    require_signed: bool = False,
+    verify_signatures: bool = False,
+    signature_public_key: str = "",
+    allowed_key_ids: set[str] | None = None,
+    max_signature_age_hours: int = 0,
     now_utc: dt.datetime | None = None,
 ) -> dict[str, Any]:
     payload, load_error = _load_report_payload(report_path)
@@ -439,17 +629,17 @@ def _component_from_report(
         elif artifact_sha != _expected_artifact_sha256(report_payload):
             identity_errors.append(f"report artifact_sha256 mismatch for {tool_name}")
 
-        signature = provenance.get("signature")
-        if not isinstance(signature, dict):
-            identity_errors.append(f"report signature envelope missing for {tool_name}")
-        else:
-            mode = str(signature.get("mode") or "").strip()
-            if mode not in {"unsigned", "detached"}:
-                identity_errors.append(f"report signature mode invalid for {tool_name}: {mode or 'missing'}")
-            if str(signature.get("signed_field") or "").strip() != "artifact_sha256":
-                identity_errors.append(f"report signature.signed_field invalid for {tool_name}")
-            if str(signature.get("signed_value") or "").strip() != artifact_sha:
-                identity_errors.append(f"report signature.signed_value mismatch for {tool_name}")
+        identity_errors.extend(
+            _validate_report_signature(
+                tool_name=tool_name,
+                provenance=provenance,
+                require_signed=bool(require_signed),
+                verify_signatures=bool(verify_signatures),
+                signature_public_key=str(signature_public_key),
+                allowed_key_ids=set(allowed_key_ids or set()),
+                max_signature_age_hours=int(max_signature_age_hours or 0),
+            )
+        )
 
     expected_run = str(expected_run_id or "").strip()
     if expected_run:
@@ -515,6 +705,11 @@ def _build_payload(
     fallback_on_pressure: bool,
     fallback_report_dir: str,
     max_fallback_report_age_hours: int = 0,
+    require_signed_report_inputs: bool = False,
+    verify_report_input_signatures: bool = False,
+    report_signature_public_key: str = "",
+    report_allowed_key_ids: list[str] | None = None,
+    max_report_signature_age_hours: int = 0,
     run_id: str = "",
     pressure_detected_override: bool | None = None,
 ) -> dict[str, Any]:
@@ -591,6 +786,11 @@ def _build_payload(
                     path,
                     max_report_age_hours=int(max_fallback_report_age_hours or 0),
                     expected_run_id=effective_run_id,
+                    require_signed=bool(require_signed_report_inputs),
+                    verify_signatures=bool(verify_report_input_signatures),
+                    signature_public_key=str(report_signature_public_key),
+                    allowed_key_ids={k for k in list(report_allowed_key_ids or []) if str(k).strip()},
+                    max_signature_age_hours=int(max_report_signature_age_hours or 0),
                     now_utc=report_age_reference_utc,
                 )
             )
@@ -639,6 +839,10 @@ def _build_payload(
                 "fallback_on_pressure": bool(fallback_on_pressure),
                 "fallback_report_dir": str(fallback_dir),
                 "max_fallback_report_age_hours": int(max_fallback_report_age_hours or 0),
+                "require_signed_report_inputs": bool(require_signed_report_inputs),
+                "verify_report_input_signatures": bool(verify_report_input_signatures),
+                "report_allowed_key_ids": [k for k in list(report_allowed_key_ids or []) if str(k).strip()],
+                "max_report_signature_age_hours": int(max_report_signature_age_hours or 0),
             },
         },
     }
@@ -674,6 +878,11 @@ def main() -> int:
         fallback_on_pressure=bool(args.fallback_on_pressure),
         fallback_report_dir=str(args.fallback_report_dir),
         max_fallback_report_age_hours=int(args.max_fallback_report_age_hours),
+        require_signed_report_inputs=bool(args.require_signed_report_inputs),
+        verify_report_input_signatures=bool(args.verify_report_input_signatures),
+        report_signature_public_key=str(args.report_signature_public_key),
+        report_allowed_key_ids=list(args.report_allowed_key_id or []),
+        max_report_signature_age_hours=int(args.max_report_signature_age_hours),
         run_id=str(args.run_id),
     )
 

@@ -364,6 +364,100 @@ def test_component_from_report_rejects_artifact_sha_mismatch(tmp_path: Path):
     assert any("report artifact_sha256 mismatch" in err for err in comp["errors"])
 
 
+def test_component_from_report_requires_detached_signature_when_requested(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "unsigned.json"
+    payload = _stamp_report_payload(
+        {
+            "tool": "validate_polars_integration",
+            "milestone": "M1-I01",
+            "ok": True,
+            "api_importable": True,
+            "scan_budget_api": {"available": True},
+            "native_callback_api": {"available": True},
+            "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+        }
+    )
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    comp = module._component_from_report("polars", report, require_signed=True)
+
+    assert comp["healthy"] is False
+    assert any("report detached signature required" in err for err in comp["errors"])
+
+
+def test_component_from_report_verify_signatures_calls_crypto_backend(tmp_path: Path, monkeypatch):
+    module = _load_module()
+    report = tmp_path / "signed.json"
+    payload = _stamp_report_payload(
+        {
+            "tool": "validate_polars_integration",
+            "milestone": "M1-I01",
+            "ok": True,
+            "api_importable": True,
+            "scan_budget_api": {"available": True},
+            "native_callback_api": {"available": True},
+            "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+        }
+    )
+    payload["provenance"]["signature"] = {
+        "mode": "detached",
+        "signed_field": "artifact_sha256",
+        "signed_value": payload["provenance"]["artifact_sha256"],
+        "algorithm": "ed25519",
+        "key_id": "test-key",
+        "signature": "deadbeef",
+    }
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(module, "_verify_detached_signature", lambda **_k: (True, "ok"))
+
+    comp = module._component_from_report(
+        "polars",
+        report,
+        require_signed=True,
+        verify_signatures=True,
+        signature_public_key="/tmp/public.pem",
+    )
+
+    assert comp["healthy"] is True
+
+
+def test_component_from_report_rejects_disallowed_signature_key_id(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "wrong-key.json"
+    payload = _stamp_report_payload(
+        {
+            "tool": "validate_polars_integration",
+            "milestone": "M1-I01",
+            "ok": True,
+            "api_importable": True,
+            "scan_budget_api": {"available": True},
+            "native_callback_api": {"available": True},
+            "provenance": {"generated_at_utc": "2099-01-01T00:00:00Z"},
+        }
+    )
+    payload["provenance"]["signature"] = {
+        "mode": "detached",
+        "signed_field": "artifact_sha256",
+        "signed_value": payload["provenance"]["artifact_sha256"],
+        "algorithm": "ed25519",
+        "key_id": "wrong-key",
+        "signature": "deadbeef",
+    }
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    comp = module._component_from_report(
+        "polars",
+        report,
+        require_signed=True,
+        allowed_key_ids={"trusted-key"},
+    )
+
+    assert comp["healthy"] is False
+    assert any("not allowed" in err for err in comp["errors"])
+
+
 def test_build_payload_uses_report_fallback_when_pressure_detected(
     tmp_path: Path,
     monkeypatch,

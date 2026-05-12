@@ -54,6 +54,33 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--integration-require-signed-report-inputs",
+        action="store_true",
+        help="Require detached signatures for integration explicit/fallback report inputs",
+    )
+    p.add_argument(
+        "--integration-verify-report-input-signatures",
+        action="store_true",
+        help="Cryptographically verify detached signatures for integration explicit/fallback report inputs",
+    )
+    p.add_argument(
+        "--integration-report-signature-public-key",
+        default="",
+        help="Public key PEM path used for integration report-input signature verification",
+    )
+    p.add_argument(
+        "--integration-report-allowed-key-id",
+        action="append",
+        default=[],
+        help="Allowed key ID for integration report-input signatures (repeatable)",
+    )
+    p.add_argument(
+        "--integration-max-report-signature-age-hours",
+        type=int,
+        default=0,
+        help="Maximum allowed age in hours for integration report-input signatures (0 disables)",
+    )
+    p.add_argument(
         "--fail-on-unenforced",
         action="store_true",
         help="Fail when any repos are unenforced",
@@ -165,6 +192,24 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
             [
                 "--max-fallback-report-age-hours",
                 str(int(args.integration_max_fallback_report_age_hours)),
+            ]
+        )
+    if bool(args.integration_require_signed_report_inputs):
+        integration_cmd.append("--require-signed-report-inputs")
+    if bool(args.integration_verify_report_input_signatures):
+        integration_cmd.append("--verify-report-input-signatures")
+        key_path = str(args.integration_report_signature_public_key or "").strip()
+        if key_path:
+            integration_cmd.extend(["--report-signature-public-key", key_path])
+    for key_id in list(args.integration_report_allowed_key_id or []):
+        key = str(key_id or "").strip()
+        if key:
+            integration_cmd.extend(["--report-allowed-key-id", key])
+    if int(args.integration_max_report_signature_age_hours or 0) > 0:
+        integration_cmd.extend(
+            [
+                "--max-report-signature-age-hours",
+                str(int(args.integration_max_report_signature_age_hours)),
             ]
         )
     if run_id:

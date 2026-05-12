@@ -26,6 +26,11 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
         integration_fallback_on_pressure = True
         integration_fallback_report_dir = "reports"
         integration_max_fallback_report_age_hours = 24
+        integration_require_signed_report_inputs = True
+        integration_verify_report_input_signatures = True
+        integration_report_signature_public_key = "/tmp/report-public.pem"
+        integration_report_allowed_key_id = ["report-key-a", "report-key-b"]
+        integration_max_report_signature_age_hours = 12
         fail_on_unenforced = True
         fail_on_integration_unhealthy = True
         fail_on_wsl_risk = "high"
@@ -48,6 +53,15 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
     assert "--fallback-on-pressure" in integration_cmd
     assert "--max-fallback-report-age-hours" in integration_cmd
     assert "24" in integration_cmd
+    assert "--require-signed-report-inputs" in integration_cmd
+    assert "--verify-report-input-signatures" in integration_cmd
+    assert "--report-signature-public-key" in integration_cmd
+    assert "/tmp/report-public.pem" in integration_cmd
+    assert integration_cmd.count("--report-allowed-key-id") == 2
+    assert "report-key-a" in integration_cmd
+    assert "report-key-b" in integration_cmd
+    assert "--max-report-signature-age-hours" in integration_cmd
+    assert "12" in integration_cmd
     assert "--run-id" in integration_cmd
     assert "ci-run-12345" in integration_cmd
     assert str(integration_report).endswith("integration_fleet_status.json")
@@ -75,11 +89,16 @@ def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_pa
         integration_fallback_on_pressure = False
         integration_fallback_report_dir = "reports"
         integration_max_fallback_report_age_hours = 0
+        integration_require_signed_report_inputs = False
+        integration_verify_report_input_signatures = False
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_report_signature_age_hours = 0
         fail_on_unenforced = False
         fail_on_integration_unhealthy = False
         fail_on_wsl_risk = None
         fail_on_extension_total_rss_mb = 0
-        fail_on_extension_rss = []
+        fail_on_extension_rss: list[str] = []
         run_id = ""
 
     enforce_cmd, integration_cmd, runtime_cmd, _, _, _ = module._build_step_commands(_Args(), Path("/repo"))
@@ -106,11 +125,16 @@ def test_build_step_commands_omits_fallback_age_flag_when_disabled(tmp_path: Pat
         integration_fallback_on_pressure = True
         integration_fallback_report_dir = "reports"
         integration_max_fallback_report_age_hours = 0
+        integration_require_signed_report_inputs = False
+        integration_verify_report_input_signatures = False
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_report_signature_age_hours = 0
         fail_on_unenforced = False
         fail_on_integration_unhealthy = False
         fail_on_wsl_risk = None
         fail_on_extension_total_rss_mb = 0
-        fail_on_extension_rss = []
+        fail_on_extension_rss: list[str] = []
         run_id = "ci-run-age-0"
 
     _, integration_cmd, _, _, _, _ = module._build_step_commands(_Args(), Path("/repo"))

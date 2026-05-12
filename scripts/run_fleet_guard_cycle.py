@@ -262,6 +262,10 @@ def _build_lineage_verify_command(
     signature_public_key: str,
     allowed_key_ids: list[str],
     max_signature_age_hours: int,
+    expected_require_signed_report_inputs: bool,
+    expected_verify_report_input_signatures: bool,
+    expected_report_allowed_key_ids: list[str],
+    expected_max_report_signature_age_hours: int,
 ) -> list[str]:
     cmd = [
         sys.executable,
@@ -288,6 +292,21 @@ def _build_lineage_verify_command(
             cmd.extend(["--allowed-key-id", key])
     if int(max_signature_age_hours or 0) > 0:
         cmd.extend(["--max-signature-age-hours", str(int(max_signature_age_hours))])
+    if bool(expected_require_signed_report_inputs):
+        cmd.append("--expected-require-signed-report-inputs")
+    if bool(expected_verify_report_input_signatures):
+        cmd.append("--expected-verify-report-input-signatures")
+    for key_id in list(expected_report_allowed_key_ids or []):
+        key = str(key_id or "").strip()
+        if key:
+            cmd.extend(["--expected-report-allowed-key-id", key])
+    if int(expected_max_report_signature_age_hours or 0) > 0:
+        cmd.extend(
+            [
+                "--expected-max-report-signature-age-hours",
+                str(int(expected_max_report_signature_age_hours)),
+            ]
+        )
     return cmd
 
 
@@ -349,6 +368,10 @@ def main() -> int:
         signature_public_key=str(args.signature_public_key),
         allowed_key_ids=list(args.allowed_key_id or []),
         max_signature_age_hours=int(args.max_signature_age_hours or 0),
+        expected_require_signed_report_inputs=bool(args.integration_require_signed_report_inputs),
+        expected_verify_report_input_signatures=bool(args.integration_verify_report_input_signatures),
+        expected_report_allowed_key_ids=list(args.integration_report_allowed_key_id or []),
+        expected_max_report_signature_age_hours=int(args.integration_max_report_signature_age_hours or 0),
     )
 
     if bool(args.dry_run):

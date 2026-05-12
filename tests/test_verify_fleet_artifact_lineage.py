@@ -129,6 +129,10 @@ def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
         signature_public_key="",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert ok is True
     assert result["errors"] == []
@@ -197,6 +201,10 @@ def test_build_result_fails_on_hash_or_run_id_mismatch(tmp_path: Path):
         signature_public_key="",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert ok is False
     assert any("run_id values do not match" in row for row in result["errors"])
@@ -270,6 +278,10 @@ def test_build_result_fails_on_artifact_digest_mismatch(tmp_path: Path):
         signature_public_key="",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert ok is False
     assert any("artifact_sha256 mismatch" in row for row in result["errors"])
@@ -341,6 +353,10 @@ def test_build_result_fails_on_artifact_tool_identity_mismatch(tmp_path: Path):
         signature_public_key="",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert ok is False
     assert any("provenance.tool mismatch" in row for row in result["errors"])
@@ -424,6 +440,10 @@ def test_build_result_requires_detached_signature_when_requested(tmp_path: Path)
         signature_public_key="",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert ok is False
     assert any("detached signature required" in row for row in result["errors"])
@@ -512,6 +532,10 @@ def test_build_result_verify_signatures_calls_crypto_backend(tmp_path: Path, mon
         signature_public_key="/tmp/pubkey.pem",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert ok is True
     assert result["errors"] == []
@@ -598,6 +622,10 @@ def test_build_result_fails_on_disallowed_key_id(tmp_path: Path):
         signature_public_key="",
         allowed_key_ids=["another-key"],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert ok is False
     assert any("not in allowed-key-id policy" in row for row in result["errors"])
@@ -684,6 +712,10 @@ def test_build_result_fails_when_signature_age_exceeds_limit(tmp_path: Path):
         signature_public_key="",
         allowed_key_ids=[],
         max_signature_age_hours=1,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert ok is False
     assert any("signature age" in row for row in result["errors"])
@@ -775,6 +807,109 @@ def test_build_result_fails_on_integration_fallback_policy_mismatch(tmp_path: Pa
         signature_public_key="",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert ok is False
     assert any("fallback age policy mismatch" in row for row in result["errors"])
+
+
+def test_build_result_fails_on_expected_integration_report_signature_policy_mismatch(tmp_path: Path):
+    module = _load_module()
+
+    enforcement_path = tmp_path / "repo_guard_enforcement.json"
+    integration_path = tmp_path / "integration_fleet_status.json"
+    runtime_path = tmp_path / "repo_guard_runtime_status.json"
+
+    enforcement = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "enforce_runtime_guard_all_repos",
+                    "generated_at_utc": "2026-05-12T00:00:00Z",
+                    "run_id": "ci-1",
+                    "inputs": {},
+                },
+            }
+        )
+    )
+    enforcement_path.write_text(json.dumps(enforcement), encoding="utf-8")
+
+    integration = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "pressure_fallback": {
+                    "enabled": True,
+                    "pressure_detected": True,
+                    "fallback_report_dir": "/repo/reports",
+                    "max_report_age_hours": 12,
+                    "note": None,
+                },
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "validate_integration_fleet",
+                    "generated_at_utc": "2026-05-12T00:00:01Z",
+                    "run_id": "ci-1",
+                    "inputs": {
+                        "source_artifact_hashes": {},
+                        "validator_script_hashes": {},
+                        "fallback_on_pressure": True,
+                        "fallback_report_dir": "/repo/reports",
+                        "max_fallback_report_age_hours": 12,
+                        "require_signed_report_inputs": False,
+                        "verify_report_input_signatures": False,
+                        "report_allowed_key_ids": [],
+                        "max_report_signature_age_hours": 0,
+                    },
+                },
+            }
+        )
+    )
+    integration_path.write_text(json.dumps(integration), encoding="utf-8")
+
+    runtime = _stamp_signature_envelope(
+        _stamp_artifact_sha256(
+            {
+                "run_id": "ci-1",
+                "summary": {"run_id": "ci-1"},
+                "provenance": {
+                    "schema_version": 1,
+                    "tool": "repo_guard_fleet_report",
+                    "generated_at_utc": "2026-05-12T00:00:02Z",
+                    "run_id": "ci-1",
+                    "inputs": {
+                        "source_artifact_hashes": {
+                            "repo_guard_enforcement": _sha(enforcement_path),
+                            "integration_fleet_status": _sha(integration_path),
+                        }
+                    },
+                },
+            }
+        )
+    )
+    runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
+
+    ok, result = module._build_result(
+        enforcement_path,
+        integration_path,
+        runtime_path,
+        strict=True,
+        require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
+        expected_require_signed_report_inputs=True,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
+    )
+    assert ok is False
+    assert any("expected require_signed_report_inputs=true" in row for row in result["errors"])

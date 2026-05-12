@@ -76,6 +76,28 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0,
         help="Maximum allowed artifact signature age in hours (0 disables age check).",
     )
+    parser.add_argument(
+        "--expected-require-signed-report-inputs",
+        action="store_true",
+        help="Fail if integration provenance does not record require_signed_report_inputs=true",
+    )
+    parser.add_argument(
+        "--expected-verify-report-input-signatures",
+        action="store_true",
+        help="Fail if integration provenance does not record verify_report_input_signatures=true",
+    )
+    parser.add_argument(
+        "--expected-report-allowed-key-id",
+        action="append",
+        default=[],
+        help="Expected integration report-input allowed key ID (repeatable)",
+    )
+    parser.add_argument(
+        "--expected-max-report-signature-age-hours",
+        type=int,
+        default=0,
+        help="Expected integration max_report_signature_age_hours value (0 disables check)",
+    )
     return parser
 
 
@@ -205,6 +227,54 @@ def _validate_expected_tool(name: str, payload: dict[str, Any], expected_tool: s
             f"{name}: provenance.tool mismatch (expected {expected_tool}, got {actual_tool})"
         ]
     return []
+
+
+def _validate_expected_integration_report_signature_policy(
+    payload: dict[str, Any],
+    *,
+    expected_require_signed_report_inputs: bool,
+    expected_verify_report_input_signatures: bool,
+    expected_report_allowed_key_ids: list[str],
+    expected_max_report_signature_age_hours: int,
+) -> list[str]:
+    errors: list[str] = []
+    provenance = payload.get("provenance")
+    inputs = provenance.get("inputs") if isinstance(provenance, dict) else None
+    if not isinstance(inputs, dict):
+        return ["integration_fleet_status: provenance.inputs missing for report-signature policy check"]
+
+    if bool(expected_require_signed_report_inputs):
+        if not bool(inputs.get("require_signed_report_inputs", False)):
+            errors.append(
+                "integration_fleet_status: expected require_signed_report_inputs=true but provenance.inputs does not match"
+            )
+
+    if bool(expected_verify_report_input_signatures):
+        if not bool(inputs.get("verify_report_input_signatures", False)):
+            errors.append(
+                "integration_fleet_status: expected verify_report_input_signatures=true but provenance.inputs does not match"
+            )
+
+    expected_allowed = sorted({str(k).strip() for k in list(expected_report_allowed_key_ids or []) if str(k).strip()})
+    if expected_allowed:
+        actual_allowed_raw = inputs.get("report_allowed_key_ids", [])
+        actual_allowed: list[str] = []
+        if isinstance(actual_allowed_raw, list):
+            actual_allowed = sorted({str(k).strip() for k in actual_allowed_raw if str(k).strip()})
+        if actual_allowed != expected_allowed:
+            errors.append(
+                "integration_fleet_status: expected report_allowed_key_ids policy does not match provenance.inputs"
+            )
+
+    expected_age = int(expected_max_report_signature_age_hours or 0)
+    if expected_age > 0:
+        actual_age = int(inputs.get("max_report_signature_age_hours", 0) or 0)
+        if actual_age != expected_age:
+            errors.append(
+                "integration_fleet_status: expected max_report_signature_age_hours policy does not match provenance.inputs"
+            )
+
+    return errors
 
 
 def _validate_signature_envelope(
@@ -403,6 +473,10 @@ def _build_result(
     signature_public_key: str,
     allowed_key_ids: list[str],
     max_signature_age_hours: int,
+    expected_require_signed_report_inputs: bool,
+    expected_verify_report_input_signatures: bool,
+    expected_report_allowed_key_ids: list[str],
+    expected_max_report_signature_age_hours: int,
 ) -> tuple[bool, dict[str, Any]]:
     errors: list[str] = []
 
@@ -454,6 +528,15 @@ def _build_result(
     errors.extend(_validate_artifact_sha256("integration_fleet_status", integration))
     errors.extend(_validate_artifact_sha256("repo_guard_runtime_status", runtime))
     errors.extend(_validate_integration_fallback_policy_consistency(integration))
+    errors.extend(
+        _validate_expected_integration_report_signature_policy(
+            integration,
+            expected_require_signed_report_inputs=bool(expected_require_signed_report_inputs),
+            expected_verify_report_input_signatures=bool(expected_verify_report_input_signatures),
+            expected_report_allowed_key_ids=list(expected_report_allowed_key_ids or []),
+            expected_max_report_signature_age_hours=int(expected_max_report_signature_age_hours or 0),
+        )
+    )
     errors.extend(
         _validate_signature_envelope(
             "repo_guard_enforcement",
@@ -552,6 +635,10 @@ def main() -> int:
         signature_public_key=str(args.signature_public_key),
         allowed_key_ids=list(args.allowed_key_id or []),
         max_signature_age_hours=int(args.max_signature_age_hours or 0),
+        expected_require_signed_report_inputs=bool(args.expected_require_signed_report_inputs),
+        expected_verify_report_input_signatures=bool(args.expected_verify_report_input_signatures),
+        expected_report_allowed_key_ids=list(args.expected_report_allowed_key_id or []),
+        expected_max_report_signature_age_hours=int(args.expected_max_report_signature_age_hours or 0),
     )
 
     if args.json:

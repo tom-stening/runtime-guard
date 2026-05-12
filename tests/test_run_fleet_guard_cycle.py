@@ -217,6 +217,10 @@ def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):
         signature_public_key="",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     rendered = " ".join(cmd)
 
@@ -243,6 +247,10 @@ def test_build_lineage_verify_command_includes_require_signed_flag(tmp_path: Pat
         signature_public_key="",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert "--require-signed" in cmd
 
@@ -259,6 +267,10 @@ def test_build_lineage_verify_command_includes_signature_verification_flags(tmp_
         signature_public_key="/tmp/public.pem",
         allowed_key_ids=[],
         max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
     )
     assert "--require-signed" in cmd
     assert "--verify-signatures" in cmd
@@ -278,9 +290,20 @@ def test_build_lineage_verify_command_includes_key_policy_flags(tmp_path: Path):
         signature_public_key="",
         allowed_key_ids=["key-a", "key-b"],
         max_signature_age_hours=24,
+        expected_require_signed_report_inputs=True,
+        expected_verify_report_input_signatures=True,
+        expected_report_allowed_key_ids=["report-key-a", "report-key-b"],
+        expected_max_report_signature_age_hours=12,
     )
     assert cmd.count("--allowed-key-id") == 2
     assert "key-a" in cmd
     assert "key-b" in cmd
     assert "--max-signature-age-hours" in cmd
     assert "24" in cmd
+    assert "--expected-require-signed-report-inputs" in cmd
+    assert "--expected-verify-report-input-signatures" in cmd
+    assert cmd.count("--expected-report-allowed-key-id") == 2
+    assert "report-key-a" in cmd
+    assert "report-key-b" in cmd
+    assert "--expected-max-report-signature-age-hours" in cmd
+    assert "12" in cmd

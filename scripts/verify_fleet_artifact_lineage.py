@@ -241,13 +241,59 @@ def _validate_integration_fallback_policy_consistency(payload: dict[str, Any]) -
     provenance = payload.get("provenance")
     inputs = provenance.get("inputs") if isinstance(provenance, dict) else None
 
+    fallback_enabled_payload: str | None = None
+    fallback_dir_payload: str | None = None
     fallback_age_payload: str | None = None
     if isinstance(pressure_fallback, dict) and "max_report_age_hours" in pressure_fallback:
         fallback_age_payload = str(pressure_fallback.get("max_report_age_hours")).strip()
+    if isinstance(pressure_fallback, dict) and "enabled" in pressure_fallback:
+        fallback_enabled_payload = str(bool(pressure_fallback.get("enabled", False))).strip()
+    if isinstance(pressure_fallback, dict) and "fallback_report_dir" in pressure_fallback:
+        fallback_dir_payload = str(pressure_fallback.get("fallback_report_dir") or "").strip()
 
+    fallback_enabled_provenance: str | None = None
+    fallback_dir_provenance: str | None = None
     fallback_age_provenance: str | None = None
     if isinstance(inputs, dict) and "max_fallback_report_age_hours" in inputs:
         fallback_age_provenance = str(inputs.get("max_fallback_report_age_hours")).strip()
+    if isinstance(inputs, dict) and "fallback_on_pressure" in inputs:
+        fallback_enabled_provenance = str(bool(inputs.get("fallback_on_pressure", False))).strip()
+    if isinstance(inputs, dict) and "fallback_report_dir" in inputs:
+        fallback_dir_provenance = str(inputs.get("fallback_report_dir") or "").strip()
+
+    if fallback_enabled_payload is None and fallback_enabled_provenance is not None:
+        errors.append(
+            "integration_fleet_status: pressure_fallback.enabled missing while provenance.inputs.fallback_on_pressure is present"
+        )
+    elif fallback_enabled_payload is not None and fallback_enabled_provenance is None:
+        errors.append(
+            "integration_fleet_status: provenance.inputs.fallback_on_pressure missing while pressure_fallback.enabled is present"
+        )
+    elif (
+        fallback_enabled_payload is not None
+        and fallback_enabled_provenance is not None
+        and fallback_enabled_payload != fallback_enabled_provenance
+    ):
+        errors.append(
+            "integration_fleet_status: fallback enabled policy mismatch between pressure_fallback.enabled and provenance.inputs.fallback_on_pressure"
+        )
+
+    if fallback_dir_payload is None and fallback_dir_provenance is not None:
+        errors.append(
+            "integration_fleet_status: pressure_fallback.fallback_report_dir missing while provenance.inputs.fallback_report_dir is present"
+        )
+    elif fallback_dir_payload is not None and fallback_dir_provenance is None:
+        errors.append(
+            "integration_fleet_status: provenance.inputs.fallback_report_dir missing while pressure_fallback.fallback_report_dir is present"
+        )
+    elif (
+        fallback_dir_payload is not None
+        and fallback_dir_provenance is not None
+        and fallback_dir_payload != fallback_dir_provenance
+    ):
+        errors.append(
+            "integration_fleet_status: fallback report directory mismatch between pressure_fallback.fallback_report_dir and provenance.inputs.fallback_report_dir"
+        )
 
     if fallback_age_payload is None and fallback_age_provenance is None:
         return errors

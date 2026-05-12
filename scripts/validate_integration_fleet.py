@@ -134,6 +134,12 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
         if str(key_id).strip()
     ]
     max_signature_age_hours = int(getattr(args, "max_report_signature_age_hours", 0) or 0)
+    max_fallback_report_age_hours = int(getattr(args, "max_fallback_report_age_hours", 0) or 0)
+
+    if max_fallback_report_age_hours < 0:
+        errors.append("--max-fallback-report-age-hours must be greater than or equal to 0")
+    if max_signature_age_hours < 0:
+        errors.append("--max-report-signature-age-hours must be greater than or equal to 0")
 
     if verify_signatures and not require_signed:
         errors.append(

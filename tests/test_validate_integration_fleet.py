@@ -105,6 +105,23 @@ def test_validate_cli_configuration_requires_verification_when_signature_age_pol
     assert "--max-report-signature-age-hours" in errors[0]
 
 
+def test_validate_cli_configuration_rejects_negative_age_policies():
+    module = _load_module()
+
+    class _Args:
+        verify_report_input_signatures = True
+        require_signed_report_inputs = True
+        report_signature_public_key = "/tmp/public.pem"
+        report_allowed_key_id: list[str] = []
+        max_report_signature_age_hours = -1
+        max_fallback_report_age_hours = -2
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 2
+    assert any("--max-report-signature-age-hours" in row for row in errors)
+    assert any("--max-fallback-report-age-hours" in row for row in errors)
+
+
 def test_summarize_validator_stderr_filters_pressure_event_json_lines():
     module = _load_module()
     stderr = (

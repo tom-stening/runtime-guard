@@ -196,6 +196,26 @@ def test_validate_cli_configuration_requires_expected_verification_for_expected_
     assert "--expected-max-report-signature-age-hours" in errors[0]
 
 
+def test_validate_cli_configuration_rejects_negative_age_policies():
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = False
+        require_signed = False
+        signature_public_key = ""
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = -1
+        expected_verify_report_input_signatures = False
+        expected_require_signed_report_inputs = False
+        expected_report_allowed_key_id: list[str] = []
+        expected_max_report_signature_age_hours = -2
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 2
+    assert any("--max-signature-age-hours" in row for row in errors)
+    assert any("--expected-max-report-signature-age-hours" in row for row in errors)
+
+
 def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
     module = _load_module()
 

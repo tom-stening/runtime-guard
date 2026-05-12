@@ -159,6 +159,27 @@ def test_validate_cli_configuration_requires_integration_verification_when_signa
     assert "--integration-max-report-signature-age-hours" in errors[0]
 
 
+def test_validate_cli_configuration_rejects_negative_age_policies():
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = True
+        integration_require_signed_report_inputs = True
+        integration_report_signature_public_key = "/tmp/report-public.pem"
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_fallback_report_age_hours = -1
+        integration_max_report_signature_age_hours = -2
+        verify_signed_artifacts = False
+        signature_public_key = ""
+        max_signature_age_hours = -3
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 3
+    assert any("--integration-max-fallback-report-age-hours" in row for row in errors)
+    assert any("--integration-max-report-signature-age-hours" in row for row in errors)
+    assert any("--max-signature-age-hours" in row for row in errors)
+
+
 def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_path: Path):
     module = _load_module()
 

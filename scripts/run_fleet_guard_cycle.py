@@ -168,6 +168,21 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     integration_max_signature_age_hours = int(
         getattr(args, "integration_max_report_signature_age_hours", 0) or 0
     )
+    integration_max_fallback_report_age_hours = int(
+        getattr(args, "integration_max_fallback_report_age_hours", 0) or 0
+    )
+    lineage_max_signature_age_hours = int(getattr(args, "max_signature_age_hours", 0) or 0)
+
+    if integration_max_fallback_report_age_hours < 0:
+        errors.append(
+            "--integration-max-fallback-report-age-hours must be greater than or equal to 0"
+        )
+    if integration_max_signature_age_hours < 0:
+        errors.append(
+            "--integration-max-report-signature-age-hours must be greater than or equal to 0"
+        )
+    if lineage_max_signature_age_hours < 0:
+        errors.append("--max-signature-age-hours must be greater than or equal to 0")
 
     if integration_verify and not integration_require_signed:
         errors.append(

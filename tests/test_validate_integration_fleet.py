@@ -47,6 +47,18 @@ def test_extract_last_json_object_handles_prefixed_lines():
     assert payload == {"ok": True, "value": 3}
 
 
+def test_validate_cli_configuration_requires_public_key_for_report_signature_verification():
+    module = _load_module()
+
+    class _Args:
+        verify_report_input_signatures = True
+        report_signature_public_key = ""
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--report-signature-public-key" in errors[0]
+
+
 def test_summarize_validator_stderr_filters_pressure_event_json_lines():
     module = _load_module()
     stderr = (

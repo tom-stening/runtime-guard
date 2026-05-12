@@ -79,6 +79,34 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
     assert str(runtime_report).endswith("repo_guard_runtime_status.json")
 
 
+def test_validate_cli_configuration_requires_integration_report_signature_key():
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = True
+        integration_report_signature_public_key = ""
+        verify_signed_artifacts = False
+        signature_public_key = ""
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--integration-report-signature-public-key" in errors[0]
+
+
+def test_validate_cli_configuration_requires_lineage_signature_key_when_verifying():
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = False
+        integration_report_signature_public_key = ""
+        verify_signed_artifacts = True
+        signature_public_key = ""
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--signature-public-key" in errors[0]
+
+
 def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_path: Path):
     module = _load_module()
 

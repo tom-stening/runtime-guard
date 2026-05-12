@@ -123,6 +123,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+    if bool(args.verify_report_input_signatures) and not str(args.report_signature_public_key or "").strip():
+        errors.append(
+            "--report-signature-public-key is required when --verify-report-input-signatures is set"
+        )
+    return errors
+
+
 def _extract_last_json_object(text: str) -> dict[str, Any] | None:
     """Extract the last JSON object from mixed stdout text.
 
@@ -867,6 +876,15 @@ def _build_payload(
 def main() -> int:
     args = _build_parser().parse_args()
     repo_root = Path(__file__).resolve().parent.parent
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        if args.json:
+            print(json.dumps({"ok": False, "errors": config_errors}, indent=2, sort_keys=True))
+        else:
+            for err in config_errors:
+                print(f"[config-error] {err}", file=sys.stderr)
+        return 2
 
     payload = _build_payload(
         repo_root,

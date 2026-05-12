@@ -153,6 +153,21 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+    if bool(args.integration_verify_report_input_signatures) and not str(
+        args.integration_report_signature_public_key or ""
+    ).strip():
+        errors.append(
+            "--integration-report-signature-public-key is required when --integration-verify-report-input-signatures is set"
+        )
+    if bool(args.verify_signed_artifacts) and not str(args.signature_public_key or "").strip():
+        errors.append(
+            "--signature-public-key is required when --verify-signed-artifacts is set"
+        )
+    return errors
+
+
 def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[list[str], list[str], list[str], Path, Path, Path]:
     reports_dir = Path(args.reports_dir)
     if not reports_dir.is_absolute():
@@ -356,6 +371,11 @@ def _validate_run_id_consistency(
 def main() -> int:
     args = _build_parser().parse_args()
     repo_root = Path(__file__).resolve().parent.parent
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        print(json.dumps({"errors": config_errors, "ok": False}, indent=2, sort_keys=True))
+        return 2
 
     enforce_cmd, integration_cmd, runtime_cmd, enforcement_report, integration_report, runtime_report = _build_step_commands(args, repo_root)
     lineage_verify_cmd = _build_lineage_verify_command(

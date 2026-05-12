@@ -262,6 +262,32 @@ def test_component_from_payload_hard_errors_force_unhealthy():
     assert any("identity mismatch" in err for err in comp["errors"])
 
 
+def test_component_from_payload_rejects_string_booleans_for_health_fields():
+    module = _load_module()
+    comp = module._component_from_payload(
+        "dask",
+        {
+            "ok": "true",
+            "api_importable": "true",
+            "task_graph_guard_api": {"available": "true"},
+            "scheduler_callback_api": {
+                "available": "true",
+                "telemetry_counters_present": "true",
+            },
+        },
+        source="report",
+        command=None,
+        exit_code=0,
+        hard_errors=[],
+        warnings=[],
+    )
+    assert comp["healthy"] is False
+    assert any("validator 'ok' field must be boolean" in err for err in comp["errors"])
+    assert any("validator 'api_importable' field must be boolean" in err for err in comp["errors"])
+    assert any("task_graph_guard_api check failed" in err for err in comp["errors"])
+    assert any("scheduler_callback_api check failed" in err for err in comp["errors"])
+
+
 def test_component_from_report_invalid_file(tmp_path: Path):
     module = _load_module()
     bad = tmp_path / "bad.json"

@@ -203,32 +203,36 @@ def _summarize_validator_stderr(text: str) -> str:
     return rendered
 
 
+def _is_true_boolean(value: Any) -> bool:
+    return isinstance(value, bool) and value
+
+
 def _required_checks_for(tool_name: str, payload: dict[str, Any]) -> tuple[bool, list[str]]:
     errors: list[str] = []
 
     if tool_name == "polars":
         budget_check = payload.get("scan_budget_api", {})
         callback_check = payload.get("native_callback_api", {})
-        if not isinstance(budget_check, dict) or not bool(budget_check.get("available", False)):
+        if not isinstance(budget_check, dict) or not _is_true_boolean(budget_check.get("available", False)):
             errors.append("scan_budget_api check failed")
-        if not isinstance(callback_check, dict) or not bool(callback_check.get("available", False)):
+        if not isinstance(callback_check, dict) or not _is_true_boolean(callback_check.get("available", False)):
             errors.append("native_callback_api check failed")
     elif tool_name == "dask":
         guard_check = payload.get("task_graph_guard_api", {})
         scheduler_check = payload.get("scheduler_callback_api", {})
-        if not isinstance(guard_check, dict) or not bool(guard_check.get("available", False)):
+        if not isinstance(guard_check, dict) or not _is_true_boolean(guard_check.get("available", False)):
             errors.append("task_graph_guard_api check failed")
-        if not isinstance(scheduler_check, dict) or not bool(scheduler_check.get("available", False)):
+        if not isinstance(scheduler_check, dict) or not _is_true_boolean(scheduler_check.get("available", False)):
             errors.append("scheduler_callback_api check failed")
-        if not isinstance(scheduler_check, dict) or not bool(
+        if not isinstance(scheduler_check, dict) or not _is_true_boolean(
             scheduler_check.get("telemetry_counters_present", False)
         ):
             errors.append("scheduler_callback_api telemetry counter check failed")
     elif tool_name == "ray":
         actor_check = payload.get("actor_monitoring_api", {})
-        if not isinstance(actor_check, dict) or not bool(actor_check.get("available", False)):
+        if not isinstance(actor_check, dict) or not _is_true_boolean(actor_check.get("available", False)):
             errors.append("actor_monitoring_api check failed")
-        if not isinstance(actor_check, dict) or not bool(
+        if not isinstance(actor_check, dict) or not _is_true_boolean(
             actor_check.get("hotspot_fields_present", False)
         ):
             errors.append("actor_monitoring_api hotspot field check failed")
@@ -249,8 +253,14 @@ def _component_from_payload(
     errors = list(hard_errors or [])
     warning_rows = list(warnings or [])
 
-    validator_ok = bool(payload.get("ok", False))
-    api_importable = bool(payload.get("api_importable", False))
+    raw_validator_ok = payload.get("ok", False)
+    raw_api_importable = payload.get("api_importable", False)
+    validator_ok = _is_true_boolean(raw_validator_ok)
+    api_importable = _is_true_boolean(raw_api_importable)
+    if not isinstance(raw_validator_ok, bool):
+        errors.append("validator 'ok' field must be boolean")
+    if not isinstance(raw_api_importable, bool):
+        errors.append("validator 'api_importable' field must be boolean")
     checks_ok, check_errors = _required_checks_for(tool_name, payload)
     errors.extend(check_errors)
 

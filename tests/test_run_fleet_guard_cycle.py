@@ -149,3 +149,23 @@ def test_summarize_runtime_report(tmp_path: Path):
     assert out["integration_overall_healthy"] is True
     assert out["wsl_risk_level"] == "low"
     assert out["recommendation_count"] == 2
+
+
+def test_build_lineage_verify_command_contains_expected_paths(tmp_path: Path):
+    module = _load_module()
+    repo_root = Path("/repo")
+    enforcement = tmp_path / "repo_guard_enforcement.json"
+    integration = tmp_path / "integration_fleet_status.json"
+    runtime = tmp_path / "repo_guard_runtime_status.json"
+
+    cmd = module._build_lineage_verify_command(repo_root, enforcement, integration, runtime)
+    rendered = " ".join(cmd)
+
+    assert "verify_fleet_artifact_lineage.py" in rendered
+    assert "--json" in cmd
+    assert "--enforcement-report" in cmd
+    assert str(enforcement) in cmd
+    assert "--integration-report" in cmd
+    assert str(integration) in cmd
+    assert "--runtime-report" in cmd
+    assert str(runtime) in cmd

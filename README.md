@@ -892,6 +892,15 @@ For standalone runtime report generation, use `repo_guard_fleet_report.py
 --fail-on-run-id-mismatch` to fail when source artifact run IDs are missing or
 do not match the selected runtime run_id.
 
+For explicit lineage/integrity verification in CI, run:
+
+```bash
+python scripts/verify_fleet_artifact_lineage.py --json
+```
+
+`run_fleet_guard_cycle.py` executes this verifier by default after artifact
+generation (use `--skip-lineage-verify` to opt out).
+
 ### Measuring success
 
 **Baseline metrics to track:**

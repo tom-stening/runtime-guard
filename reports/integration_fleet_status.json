@@ -154,26 +154,26 @@
     "pressure_detected": false
   },
   "provenance": {
-    "generated_at_utc": "2026-05-12T09:39:33Z",
-    "git_commit": "1de5311",
+    "generated_at_utc": "2026-05-12T09:44:08Z",
+    "git_commit": "1584cd2",
     "inputs": {
       "fallback_on_pressure": true,
       "fallback_report_dir": "/home/thomas_stening/runtime-guard/reports",
       "source_artifact_hashes": {}
     },
-    "run_id": "e685416b-a6c2-40b2-83e6-f1864d245c4a",
+    "run_id": "aaac69e2-52be-42d5-bcf7-31867fedceb3",
     "schema_version": 1,
     "script": "/home/thomas_stening/runtime-guard/scripts/validate_integration_fleet.py",
     "tool": "validate_integration_fleet"
   },
-  "run_id": "e685416b-a6c2-40b2-83e6-f1864d245c4a",
+  "run_id": "aaac69e2-52be-42d5-bcf7-31867fedceb3",
   "summary": {
     "components_healthy": 3,
     "components_total": 3,
     "components_unhealthy": 0,
     "overall_healthy": true,
     "risk_level": "low",
-    "run_id": "e685416b-a6c2-40b2-83e6-f1864d245c4a"
+    "run_id": "aaac69e2-52be-42d5-bcf7-31867fedceb3"
   },
   "tool": "validate_integration_fleet",
   "warnings": []

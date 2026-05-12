@@ -82,6 +82,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the step commands without executing",
     )
+    p.add_argument(
+        "--skip-lineage-verify",
+        action="store_true",
+        help="Skip final verify_fleet_artifact_lineage.py integrity check",
+    )
     return p
 
 
@@ -158,6 +163,25 @@ def _run_step(cmd: list[str], cwd: Path) -> int:
     return int(proc.returncode)
 
 
+def _build_lineage_verify_command(
+    repo_root: Path,
+    enforcement_report: Path,
+    integration_report: Path,
+    runtime_report: Path,
+) -> list[str]:
+    return [
+        sys.executable,
+        str(repo_root / "scripts" / "verify_fleet_artifact_lineage.py"),
+        "--json",
+        "--enforcement-report",
+        str(enforcement_report),
+        "--integration-report",
+        str(integration_report),
+        "--runtime-report",
+        str(runtime_report),
+    ]
+
+
 def _summarize_runtime_report(runtime_report_path: Path) -> dict[str, Any]:
     payload = json.loads(runtime_report_path.read_text(encoding="utf-8"))
     summary = payload.get("summary", {})
@@ -206,11 +230,19 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
 
     enforce_cmd, integration_cmd, runtime_cmd, enforcement_report, integration_report, runtime_report = _build_step_commands(args, repo_root)
+    lineage_verify_cmd = _build_lineage_verify_command(
+        repo_root,
+        enforcement_report,
+        integration_report,
+        runtime_report,
+    )
 
     if bool(args.dry_run):
         print("[dry-run] enforce:", " ".join(enforce_cmd))
         print("[dry-run] integration:", " ".join(integration_cmd))
         print("[dry-run] runtime:", " ".join(runtime_cmd))
+        if not bool(args.skip_lineage_verify):
+            print("[dry-run] lineage:", " ".join(lineage_verify_cmd))
         return 0
 
     step1 = _run_step(enforce_cmd, repo_root)
@@ -224,6 +256,11 @@ def main() -> int:
     step3 = _run_step(runtime_cmd, repo_root)
     if step3 != 0:
         return step3
+
+    if not bool(args.skip_lineage_verify):
+        step4 = _run_step(lineage_verify_cmd, repo_root)
+        if step4 != 0:
+            return step4
 
     run_id_consistent, run_id_map = _validate_run_id_consistency(
         enforcement_report,

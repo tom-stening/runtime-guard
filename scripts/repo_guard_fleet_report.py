@@ -12,6 +12,7 @@ adds runtime visibility signals:
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
 from pathlib import Path
@@ -243,6 +244,32 @@ def _parse_extension_rss_specs(specs: list[str]) -> dict[str, int]:
     return parsed
 
 
+def _build_failed_gate(
+    *,
+    gate: str,
+    evaluated_at_utc: str,
+    actual: Any,
+    threshold: Any,
+    reason: str,
+    extension: str | None = None,
+) -> dict[str, Any]:
+    gate_id = gate
+    if extension:
+        gate_id = f"{gate}:{extension}"
+
+    payload: dict[str, Any] = {
+        "gate": gate,
+        "gate_id": gate_id,
+        "evaluated_at_utc": evaluated_at_utc,
+        "actual": actual,
+        "threshold": threshold,
+        "reason": reason,
+    }
+    if extension:
+        payload["extension"] = extension
+    return payload
+
+
 def _compute_overall_runtime_healthy(summary: dict[str, Any]) -> bool:
     if not bool(summary.get("fully_enforced", False)):
         return False
@@ -392,6 +419,7 @@ def main() -> int:
 
     summary = payload.get("summary", {})
     failed_gates: list[dict[str, Any]] = []
+    evaluated_at_utc = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     extension_specs: dict[str, int] = {}
     try:
         extension_specs = _parse_extension_rss_specs(list(args.fail_on_extension_rss))
@@ -401,45 +429,49 @@ def main() -> int:
 
     if args.fail_on_unenforced and int(summary.get("unenforced_repos", 0) or 0) > 0:
         failed_gates.append(
-            {
-                "gate": "fail-on-unenforced",
-                "actual": int(summary.get("unenforced_repos", 0) or 0),
-                "threshold": 0,
-                "reason": "unenforced repos present",
-            }
+            _build_failed_gate(
+                gate="fail-on-unenforced",
+                evaluated_at_utc=evaluated_at_utc,
+                actual=int(summary.get("unenforced_repos", 0) or 0),
+                threshold=0,
+                reason="unenforced repos present",
+            )
         )
     if args.fail_on_integration_unhealthy and summary.get("integration_overall_healthy") is False:
         failed_gates.append(
-            {
-                "gate": "fail-on-integration-unhealthy",
-                "actual": False,
-                "threshold": True,
-                "reason": "integration overall health is false",
-            }
+            _build_failed_gate(
+                gate="fail-on-integration-unhealthy",
+                evaluated_at_utc=evaluated_at_utc,
+                actual=False,
+                threshold=True,
+                reason="integration overall health is false",
+            )
         )
     if args.fail_on_wsl_risk:
         threshold = str(args.fail_on_wsl_risk)
         actual = str(summary.get("wsl_risk_level", "low"))
         if _risk_rank(actual) >= _risk_rank(threshold):
             failed_gates.append(
-                {
-                    "gate": "fail-on-wsl-risk",
-                    "actual": actual,
-                    "threshold": threshold,
-                    "reason": "WSL risk level meets/exceeds threshold",
-                }
+                _build_failed_gate(
+                    gate="fail-on-wsl-risk",
+                    evaluated_at_utc=evaluated_at_utc,
+                    actual=actual,
+                    threshold=threshold,
+                    reason="WSL risk level meets/exceeds threshold",
+                )
             )
 
     if args.fail_on_extension_total_rss_mb > 0:
         actual_total = int(summary.get("wsl_vscode_extension_total_rss_mb", 0) or 0)
         if actual_total >= int(args.fail_on_extension_total_rss_mb):
             failed_gates.append(
-                {
-                    "gate": "fail-on-extension-total-rss-mb",
-                    "actual": actual_total,
-                    "threshold": int(args.fail_on_extension_total_rss_mb),
-                    "reason": "extension total RSS meets/exceeds threshold",
-                }
+                _build_failed_gate(
+                    gate="fail-on-extension-total-rss-mb",
+                    evaluated_at_utc=evaluated_at_utc,
+                    actual=actual_total,
+                    threshold=int(args.fail_on_extension_total_rss_mb),
+                    reason="extension total RSS meets/exceeds threshold",
+                )
             )
 
     if extension_specs:
@@ -463,13 +495,14 @@ def main() -> int:
             actual_mb = int(ext_totals.get(ext_name, 0) or 0)
             if actual_mb >= threshold_mb:
                 failed_gates.append(
-                    {
-                        "gate": "fail-on-extension-rss",
-                        "extension": ext_name,
-                        "actual": actual_mb,
-                        "threshold": threshold_mb,
-                        "reason": "extension RSS meets/exceeds threshold",
-                    }
+                    _build_failed_gate(
+                        gate="fail-on-extension-rss",
+                        evaluated_at_utc=evaluated_at_utc,
+                        extension=ext_name,
+                        actual=actual_mb,
+                        threshold=threshold_mb,
+                        reason="extension RSS meets/exceeds threshold",
+                    )
                 )
 
     payload["failed_gates"] = failed_gates

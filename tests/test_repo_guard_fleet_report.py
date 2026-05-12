@@ -119,7 +119,13 @@ def test_fail_on_unenforced_exits_nonzero(tmp_path: Path) -> None:
     assert result.returncode == 1
     runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
     assert runtime["summary"]["failed_gate_count"] >= 1
-    assert any(row.get("gate") == "fail-on-unenforced" for row in runtime.get("failed_gates", []))
+    matched = [
+        row for row in runtime.get("failed_gates", [])
+        if isinstance(row, dict) and row.get("gate") == "fail-on-unenforced"
+    ]
+    assert matched
+    assert matched[0].get("gate_id") == "fail-on-unenforced"
+    assert str(matched[0].get("evaluated_at_utc", "")).endswith("Z")
 
 
 def test_fail_on_integration_unhealthy_exits_nonzero(tmp_path: Path) -> None:
@@ -216,8 +222,11 @@ def test_fail_on_extension_total_rss_records_failed_gate(tmp_path: Path) -> None
     assert result.returncode == 1
     runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
     assert runtime["summary"]["failed_gate_count"] >= 1
-    assert any(
-        row.get("gate") == "fail-on-extension-total-rss-mb"
+    matched = [
+        row
         for row in runtime.get("failed_gates", [])
-        if isinstance(row, dict)
-    )
+        if isinstance(row, dict) and row.get("gate") == "fail-on-extension-total-rss-mb"
+    ]
+    assert matched
+    assert matched[0].get("gate_id") == "fail-on-extension-total-rss-mb"
+    assert str(matched[0].get("evaluated_at_utc", "")).endswith("Z")

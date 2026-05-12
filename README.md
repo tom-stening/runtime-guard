@@ -885,6 +885,10 @@ propagated into enforcement, integration, and runtime artifact payloads. When
 `--run-id` is omitted, the orchestrator generates one run ID and still enforces
 cross-artifact run_id consistency (non-zero exit on mismatch or missing run_id).
 
+For standalone runtime report generation, use `repo_guard_fleet_report.py
+--fail-on-run-id-mismatch` to fail when source artifact run IDs are missing or
+do not match the selected runtime run_id.
+
 ### Measuring success
 
 **Baseline metrics to track:**

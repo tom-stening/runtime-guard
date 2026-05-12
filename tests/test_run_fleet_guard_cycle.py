@@ -56,6 +56,7 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
     assert "--fail-on-wsl-risk" in runtime_cmd
     assert "--fail-on-extension-total-rss-mb" in runtime_cmd
     assert "--fail-on-extension-rss" in runtime_cmd
+    assert "--fail-on-run-id-mismatch" in runtime_cmd
     assert "--run-id" in runtime_cmd
     assert "ci-run-12345" in runtime_cmd
     assert str(runtime_report).endswith("repo_guard_runtime_status.json")

@@ -298,3 +298,87 @@ def test_run_id_override_is_propagated_to_output_and_failed_gates(tmp_path: Path
     failed_gates = [row for row in runtime.get("failed_gates", []) if isinstance(row, dict)]
     assert failed_gates
     assert all(row.get("run_id") == "ci-run-12345" for row in failed_gates)
+
+
+def test_source_run_ids_and_consistency_are_included_when_matching(tmp_path: Path) -> None:
+    payload = {
+        "run_id": "ci-sync-1",
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ],
+    }
+    integration_path = tmp_path / "integration.json"
+    integration_path.write_text(
+        json.dumps(
+            {
+                "run_id": "ci-sync-1",
+                "summary": {
+                    "overall_healthy": True,
+                    "components_total": 1,
+                    "components_healthy": 1,
+                    "risk_level": "low",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--integration-report",
+        str(integration_path),
+        "--run-id",
+        "ci-sync-1",
+    )
+    assert result.returncode == 0, result.stderr
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    assert runtime.get("run_id_consistent") is True
+    assert runtime.get("source_run_ids", {}).get("repo_guard_enforcement") == "ci-sync-1"
+    assert runtime.get("source_run_ids", {}).get("integration_fleet_status") == "ci-sync-1"
+    assert runtime.get("source_run_ids", {}).get("repo_guard_runtime_status") == "ci-sync-1"
+
+
+def test_fail_on_run_id_mismatch_exits_nonzero(tmp_path: Path) -> None:
+    payload = {
+        "run_id": "ci-a",
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ],
+    }
+    integration_path = tmp_path / "integration.json"
+    integration_path.write_text(
+        json.dumps(
+            {
+                "run_id": "ci-b",
+                "summary": {
+                    "overall_healthy": True,
+                    "components_total": 1,
+                    "components_healthy": 1,
+                    "risk_level": "low",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--integration-report",
+        str(integration_path),
+        "--run-id",
+        "ci-a",
+        "--fail-on-run-id-mismatch",
+    )
+    assert result.returncode == 1
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    assert runtime.get("run_id_consistent") is False
+    failed = [
+        row
+        for row in runtime.get("failed_gates", [])
+        if isinstance(row, dict) and row.get("gate") == "fail-on-run-id-mismatch"
+    ]
+    assert failed

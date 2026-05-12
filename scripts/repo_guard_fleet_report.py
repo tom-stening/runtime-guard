@@ -94,6 +94,14 @@ def _parse_args() -> argparse.Namespace:
         default="",
         help="Optional external run identifier for cross-system correlation.",
     )
+    parser.add_argument(
+        "--fail-on-run-id-mismatch",
+        action="store_true",
+        help=(
+            "Exit 1 when source artifact run_id values do not match the selected run_id. "
+            "Missing source run_id values are also treated as mismatch."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -293,6 +301,20 @@ def _compute_overall_runtime_healthy(summary: dict[str, Any]) -> bool:
     return True
 
 
+def _extract_run_id(payload: dict[str, Any] | None) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    root = str(payload.get("run_id") or "").strip()
+    if root:
+        return root
+    summary = payload.get("summary")
+    if isinstance(summary, dict):
+        nested = str(summary.get("run_id") or "").strip()
+        if nested:
+            return nested
+    return ""
+
+
 def _build_payload(
     enforcement: dict[str, Any],
     *,
@@ -429,8 +451,28 @@ def main() -> int:
     run_id = str(args.run_id or "").strip()
     if not run_id:
         run_id = str(uuid.uuid4())
+
+    enforcement_run_id = _extract_run_id(enforcement)
+    integration_run_id = _extract_run_id(integration_payload)
+    source_run_ids: dict[str, str] = {
+        "repo_guard_enforcement": enforcement_run_id,
+        "integration_fleet_status": integration_run_id,
+        "repo_guard_runtime_status": run_id,
+    }
+
+    source_matches = [
+        value == run_id for value in [enforcement_run_id, integration_run_id] if value
+    ]
+    source_values_present = [bool(enforcement_run_id), bool(integration_run_id)]
+    run_id_consistent = bool(source_matches) and all(source_matches) and all(source_values_present)
+
     payload["run_id"] = run_id
+    payload["source_run_ids"] = source_run_ids
+    payload["run_id_consistent"] = run_id_consistent
     summary["run_id"] = run_id
+    summary["source_enforcement_run_id"] = enforcement_run_id
+    summary["source_integration_run_id"] = integration_run_id
+    summary["run_id_consistent"] = run_id_consistent
     failed_gates: list[dict[str, Any]] = []
     evaluated_at_utc = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     extension_specs: dict[str, int] = {}
@@ -522,6 +564,18 @@ def main() -> int:
                         reason="extension RSS meets/exceeds threshold",
                     )
                 )
+
+    if bool(args.fail_on_run_id_mismatch) and not run_id_consistent:
+        failed_gates.append(
+            _build_failed_gate(
+                gate="fail-on-run-id-mismatch",
+                run_id=run_id,
+                evaluated_at_utc=evaluated_at_utc,
+                actual=source_run_ids,
+                threshold={"all_sources_match_run_id": True},
+                reason="source artifact run_id values are missing or mismatched",
+            )
+        )
 
     payload["failed_gates"] = failed_gates
     summary["failed_gate_count"] = len(failed_gates)

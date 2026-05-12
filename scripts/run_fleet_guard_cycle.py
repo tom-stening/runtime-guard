@@ -131,6 +131,7 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
         str(integration_report),
         "--output",
         str(runtime_report),
+        "--fail-on-run-id-mismatch",
     ]
     if bool(args.include_wsl_diagnosis):
         runtime_cmd.append("--include-wsl-diagnosis")

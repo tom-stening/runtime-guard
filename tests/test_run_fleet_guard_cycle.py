@@ -25,6 +25,7 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
         include_wsl_diagnosis = True
         integration_fallback_on_pressure = True
         integration_fallback_report_dir = "reports"
+        integration_max_fallback_report_age_hours = 24
         fail_on_unenforced = True
         fail_on_integration_unhealthy = True
         fail_on_wsl_risk = "high"
@@ -45,6 +46,8 @@ def test_build_step_commands_includes_flags(tmp_path: Path):
 
     assert "validate_integration_fleet.py" in " ".join(integration_cmd)
     assert "--fallback-on-pressure" in integration_cmd
+    assert "--max-fallback-report-age-hours" in integration_cmd
+    assert "24" in integration_cmd
     assert "--run-id" in integration_cmd
     assert "ci-run-12345" in integration_cmd
     assert str(integration_report).endswith("integration_fleet_status.json")
@@ -71,6 +74,7 @@ def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_pa
         include_wsl_diagnosis = False
         integration_fallback_on_pressure = False
         integration_fallback_report_dir = "reports"
+        integration_max_fallback_report_age_hours = 0
         fail_on_unenforced = False
         fail_on_integration_unhealthy = False
         fail_on_wsl_risk = None
@@ -90,6 +94,27 @@ def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_pa
 
     assert enforce_run_id
     assert enforce_run_id == integration_run_id == runtime_run_id
+
+
+def test_build_step_commands_omits_fallback_age_flag_when_disabled(tmp_path: Path):
+    module = _load_module()
+
+    class _Args:
+        root = "/tmp/workspace"
+        reports_dir = str(tmp_path / "reports")
+        include_wsl_diagnosis = False
+        integration_fallback_on_pressure = True
+        integration_fallback_report_dir = "reports"
+        integration_max_fallback_report_age_hours = 0
+        fail_on_unenforced = False
+        fail_on_integration_unhealthy = False
+        fail_on_wsl_risk = None
+        fail_on_extension_total_rss_mb = 0
+        fail_on_extension_rss = []
+        run_id = "ci-run-age-0"
+
+    _, integration_cmd, _, _, _, _ = module._build_step_commands(_Args(), Path("/repo"))
+    assert "--max-fallback-report-age-hours" not in integration_cmd
 
 
 def test_validate_run_id_consistency_returns_true_for_matching_reports(tmp_path: Path):

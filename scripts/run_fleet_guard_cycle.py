@@ -45,6 +45,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Fallback report directory for integration validator",
     )
     p.add_argument(
+        "--integration-max-fallback-report-age-hours",
+        type=int,
+        default=0,
+        help=(
+            "Maximum age (hours) allowed for integration fallback reports "
+            "(0 disables staleness enforcement)"
+        ),
+    )
+    p.add_argument(
         "--fail-on-unenforced",
         action="store_true",
         help="Fail when any repos are unenforced",
@@ -151,6 +160,13 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
     ]
     if bool(args.integration_fallback_on_pressure):
         integration_cmd.extend(["--fallback-on-pressure", "--fallback-report-dir", str(args.integration_fallback_report_dir)])
+    if int(args.integration_max_fallback_report_age_hours or 0) > 0:
+        integration_cmd.extend(
+            [
+                "--max-fallback-report-age-hours",
+                str(int(args.integration_max_fallback_report_age_hours)),
+            ]
+        )
     if run_id:
         integration_cmd.extend(["--run-id", run_id])
 

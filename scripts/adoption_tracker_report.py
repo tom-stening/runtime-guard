@@ -60,6 +60,24 @@ def _build_records(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
     return out
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    tracker = getattr(args, "tracker", "")
+    if not isinstance(tracker, str) or not tracker.strip():
+        errors.append("--tracker must be a non-empty string path")
+
+    output = getattr(args, "output", None)
+    if output is not None and not isinstance(output, str):
+        errors.append("--output must be a string path")
+
+    fail_on_gaps = getattr(args, "fail_on_gaps", False)
+    if not isinstance(fail_on_gaps, bool):
+        errors.append("--fail-on-gaps flag must be boolean")
+
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate adoption tracker readiness for M2-I02")
     parser.add_argument(
@@ -74,6 +92,12 @@ def main() -> int:
         help="Exit 1 when any M2-I02 success criterion is not met",
     )
     args = parser.parse_args()
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
 
     tracker_path = Path(args.tracker)
     text = tracker_path.read_text(encoding="utf-8")

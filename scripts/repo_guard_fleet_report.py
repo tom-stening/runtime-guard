@@ -33,6 +33,7 @@ _ALLOWED_ENFORCEMENT_STATES = {
     "dry_run_candidate",
     "watcher_only_candidate",
 }
+_ALLOWED_WSL_RISK_LEVELS = {"low", "moderate", "high", "critical"}
 
 
 def _parse_args() -> argparse.Namespace:
@@ -788,7 +789,14 @@ def main() -> int:
         )
     if args.fail_on_wsl_risk:
         threshold = str(args.fail_on_wsl_risk)
-        actual = str(summary.get("wsl_risk_level", "low"))
+        actual_raw = summary.get("wsl_risk_level", "low")
+        actual, actual_ok = _strict_non_empty_string(actual_raw, "")
+        if not actual_ok or actual.lower() not in _ALLOWED_WSL_RISK_LEVELS:
+            print(
+                "error: summary.wsl_risk_level must be one of: low, moderate, high, critical",
+                file=sys.stderr,
+            )
+            return 2
         if _risk_rank(actual) >= _risk_rank(threshold):
             failed_gates.append(
                 _build_failed_gate(

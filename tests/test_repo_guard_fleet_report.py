@@ -710,6 +710,102 @@ def test_fail_on_extension_total_rss_returns_2_for_non_integer_summary_value(
     assert result_code == 2
 
 
+def test_fail_on_wsl_risk_returns_2_for_unknown_summary_value(
+    tmp_path: Path, monkeypatch
+) -> None:
+    enforcement_path = tmp_path / "enforcement.json"
+    enforcement_path.write_text(
+        json.dumps(
+            {
+                "run_id": "ci-sync-1",
+                "repos": [
+                    {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "runtime.json"
+
+    module = _load_module()
+
+    class _Args:
+        enforcement_report = str(enforcement_path)
+        output = str(output_path)
+        no_proc_scan = True
+        integration_report = str(tmp_path / "missing-integration.json")
+        include_wsl_diagnosis = False
+        fail_on_unenforced = False
+        fail_on_integration_unhealthy = False
+        fail_on_wsl_risk = "moderate"
+        fail_on_extension_total_rss_mb = 0
+        fail_on_extension_rss: list[str] = []
+        run_id = "ci-sync-1"
+        fail_on_run_id_mismatch = False
+
+    monkeypatch.setattr(module, "_parse_args", lambda: _Args())
+
+    original_build_payload = module._build_payload
+
+    def _bad_payload(*args, **kwargs):
+        payload = original_build_payload(*args, **kwargs)
+        payload["summary"]["wsl_risk_level"] = "unknown"
+        return payload
+
+    monkeypatch.setattr(module, "_build_payload", _bad_payload)
+
+    result_code = module.main()
+    assert result_code == 2
+
+
+def test_fail_on_wsl_risk_returns_2_for_non_string_summary_value(
+    tmp_path: Path, monkeypatch
+) -> None:
+    enforcement_path = tmp_path / "enforcement.json"
+    enforcement_path.write_text(
+        json.dumps(
+            {
+                "run_id": "ci-sync-1",
+                "repos": [
+                    {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "runtime.json"
+
+    module = _load_module()
+
+    class _Args:
+        enforcement_report = str(enforcement_path)
+        output = str(output_path)
+        no_proc_scan = True
+        integration_report = str(tmp_path / "missing-integration.json")
+        include_wsl_diagnosis = False
+        fail_on_unenforced = False
+        fail_on_integration_unhealthy = False
+        fail_on_wsl_risk = "moderate"
+        fail_on_extension_total_rss_mb = 0
+        fail_on_extension_rss: list[str] = []
+        run_id = "ci-sync-1"
+        fail_on_run_id_mismatch = False
+
+    monkeypatch.setattr(module, "_parse_args", lambda: _Args())
+
+    original_build_payload = module._build_payload
+
+    def _bad_payload(*args, **kwargs):
+        payload = original_build_payload(*args, **kwargs)
+        payload["summary"]["wsl_risk_level"] = 101
+        return payload
+
+    monkeypatch.setattr(module, "_build_payload", _bad_payload)
+
+    result_code = module.main()
+    assert result_code == 2
+
+
 def test_non_string_source_run_ids_are_not_coerced(tmp_path: Path) -> None:
     payload = {
         "run_id": 101,

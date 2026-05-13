@@ -6085,19 +6085,40 @@ def _summarize_vscode_extension_rss(rows_raw: Any, limit: int = 5) -> list[dict[
 
 def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], list[str]]:
     """Return (risk_level, score, likely_causes, prevention_actions)."""
+
+    def _metric_int(name: str, default: int = 0) -> int:
+        raw = metrics.get(name, default)
+        if isinstance(raw, int) and not isinstance(raw, bool):
+            return raw
+        return default
+
+    def _metric_float(name: str, default: float = 0.0) -> float:
+        raw = metrics.get(name, default)
+        if isinstance(raw, bool):
+            return default
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        return default
+
+    def _metric_bool(name: str, default: bool = False) -> bool:
+        raw = metrics.get(name, default)
+        if isinstance(raw, bool):
+            return raw
+        return default
+
     score = 0
     causes: list[str] = []
     prevention: list[str] = []
 
-    guest_mem_available_mb = int(metrics.get("guest_mem_available_mb", 0) or 0)
-    guest_swap_used_pct = int(metrics.get("guest_swap_used_pct", 0) or 0)
-    psi_some_avg10 = float(metrics.get("psi_some_avg10", 0.0) or 0.0)
-    psi_full_avg10 = float(metrics.get("psi_full_avg10", 0.0) or 0.0)
-    host_vm_used_pct = int(metrics.get("host_vm_used_pct", 0) or 0)
-    host_error_event_count = int(metrics.get("host_error_event_count", 0) or 0)
-    host_high_relevance_event_count = int(metrics.get("host_high_relevance_event_count", 0) or 0)
-    running_distro_count = int(metrics.get("wsl_running_distro_count", 0) or 0)
-    docker_desktop_running = bool(metrics.get("docker_desktop_running", False))
+    guest_mem_available_mb = _metric_int("guest_mem_available_mb", 0)
+    guest_swap_used_pct = _metric_int("guest_swap_used_pct", 0)
+    psi_some_avg10 = _metric_float("psi_some_avg10", 0.0)
+    psi_full_avg10 = _metric_float("psi_full_avg10", 0.0)
+    host_vm_used_pct = _metric_int("host_vm_used_pct", 0)
+    host_error_event_count = _metric_int("host_error_event_count", 0)
+    host_high_relevance_event_count = _metric_int("host_high_relevance_event_count", 0)
+    running_distro_count = _metric_int("wsl_running_distro_count", 0)
+    docker_desktop_running = _metric_bool("docker_desktop_running", False)
 
     if guest_mem_available_mb < 1024:
         score += 2

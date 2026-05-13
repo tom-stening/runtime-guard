@@ -154,3 +154,43 @@ def test_classify_wsl_risk_keeps_low_relevance_host_events_informational_only():
     assert score == 0
     assert any("low relevance" in c for c in causes)
     assert any("prioritize guest memory pressure" in a for a in actions)
+
+
+def test_classify_wsl_risk_does_not_coerce_non_boolean_docker_flag():
+    level, score, _causes, _actions = rg._classify_wsl_crash_risk(
+        {
+            "guest_mem_available_mb": 1500,
+            "guest_swap_used_pct": 20,
+            "psi_some_avg10": 0.0,
+            "psi_full_avg10": 0.0,
+            "host_vm_used_pct": 40,
+            "host_error_event_count": 0,
+            "host_high_relevance_event_count": 0,
+            "wsl_running_distro_count": 1,
+            "docker_desktop_running": "false",
+        }
+    )
+
+    assert level == "low"
+    assert score == 0
+
+
+def test_classify_wsl_risk_handles_non_numeric_metrics_without_crashing():
+    level, score, causes, actions = rg._classify_wsl_crash_risk(
+        {
+            "guest_mem_available_mb": "not-a-number",
+            "guest_swap_used_pct": "n/a",
+            "psi_some_avg10": "bad",
+            "psi_full_avg10": "bad",
+            "host_vm_used_pct": "bad",
+            "host_error_event_count": "bad",
+            "host_high_relevance_event_count": "bad",
+            "wsl_running_distro_count": "bad",
+            "docker_desktop_running": None,
+        }
+    )
+
+    assert level in {"moderate", "high", "critical"}
+    assert score >= 1
+    assert any("below 1 GiB" in c for c in causes)
+    assert actions

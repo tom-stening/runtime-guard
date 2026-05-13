@@ -1384,6 +1384,16 @@ def _read_linux(snap: MemSnapshot) -> None:
 
 def _read_windows_host_from_wsl(snap: MemSnapshot) -> None:
     """Populate host_* fields on snap by calling PowerShell from WSL."""
+
+    def _parse_csv_kb_field(row: dict[str, str], key: str) -> int:
+        raw = row.get(key, "0")
+        if not isinstance(raw, str):
+            return 0
+        text = raw.strip()
+        if not text or not text.isdigit():
+            return 0
+        return int(text)
+
     try:
         out = subprocess.check_output(
             [
@@ -1404,10 +1414,10 @@ def _read_windows_host_from_wsl(snap: MemSnapshot) -> None:
             headers = [h.strip('"') for h in lines[0].split(",")]
             values = [v.strip('"') for v in lines[1].split(",")]
             row = dict(zip(headers, values))
-            snap.host_mem_total_mb = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
-            snap.host_mem_available_mb = int(row.get("FreePhysicalMemory", 0) or 0) // 1024
-            swap_total_kb = int(row.get("TotalVirtualMemorySize", 0) or 0)
-            swap_free_kb = int(row.get("FreeVirtualMemory", 0) or 0)
+            snap.host_mem_total_mb = _parse_csv_kb_field(row, "TotalVisibleMemorySize") // 1024
+            snap.host_mem_available_mb = _parse_csv_kb_field(row, "FreePhysicalMemory") // 1024
+            swap_total_kb = _parse_csv_kb_field(row, "TotalVirtualMemorySize")
+            swap_free_kb = _parse_csv_kb_field(row, "FreeVirtualMemory")
             snap.host_swap_total_mb = swap_total_kb // 1024
             snap.host_swap_free_mb = swap_free_kb // 1024
             if snap.host_swap_total_mb > 0:
@@ -1491,6 +1501,16 @@ def _read_windows(snap: MemSnapshot) -> None:
 
 def _read_windows_powershell(snap: MemSnapshot) -> bool:
     """Populate snap via PowerShell Get-CimInstance.  Returns True on success."""
+
+    def _parse_csv_kb_field(row: dict[str, str], key: str) -> int:
+        raw = row.get(key, "0")
+        if not isinstance(raw, str):
+            return 0
+        text = raw.strip()
+        if not text or not text.isdigit():
+            return 0
+        return int(text)
+
     try:
         out = subprocess.check_output(
             [
@@ -1511,8 +1531,8 @@ def _read_windows_powershell(snap: MemSnapshot) -> bool:
             headers = [h.strip('"') for h in lines[0].split(",")]
             values = [v.strip('"') for v in lines[1].split(",")]
             row: dict[str, str] = dict(zip(headers, values))
-            snap.mem_total_mb = int(row.get("TotalVisibleMemorySize", 0) or 0) // 1024
-            snap.mem_available_mb = int(row.get("FreePhysicalMemory", 0) or 0) // 1024
+            snap.mem_total_mb = _parse_csv_kb_field(row, "TotalVisibleMemorySize") // 1024
+            snap.mem_available_mb = _parse_csv_kb_field(row, "FreePhysicalMemory") // 1024
     except Exception:
         return False
 

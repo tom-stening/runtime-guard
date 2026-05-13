@@ -444,6 +444,51 @@ class TestReadSnapshot:
         snap = _read_snapshot()
         assert isinstance(snap, MemSnapshot)
 
+    def test_read_windows_host_from_wsl_handles_non_numeric_csv_fields(self, monkeypatch):
+        import runtime_guard as rg
+
+        monkeypatch.setattr(
+            "subprocess.check_output",
+            mock.Mock(
+                return_value=(
+                    '"TotalVisibleMemorySize","FreePhysicalMemory","TotalVirtualMemorySize","FreeVirtualMemory"\n'
+                    '"not-a-number","123","oops","456"\n'
+                )
+            ),
+        )
+
+        snap = MemSnapshot()
+        rg._read_windows_host_from_wsl(snap)
+
+        assert snap.host_mem_total_mb == 0
+        assert snap.host_mem_available_mb == 0
+        assert snap.host_swap_total_mb == 0
+        assert snap.host_swap_free_mb == 0
+        assert snap.host_swap_used_pct == 0
+
+    def test_read_windows_powershell_handles_non_numeric_csv_fields(self, monkeypatch):
+        import runtime_guard as rg
+
+        def _mock_check_output(cmd, **kwargs):
+            joined = " ".join(str(part) for part in cmd)
+            if "Get-CimInstance Win32_OperatingSystem" in joined:
+                return (
+                    '"FreePhysicalMemory","TotalVisibleMemorySize"\n'
+                    '"bad-free","bad-total"\n'
+                )
+            if "WorkingSet64" in joined:
+                return "0"
+            return ""
+
+        monkeypatch.setattr("subprocess.check_output", _mock_check_output)
+
+        snap = MemSnapshot()
+        ok = rg._read_windows_powershell(snap)
+
+        assert ok is False
+        assert snap.mem_total_mb == 0
+        assert snap.mem_available_mb == 0
+
 
 class TestIsWsl:
     def test_returns_bool(self):

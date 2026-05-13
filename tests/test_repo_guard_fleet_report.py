@@ -619,6 +619,30 @@ def test_invalid_enforcement_report_exits_with_config_error(tmp_path: Path) -> N
     assert "unable to read enforcement report" in result.stderr
 
 
+def test_enforcement_report_with_non_list_repos_exits_with_config_error(tmp_path: Path) -> None:
+    enforcement_path = tmp_path / "enforcement.json"
+    enforcement_path.write_text(json.dumps({"repos": {"repo": "bad"}}), encoding="utf-8")
+    output_path = tmp_path / "runtime.json"
+
+    result = _run_script_with_paths(enforcement_path, output_path, "--no-proc-scan")
+
+    assert result.returncode == 2
+    assert "invalid enforcement report" in result.stderr
+    assert "field 'repos' must be a list" in result.stderr
+
+
+def test_enforcement_report_with_non_object_repo_row_exits_with_config_error(tmp_path: Path) -> None:
+    enforcement_path = tmp_path / "enforcement.json"
+    enforcement_path.write_text(json.dumps({"repos": ["bad-row"]}), encoding="utf-8")
+    output_path = tmp_path / "runtime.json"
+
+    result = _run_script_with_paths(enforcement_path, output_path, "--no-proc-scan")
+
+    assert result.returncode == 2
+    assert "invalid enforcement report" in result.stderr
+    assert "field 'repos[0]' must be an object" in result.stderr
+
+
 def test_invalid_integration_report_is_ignored_with_parse_warning(tmp_path: Path) -> None:
     payload = {
         "repos": [

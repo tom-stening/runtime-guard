@@ -155,6 +155,16 @@ def _normalize_run_id(value: Any) -> str:
     return ""
 
 
+def _validate_enforcement_payload(enforcement: dict[str, Any]) -> str | None:
+    repos = enforcement.get("repos")
+    if not isinstance(repos, list):
+        return "enforcement report field 'repos' must be a list"
+    for index, row in enumerate(repos):
+        if not isinstance(row, dict):
+            return f"enforcement report field 'repos[{index}]' must be an object"
+    return None
+
+
 def _strict_bool(value: Any) -> tuple[bool, bool]:
     if isinstance(value, bool):
         return value, True
@@ -608,6 +618,13 @@ def main() -> int:
     if enforcement_error is not None or not isinstance(enforcement, dict):
         print(
             f"error: unable to read enforcement report {enforcement_path}: {enforcement_error or 'unknown error'}",
+            file=sys.stderr,
+        )
+        return 2
+    enforcement_validation_error = _validate_enforcement_payload(enforcement)
+    if enforcement_validation_error is not None:
+        print(
+            f"error: invalid enforcement report {enforcement_path}: {enforcement_validation_error}",
             file=sys.stderr,
         )
         return 2

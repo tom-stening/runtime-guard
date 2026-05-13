@@ -59,3 +59,52 @@ def test_classify_wsl_risk_low_when_metrics_are_healthy():
     assert score == 0
     assert causes == []
     assert actions
+
+
+def test_validate_cli_configuration_rejects_non_boolean_flags():
+    class _Args:
+        label = "subprocess"
+        min_mb = 500
+        env_prefix = "RUNTIME_GUARD"
+        stage = ""
+        json = "true"  # type: ignore[assignment]
+        check_memory_before_start = 1  # type: ignore[assignment]
+        diagnose_crash = "false"  # type: ignore[assignment]
+        fail_on_risk = "none"
+
+    errors = wsl_preflight._validate_cli_configuration(_Args())
+    assert any("--json flag must be boolean" in row for row in errors)
+    assert any("--check-memory-before-start flag must be boolean" in row for row in errors)
+    assert any("--diagnose-crash flag must be boolean" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_invalid_numeric_and_threshold_types():
+    class _Args:
+        label = "subprocess"
+        min_mb = "500"  # type: ignore[assignment]
+        env_prefix = "RUNTIME_GUARD"
+        stage = ""
+        json = False
+        check_memory_before_start = False
+        diagnose_crash = False
+        fail_on_risk = 2  # type: ignore[assignment]
+
+    errors = wsl_preflight._validate_cli_configuration(_Args())
+    assert any("--min-mb must be a non-negative integer" in row for row in errors)
+    assert any("--fail-on-risk must be one of: none, high, critical" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_empty_label_and_env_prefix():
+    class _Args:
+        label = "   "
+        min_mb = 500
+        env_prefix = ""
+        stage = ""
+        json = False
+        check_memory_before_start = False
+        diagnose_crash = False
+        fail_on_risk = "none"
+
+    errors = wsl_preflight._validate_cli_configuration(_Args())
+    assert any("--label must be a non-empty string" in row for row in errors)
+    assert any("--env-prefix must be a non-empty string" in row for row in errors)

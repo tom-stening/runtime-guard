@@ -17,6 +17,7 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
 from typing import Any
 
 from runtime_guard import RuntimeGuard
@@ -123,6 +124,37 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     return parser
+
+
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    label = getattr(args, "label", "")
+    if not isinstance(label, str) or not label.strip():
+        errors.append("--label must be a non-empty string")
+
+    min_mb = getattr(args, "min_mb", 0)
+    if not isinstance(min_mb, int) or isinstance(min_mb, bool) or min_mb < 0:
+        errors.append("--min-mb must be a non-negative integer")
+
+    env_prefix = getattr(args, "env_prefix", "")
+    if not isinstance(env_prefix, str) or not env_prefix.strip():
+        errors.append("--env-prefix must be a non-empty string")
+
+    stage = getattr(args, "stage", "")
+    if not isinstance(stage, str):
+        errors.append("--stage must be a string")
+
+    for field in ["json", "check_memory_before_start", "diagnose_crash"]:
+        value = getattr(args, field, False)
+        if not isinstance(value, bool):
+            errors.append(f"--{field.replace('_', '-')} flag must be boolean")
+
+    fail_on_risk = getattr(args, "fail_on_risk", "none")
+    if not isinstance(fail_on_risk, str) or fail_on_risk not in {"none", "high", "critical"}:
+        errors.append("--fail-on-risk must be one of: none, high, critical")
+
+    return errors
 
 
 def _parse_meminfo(path: str = "/proc/meminfo") -> dict[str, int]:
@@ -323,6 +355,13 @@ def collect_wsl_crash_diagnostics() -> dict[str, Any]:
 
 def main() -> int:
     args = _build_parser().parse_args()
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
+
     guard = RuntimeGuard(env_prefix=args.env_prefix)
 
     cap_ok, cap_warning = _check_wslconfig_cap()
@@ -371,7 +410,7 @@ def main() -> int:
 
     if args.check_memory_before_start:
         # Startup-only check: report .wslconfig cap + current memory, no subprocess gate
-        payload: dict[str, Any] = {
+        payload = {
             "wslconfig_cap_ok": cap_ok,
             "wslconfig_cap_warning": cap_warning,
             "mem_available_mb": available_mb,

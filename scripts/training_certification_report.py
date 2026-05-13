@@ -16,9 +16,10 @@ def _load_attendees(path: Path) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         raise ValueError("attendees JSON must be a list")
     out: list[dict[str, Any]] = []
-    for item in raw:
-        if isinstance(item, dict):
-            out.append(dict(item))
+    for idx, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"attendees[{idx}] must be a JSON object")
+        out.append(dict(item))
     return out
 
 
@@ -97,7 +98,8 @@ def _passed(record: dict[str, Any], *, required_labs: int, min_score: float) -> 
         required_labs=required_labs,
         min_score=min_score,
     )
-    return bool(evaluated.get("passed", False))
+    passed_value, passed_ok = _strict_bool(evaluated.get("passed", False))
+    return passed_value if passed_ok else False
 
 
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
@@ -180,10 +182,13 @@ def main() -> int:
             required_labs=args.required_labs,
             min_score=args.min_score,
         )
+        passed_value, passed_ok = _strict_bool(evaluated.get("passed", False))
+        if not passed_ok:
+            validation_errors = list(validation_errors) + ["passed must be boolean"]
         results.append(
             {
                 "name": name,
-                "passed": bool(evaluated.get("passed", False)),
+                "passed": passed_value if passed_ok else False,
                 "labs_completed": evaluated.get("labs_completed", 0),
                 "assessment_score": evaluated.get("assessment_score", 0.0),
                 "capstone_submitted": evaluated.get("capstone_submitted", False),

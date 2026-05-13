@@ -396,9 +396,10 @@ def _validate_expected_tool(name: str, payload: dict[str, Any], expected_tool: s
     if not isinstance(prov, dict):
         return [f"{name}: missing provenance block"]
 
-    actual_tool = str(prov.get("tool") or "").strip()
-    if not actual_tool:
+    actual_tool_raw = prov.get("tool")
+    if not isinstance(actual_tool_raw, str) or not actual_tool_raw.strip():
         return [f"{name}: provenance.tool missing"]
+    actual_tool = actual_tool_raw.strip()
     if actual_tool != expected_tool:
         return [
             f"{name}: provenance.tool mismatch (expected {expected_tool}, got {actual_tool})"

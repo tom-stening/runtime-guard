@@ -276,6 +276,20 @@ def test_validate_artifact_sha256_rejects_non_string_value() -> None:
     assert errors == ["integration_fleet_status: missing provenance artifact_sha256"]
 
 
+def test_validate_expected_tool_rejects_non_string_provenance_tool() -> None:
+    module = _load_module()
+    errors = module._validate_expected_tool(
+        "integration_fleet_status",
+        {
+            "provenance": {
+                "tool": 101,
+            }
+        },
+        "validate_integration_fleet",
+    )
+    assert errors == ["integration_fleet_status: provenance.tool missing"]
+
+
 def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
     module = _load_module()
 

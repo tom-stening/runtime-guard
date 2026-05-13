@@ -4270,7 +4270,9 @@ def append_audit_log(
     if os.path.exists(expanded):
         try:
             with open(expanded, encoding="utf-8") as fh:
+                line_no = 0
                 for line in fh:
+                    line_no += 1
                     line = line.strip()
                     if not line:
                         continue
@@ -4279,16 +4281,30 @@ def append_audit_log(
                     except Exception:
                         continue
 
-                    if str(row.get("hash_algo", algo)).strip().lower() != algo:
+                    if not isinstance(row, dict):
+                        raise ValueError(
+                            f"Audit log contains non-object row at line {line_no}"
+                        )
+
+                    row_algo_raw = row.get("hash_algo", algo)
+                    if not isinstance(row_algo_raw, str):
+                        raise ValueError(
+                            "Audit log contains invalid hash_algo type; "
+                            f"line {line_no} expected string"
+                        )
+                    if row_algo_raw.strip().lower() != algo:
                         raise ValueError(
                             "Audit log contains mixed hash algorithms; "
                             f"found {row.get('hash_algo')} expected {algo}"
                         )
 
-                    try:
-                        prev_hash = str(row.get("hash", ""))
-                    except Exception:
-                        continue
+                    row_hash_raw = row.get("hash", "")
+                    if not isinstance(row_hash_raw, str):
+                        raise ValueError(
+                            "Audit log contains invalid hash type; "
+                            f"line {line_no} expected string"
+                        )
+                    prev_hash = row_hash_raw
         except OSError:
             prev_hash = ""
     chain_input = f"{prev_hash}\n{ts}\n{event_payload}".encode("utf-8")

@@ -3925,6 +3925,53 @@ class TestAuditLog:
         lines = path.read_text(encoding="utf-8").splitlines()
         assert len(lines) == 1
 
+    def test_append_audit_log_rejects_non_object_existing_row(self, tmp_path):
+        path = tmp_path / "audit.log"
+        path.write_text('"not-an-object"\n', encoding="utf-8")
+
+        with pytest.raises(ValueError, match="non-object row"):
+            append_audit_log(str(path), {"action": "policy_violation", "n": 1})
+
+    def test_append_audit_log_rejects_invalid_existing_field_types(self, tmp_path):
+        path = tmp_path / "audit.log"
+        path.write_text(
+            json.dumps(
+                {
+                    "ts": 1,
+                    "hash_algo": 123,
+                    "event": {"action": "x"},
+                    "event_hash": "h",
+                    "prev_hash": "",
+                    "hash": "h",
+                },
+                separators=(",", ":"),
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="invalid hash_algo type"):
+            append_audit_log(str(path), {"action": "policy_violation", "n": 1})
+
+        path.write_text(
+            json.dumps(
+                {
+                    "ts": 1,
+                    "hash_algo": "sha256",
+                    "event": {"action": "x"},
+                    "event_hash": "h",
+                    "prev_hash": "",
+                    "hash": 123,
+                },
+                separators=(",", ":"),
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="invalid hash type"):
+            append_audit_log(str(path), {"action": "policy_violation", "n": 1})
+
     def test_runtime_guard_audit_deduplicator_passthrough(self, tmp_path):
         guard = RuntimeGuard(log_tag="audit-test")
         dedup = FipsDeduplicator(ttl_s=300)

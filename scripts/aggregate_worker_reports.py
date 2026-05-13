@@ -11,6 +11,20 @@ from pathlib import Path
 from runtime_guard import aggregate_worker_reports_jsonl
 
 
+def _strict_non_negative_int(value: object) -> tuple[int, bool]:
+    if isinstance(value, bool):
+        return 0, False
+    if isinstance(value, int) and value >= 0:
+        return value, True
+    return 0, False
+
+
+def _strict_bool(value: object) -> tuple[bool, bool]:
+    if isinstance(value, bool):
+        return value, True
+    return False, False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Aggregate runtime-guard worker reports from a JSONL file"
@@ -37,10 +51,27 @@ def main() -> int:
     else:
         print(rendered)
 
-    if args.fail_on_critical and int(summary.get("critical_workers", 0)) > 0:
-        return 1
-    if args.fail_on_pressure and bool(summary.get("any_pressure", False)):
-        return 1
+    if args.fail_on_critical:
+        critical_workers, critical_ok = _strict_non_negative_int(
+            summary.get("critical_workers", 0)
+        )
+        if not critical_ok:
+            print(
+                "error: summary.critical_workers must be a non-negative integer",
+                file=sys.stderr,
+            )
+            return 2
+        if critical_workers > 0:
+            return 1
+
+    if args.fail_on_pressure:
+        any_pressure, pressure_ok = _strict_bool(summary.get("any_pressure", False))
+        if not pressure_ok:
+            print("error: summary.any_pressure must be boolean", file=sys.stderr)
+            return 2
+        if any_pressure:
+            return 1
+
     return 0
 
 

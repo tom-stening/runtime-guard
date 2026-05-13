@@ -6819,15 +6819,33 @@ def _cli() -> None:  # pragma: no cover
             for row in diag.get("guest_vscode_extension_rss", [])
             if isinstance(row, dict)
         ]
-        ext_totals: dict[str, int] = {
-            str(row.get("extension", "")): int(row.get("rss_mb", 0) or 0)
-            for row in ext_rows
-            if str(row.get("extension", ""))
-        }
-        total_ext_rss_mb = int(
-            diag.get("guest_vscode_extension_total_rss_mb", 0)
-            or sum(ext_totals.values())
-        )
+        ext_totals: dict[str, int] = {}
+        for row in ext_rows:
+            ext_name_raw = row.get("extension", "")
+            ext_name = ext_name_raw.strip() if isinstance(ext_name_raw, str) else ""
+            if not ext_name:
+                continue
+
+            rss_raw = row.get("rss_mb", 0)
+            if not isinstance(rss_raw, int) or isinstance(rss_raw, bool) or rss_raw < 0:
+                print(
+                    "[RuntimeGuard] Invalid --diagnose-wsl-crash result: "
+                    "guest_vscode_extension_rss[].rss_mb must be a non-negative integer",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+
+            ext_totals[ext_name] = rss_raw
+
+        total_ext_rss_mb_raw = diag.get("guest_vscode_extension_total_rss_mb", 0)
+        if not isinstance(total_ext_rss_mb_raw, int) or isinstance(total_ext_rss_mb_raw, bool) or total_ext_rss_mb_raw < 0:
+            print(
+                "[RuntimeGuard] Invalid --diagnose-wsl-crash result: "
+                "guest_vscode_extension_total_rss_mb must be a non-negative integer",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        total_ext_rss_mb = total_ext_rss_mb_raw or sum(ext_totals.values())
 
         if args.fail_on_extension_total_rss_mb > 0 and total_ext_rss_mb >= args.fail_on_extension_total_rss_mb:
             fail_reasons.append(
@@ -6868,7 +6886,7 @@ def _cli() -> None:  # pragma: no cover
                     file=sys.stderr,
                 )
                 sys.exit(2)
-            rss_mb = int(ext_totals.get(ext_name, 0) or 0)
+            rss_mb = ext_totals.get(ext_name, 0)
             if rss_mb >= threshold_mb:
                 fail_reasons.append(
                     f"extension RSS threshold met: {ext_name} {rss_mb}MB >= {threshold_mb}MB"

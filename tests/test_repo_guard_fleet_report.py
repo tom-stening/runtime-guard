@@ -169,6 +169,113 @@ def test_compute_overall_runtime_healthy_fails_closed_on_unknown_wsl_risk() -> N
     )
 
 
+def test_validate_cli_configuration_rejects_non_boolean_flags() -> None:
+    module = _load_module()
+
+    class _Args:
+        enforcement_report = "reports/repo_guard_enforcement.json"
+        output = "reports/repo_guard_runtime_status.json"
+        integration_report = "reports/integration_fleet_status.json"
+        run_id = ""
+        no_proc_scan = "true"  # type: ignore[assignment]
+        include_wsl_diagnosis = 1  # type: ignore[assignment]
+        fail_on_unenforced = "false"  # type: ignore[assignment]
+        fail_on_integration_unhealthy = 0  # type: ignore[assignment]
+        fail_on_run_id_mismatch = "no"  # type: ignore[assignment]
+        fail_on_wsl_risk = None
+        fail_on_extension_total_rss_mb = 0
+        fail_on_extension_rss: list[str] = []
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--no-proc-scan flag must be boolean" in row for row in errors)
+    assert any("--include-wsl-diagnosis flag must be boolean" in row for row in errors)
+    assert any("--fail-on-unenforced flag must be boolean" in row for row in errors)
+    assert any("--fail-on-integration-unhealthy flag must be boolean" in row for row in errors)
+    assert any("--fail-on-run-id-mismatch flag must be boolean" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_non_integer_extension_total_threshold() -> None:
+    module = _load_module()
+
+    class _Args:
+        enforcement_report = "reports/repo_guard_enforcement.json"
+        output = "reports/repo_guard_runtime_status.json"
+        integration_report = "reports/integration_fleet_status.json"
+        run_id = ""
+        no_proc_scan = False
+        include_wsl_diagnosis = False
+        fail_on_unenforced = False
+        fail_on_integration_unhealthy = False
+        fail_on_run_id_mismatch = False
+        fail_on_wsl_risk = None
+        fail_on_extension_total_rss_mb = "100"  # type: ignore[assignment]
+        fail_on_extension_rss: list[str] = []
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--fail-on-extension-total-rss-mb must be a non-negative integer" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_non_string_extension_specs() -> None:
+    module = _load_module()
+
+    class _Args:
+        enforcement_report = "reports/repo_guard_enforcement.json"
+        output = "reports/repo_guard_runtime_status.json"
+        integration_report = "reports/integration_fleet_status.json"
+        run_id = ""
+        no_proc_scan = False
+        include_wsl_diagnosis = False
+        fail_on_unenforced = False
+        fail_on_integration_unhealthy = False
+        fail_on_run_id_mismatch = False
+        fail_on_wsl_risk = None
+        fail_on_extension_total_rss_mb = 0
+        fail_on_extension_rss = ["ms-python.vscode-pylance=500", 100]  # type: ignore[list-item]
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--fail-on-extension-rss values must be strings" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_invalid_wsl_threshold_type() -> None:
+    module = _load_module()
+
+    class _Args:
+        enforcement_report = "reports/repo_guard_enforcement.json"
+        output = "reports/repo_guard_runtime_status.json"
+        integration_report = "reports/integration_fleet_status.json"
+        run_id = ""
+        no_proc_scan = False
+        include_wsl_diagnosis = False
+        fail_on_unenforced = False
+        fail_on_integration_unhealthy = False
+        fail_on_run_id_mismatch = False
+        fail_on_wsl_risk = 2  # type: ignore[assignment]
+        fail_on_extension_total_rss_mb = 0
+        fail_on_extension_rss: list[str] = []
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--fail-on-wsl-risk must be one of: moderate, high, critical" in row for row in errors)
+
+
+def test_build_recommendations_ignores_non_list_prevention_actions_and_fails_closed() -> None:
+    module = _load_module()
+    recs = module._build_recommendations(
+        {
+            "fully_enforced": "false",
+            "integration_overall_healthy": False,
+            "wsl_risk_level": "high",
+            "wsl_docker_desktop_running": "true",
+            "wsl_top_process_command": 101,
+        },
+        include_wsl_diagnosis=True,
+        wsl_diag={"prevention_actions": "not-a-list"},
+    )
+    assert any("enforce_runtime_guard_all_repos.py" in row for row in recs)
+    assert any("validate_integration_fleet.py" in row for row in recs)
+    assert any("WSL risk is elevated" in row for row in recs)
+    assert not any(row in {"n", "o", "t", "-", "a", "l", "i", "s"} for row in recs)
+
+
 def test_fail_on_unenforced_exits_nonzero(tmp_path: Path) -> None:
     payload = {
         "repos": [

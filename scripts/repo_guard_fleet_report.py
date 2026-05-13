@@ -163,6 +163,52 @@ def _normalize_run_id(value: Any) -> str:
     return ""
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    for field in ["enforcement_report", "output", "integration_report"]:
+        value = getattr(args, field, "")
+        if not isinstance(value, str):
+            errors.append(f"--{field.replace('_', '-')} must be a string")
+
+    for field in [
+        "no_proc_scan",
+        "include_wsl_diagnosis",
+        "fail_on_unenforced",
+        "fail_on_integration_unhealthy",
+        "fail_on_run_id_mismatch",
+    ]:
+        value = getattr(args, field, False)
+        if not isinstance(value, bool):
+            errors.append(f"--{field.replace('_', '-')} flag must be boolean")
+
+    fail_on_wsl_risk = getattr(args, "fail_on_wsl_risk", None)
+    if fail_on_wsl_risk is not None:
+        if not isinstance(fail_on_wsl_risk, str):
+            errors.append("--fail-on-wsl-risk must be one of: moderate, high, critical")
+        elif fail_on_wsl_risk.strip() not in {"moderate", "high", "critical"}:
+            errors.append("--fail-on-wsl-risk must be one of: moderate, high, critical")
+
+    fail_on_extension_total = getattr(args, "fail_on_extension_total_rss_mb", 0)
+    if not isinstance(fail_on_extension_total, int) or isinstance(fail_on_extension_total, bool):
+        errors.append("--fail-on-extension-total-rss-mb must be a non-negative integer")
+    elif fail_on_extension_total < 0:
+        errors.append("--fail-on-extension-total-rss-mb must be a non-negative integer")
+
+    fail_on_extension_rss = getattr(args, "fail_on_extension_rss", [])
+    if fail_on_extension_rss is None:
+        fail_on_extension_rss = []
+    if not isinstance(fail_on_extension_rss, list):
+        errors.append("--fail-on-extension-rss values must be strings")
+    else:
+        for item in fail_on_extension_rss:
+            if not isinstance(item, str):
+                errors.append("--fail-on-extension-rss values must be strings")
+                break
+
+    return errors
+
+
 def _validate_enforcement_payload(enforcement: dict[str, Any]) -> str | None:
     repos = enforcement.get("repos")
     if not isinstance(repos, list):
@@ -231,7 +277,8 @@ def _build_recommendations(
 ) -> list[str]:
     recommendations: list[str] = []
 
-    if not bool(summary.get("fully_enforced", False)):
+    fully_enforced, fully_enforced_ok = _strict_bool(summary.get("fully_enforced", False))
+    if not fully_enforced_ok or not fully_enforced:
         recommendations.append(
             "Run enforce_runtime_guard_all_repos.py with --enforce-all-repos to close guard coverage gaps."
         )
@@ -243,18 +290,29 @@ def _build_recommendations(
         )
 
     if include_wsl_diagnosis and isinstance(wsl_diag, dict):
-        wsl_risk = str(summary.get("wsl_risk_level", "unknown"))
+        wsl_risk, wsl_risk_ok = _strict_non_empty_string(summary.get("wsl_risk_level", "unknown"), "unknown")
+        if not wsl_risk_ok:
+            wsl_risk = "unknown"
         if wsl_risk in {"moderate", "high", "critical"}:
             recommendations.append(
                 "WSL risk is elevated; reduce concurrent heavy processes and rerun runtime-guard --diagnose-wsl-crash --json."
             )
 
-        if bool(summary.get("wsl_docker_desktop_running", False)):
+        docker_running, docker_running_ok = _strict_bool(
+            summary.get("wsl_docker_desktop_running", False)
+        )
+        if docker_running_ok and docker_running:
             recommendations.append(
                 "Stop docker-desktop when not needed during heavy WSL IDE/test/training sessions."
             )
 
-        top_cmd = str(summary.get("wsl_top_process_command", "")).lower()
+        top_cmd, top_cmd_ok = _strict_non_empty_string(
+            summary.get("wsl_top_process_command", ""),
+            "",
+        )
+        if not top_cmd_ok:
+            top_cmd = ""
+        top_cmd = top_cmd.lower()
         if "vscode-server" in top_cmd or "extensionhost" in top_cmd:
             recommendations.append(
                 "Close idle VS Code windows/workspaces to reduce extension host memory pressure."
@@ -268,10 +326,14 @@ def _build_recommendations(
                 "Pause non-essential long-running Python jobs while memory pressure is elevated."
             )
 
-        for action in wsl_diag.get("prevention_actions", [])[:3]:
-            text = str(action).strip()
-            if text:
-                recommendations.append(text)
+        prevention_actions = wsl_diag.get("prevention_actions", [])
+        if isinstance(prevention_actions, list):
+            for action in prevention_actions[:3]:
+                if not isinstance(action, str):
+                    continue
+                text = action.strip()
+                if text:
+                    recommendations.append(text)
 
     def _norm(text: str) -> str:
         out = text.strip().lower()
@@ -660,6 +722,12 @@ def _build_payload(
 
 def main() -> int:
     args = _parse_args()
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
 
     enforcement_path = Path(args.enforcement_report)
     if not enforcement_path.is_absolute():

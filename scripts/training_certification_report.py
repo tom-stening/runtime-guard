@@ -38,6 +38,32 @@ def _passed(record: dict[str, Any], *, required_labs: int, min_score: float) -> 
     )
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    attendees = getattr(args, "attendees", "")
+    if not isinstance(attendees, str) or not attendees.strip():
+        errors.append("--attendees must be a non-empty string path")
+
+    required_labs = getattr(args, "required_labs", 0)
+    if not isinstance(required_labs, int) or isinstance(required_labs, bool):
+        errors.append("--required-labs must be an integer >= 1")
+
+    min_score = getattr(args, "min_score", 0)
+    if isinstance(min_score, bool) or not isinstance(min_score, (int, float)):
+        errors.append("--min-score must be a number between 0 and 100")
+
+    output = getattr(args, "output", None)
+    if output is not None and not isinstance(output, str):
+        errors.append("--output must be a string path")
+
+    fail_on_gaps = getattr(args, "fail_on_gaps", False)
+    if not isinstance(fail_on_gaps, bool):
+        errors.append("--fail-on-gaps flag must be boolean")
+
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build training certification readiness report")
     parser.add_argument(
@@ -64,6 +90,12 @@ def main() -> int:
         help="Exit 1 when any attendee fails certification criteria",
     )
     args = parser.parse_args()
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
 
     if args.required_labs < 1:
         print("error: --required-labs must be >= 1", file=sys.stderr)

@@ -585,6 +585,56 @@ class TestWslRuntimeContext:
         assert set(summary[0]["pids"]) == {10, 11}
         assert any(r["extension"] == "vscode.extension-host" for r in summary)
 
+    def test_summarize_vscode_extension_rss_rejects_non_typed_rows(self):
+        from runtime_guard import _summarize_vscode_extension_rss
+
+        rows = [
+            {
+                "pid": 10,
+                "rss_mb": 700,
+                "command": "/home/u/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js",
+            },
+            {
+                "pid": "11",
+                "rss_mb": "500",
+                "command": "/home/u/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js",
+            },
+            {
+                "pid": 12,
+                "rss_mb": True,
+                "command": "/home/u/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js",
+            },
+            {
+                "pid": 13,
+                "rss_mb": 300,
+                "command": 123,
+            },
+        ]
+
+        summary = _summarize_vscode_extension_rss(rows, limit=5)
+        assert len(summary) == 1
+        assert summary[0]["extension"] == "ms-python.vscode-pylance"
+        assert summary[0]["rss_mb"] == 700
+        assert summary[0]["process_count"] == 1
+        assert summary[0]["pids"] == [10]
+
+    def test_derive_vscode_extension_pressure_hints_ignores_non_typed_rss(self):
+        from runtime_guard import _derive_vscode_extension_pressure_hints
+
+        score, causes, prevention = _derive_vscode_extension_pressure_hints(
+            {
+                "guest_vscode_extension_rss": [
+                    {"extension": "ms-python.vscode-pylance", "rss_mb": "5000"},
+                    {"extension": "vscode.extension-host", "rss_mb": True},
+                    {"extension": "eamodio.gitlens", "rss_mb": 3500},
+                ]
+            }
+        )
+
+        assert score == 1
+        assert any("3500 MB" in row for row in causes)
+        assert prevention
+
 
 class TestDiagnoseWslCrash:
     def test_diagnose_wsl_crash_includes_top_processes_and_runtime_context(self, monkeypatch):

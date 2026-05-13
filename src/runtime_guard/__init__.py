@@ -5985,15 +5985,21 @@ def _derive_vscode_extension_pressure_hints(
             if isinstance(item, dict):
                 ext_rows.append(item)
 
+    def _row_rss_mb(row: dict[str, Any]) -> int | None:
+        value = row.get("rss_mb", 0)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+        return None
+
     if not ext_rows:
         return 0, [], []
 
     total_vscode_rss_mb = 0
     for row in ext_rows:
-        try:
-            total_vscode_rss_mb += int(row.get("rss_mb", 0) or 0)
-        except Exception:
+        rss_mb = _row_rss_mb(row)
+        if rss_mb is None:
             continue
+        total_vscode_rss_mb += rss_mb
 
     score_delta = 0
     if total_vscode_rss_mb >= 5000:
@@ -6003,10 +6009,13 @@ def _derive_vscode_extension_pressure_hints(
 
     top_extension_labels: list[str] = []
     for row in ext_rows[:3]:
-        name = str(row.get("extension", "") or "").strip()
+        name_raw = row.get("extension", "")
+        name = name_raw.strip() if isinstance(name_raw, str) else ""
         if not name:
             continue
-        rss_mb = int(row.get("rss_mb", 0) or 0)
+        rss_mb = _row_rss_mb(row)
+        if rss_mb is None:
+            continue
         top_extension_labels.append(f"{name} ({rss_mb} MB)")
 
     causes = [
@@ -6021,9 +6030,14 @@ def _derive_vscode_extension_pressure_hints(
         "split large multi-root workspaces to reduce concurrent language-server indexing load",
     ]
     if top_extension_labels:
+        top_extension_names: list[str] = []
+        for row in ext_rows[:3]:
+            ext_name = row.get("extension", "")
+            if isinstance(ext_name, str) and ext_name:
+                top_extension_names.append(ext_name)
         prevention.append(
             "review settings and indexing scope for top extensions: "
-            + ", ".join(str(row.get("extension", "")) for row in ext_rows[:3] if row.get("extension"))
+            + ", ".join(top_extension_names)
         )
 
     return score_delta, causes, prevention
@@ -6039,7 +6053,10 @@ def _summarize_vscode_extension_rss(rows_raw: Any, limit: int = 5) -> list[dict[
     for item in rows_raw:
         if not isinstance(item, dict):
             continue
-        cmd = str(item.get("command", "") or "")
+        cmd_raw = item.get("command", "")
+        if not isinstance(cmd_raw, str):
+            continue
+        cmd = cmd_raw
         cmd_lower = cmd.lower()
         if ".vscode-server" not in cmd_lower:
             continue
@@ -6056,11 +6073,19 @@ def _summarize_vscode_extension_rss(rows_raw: Any, limit: int = 5) -> list[dict[
             else:
                 continue
 
-        try:
-            rss_mb = int(item.get("rss_mb", 0) or 0)
-            pid = int(item.get("pid", 0) or 0)
-        except Exception:
+        rss_raw = item.get("rss_mb", 0)
+        pid_raw = item.get("pid", 0)
+        if (
+            not isinstance(rss_raw, int)
+            or isinstance(rss_raw, bool)
+            or rss_raw < 0
+            or not isinstance(pid_raw, int)
+            or isinstance(pid_raw, bool)
+            or pid_raw <= 0
+        ):
             continue
+        rss_mb = rss_raw
+        pid = pid_raw
 
         row = extension_map.get(ext_name)
         if row is None:
@@ -6072,14 +6097,14 @@ def _summarize_vscode_extension_rss(rows_raw: Any, limit: int = 5) -> list[dict[
             }
             extension_map[ext_name] = row
 
-        row["rss_mb"] = int(row.get("rss_mb", 0) or 0) + rss_mb
-        row["process_count"] = int(row.get("process_count", 0) or 0) + 1
+        row["rss_mb"] = row["rss_mb"] + rss_mb
+        row["process_count"] = row["process_count"] + 1
         row_pids = row.get("pids")
         if isinstance(row_pids, list):
             row_pids.append(pid)
 
     rows = list(extension_map.values())
-    rows.sort(key=lambda r: int(r.get("rss_mb", 0) or 0), reverse=True)
+    rows.sort(key=lambda r: r["rss_mb"] if isinstance(r.get("rss_mb"), int) else 0, reverse=True)
     return rows[: max(1, int(limit))]
 
 

@@ -180,6 +180,79 @@ def test_validate_cli_configuration_rejects_negative_age_policies():
     assert any("--max-signature-age-hours" in row for row in errors)
 
 
+def test_validate_cli_configuration_rejects_non_boolean_policy_flags() -> None:
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = "true"  # type: ignore[assignment]
+        integration_require_signed_report_inputs = 1  # type: ignore[assignment]
+        integration_report_signature_public_key = "/tmp/report-public.pem"
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_fallback_report_age_hours = 0
+        integration_max_report_signature_age_hours = 0
+        verify_signed_artifacts = "false"  # type: ignore[assignment]
+        signature_public_key = ""
+        max_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any(
+        "--integration-verify-report-input-signatures flag must be boolean" in row
+        for row in errors
+    )
+    assert any(
+        "--integration-require-signed-report-inputs flag must be boolean" in row
+        for row in errors
+    )
+    assert any("--verify-signed-artifacts flag must be boolean" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_non_integer_age_policy_types() -> None:
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = False
+        integration_require_signed_report_inputs = False
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_fallback_report_age_hours = 2.5  # type: ignore[assignment]
+        integration_max_report_signature_age_hours = "8"  # type: ignore[assignment]
+        verify_signed_artifacts = False
+        signature_public_key = ""
+        max_signature_age_hours = "3"  # type: ignore[assignment]
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any(
+        "--integration-max-fallback-report-age-hours must be a non-negative integer" in row
+        for row in errors
+    )
+    assert any(
+        "--integration-max-report-signature-age-hours must be a non-negative integer" in row
+        for row in errors
+    )
+    assert any("--max-signature-age-hours must be a non-negative integer" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_non_string_allowed_key_ids() -> None:
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = True
+        integration_require_signed_report_inputs = True
+        integration_report_signature_public_key = "/tmp/report-public.pem"
+        integration_report_allowed_key_id = ["report-key-a", 42]  # type: ignore[list-item]
+        integration_max_fallback_report_age_hours = 0
+        integration_max_report_signature_age_hours = 0
+        verify_signed_artifacts = False
+        signature_public_key = ""
+        max_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any(
+        "--integration-report-allowed-key-id values must be strings" in row
+        for row in errors
+    )
+
+
 def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_path: Path):
     module = _load_module()
 

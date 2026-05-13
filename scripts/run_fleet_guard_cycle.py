@@ -161,23 +161,76 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     errors: list[str] = []
-    integration_verify = bool(getattr(args, "integration_verify_report_input_signatures", False))
-    integration_require_signed = bool(getattr(args, "integration_require_signed_report_inputs", False))
-    integration_public_key = str(
-        getattr(args, "integration_report_signature_public_key", "") or ""
-    ).strip()
-    integration_allowed_key_ids = [
-        str(key_id).strip()
-        for key_id in list(getattr(args, "integration_report_allowed_key_id", []) or [])
-        if str(key_id).strip()
-    ]
-    integration_max_signature_age_hours = int(
-        getattr(args, "integration_max_report_signature_age_hours", 0) or 0
+    integration_verify_raw = getattr(args, "integration_verify_report_input_signatures", False)
+    if isinstance(integration_verify_raw, bool):
+        integration_verify = integration_verify_raw
+    else:
+        integration_verify = False
+        errors.append("--integration-verify-report-input-signatures flag must be boolean")
+
+    integration_require_signed_raw = getattr(args, "integration_require_signed_report_inputs", False)
+    if isinstance(integration_require_signed_raw, bool):
+        integration_require_signed = integration_require_signed_raw
+    else:
+        integration_require_signed = False
+        errors.append("--integration-require-signed-report-inputs flag must be boolean")
+
+    integration_public_key_raw = getattr(args, "integration_report_signature_public_key", "")
+    if isinstance(integration_public_key_raw, str):
+        integration_public_key = integration_public_key_raw.strip()
+    else:
+        integration_public_key = ""
+        errors.append("--integration-report-signature-public-key must be a string path")
+
+    integration_allowed_key_ids_raw = getattr(args, "integration_report_allowed_key_id", [])
+    integration_allowed_key_ids: list[str] = []
+    if integration_allowed_key_ids_raw is None:
+        integration_allowed_key_ids_raw = []
+    if not isinstance(integration_allowed_key_ids_raw, list):
+        errors.append("--integration-report-allowed-key-id values must be strings")
+    else:
+        for key_id in integration_allowed_key_ids_raw:
+            if not isinstance(key_id, str):
+                errors.append("--integration-report-allowed-key-id values must be strings")
+                continue
+            key = key_id.strip()
+            if key:
+                integration_allowed_key_ids.append(key)
+
+    integration_max_signature_age_hours_raw = getattr(
+        args, "integration_max_report_signature_age_hours", 0
     )
-    integration_max_fallback_report_age_hours = int(
-        getattr(args, "integration_max_fallback_report_age_hours", 0) or 0
+    if isinstance(integration_max_signature_age_hours_raw, int) and not isinstance(
+        integration_max_signature_age_hours_raw, bool
+    ):
+        integration_max_signature_age_hours = integration_max_signature_age_hours_raw
+    else:
+        integration_max_signature_age_hours = 0
+        errors.append(
+            "--integration-max-report-signature-age-hours must be a non-negative integer"
+        )
+
+    integration_max_fallback_report_age_hours_raw = getattr(
+        args, "integration_max_fallback_report_age_hours", 0
     )
-    lineage_max_signature_age_hours = int(getattr(args, "max_signature_age_hours", 0) or 0)
+    if isinstance(integration_max_fallback_report_age_hours_raw, int) and not isinstance(
+        integration_max_fallback_report_age_hours_raw, bool
+    ):
+        integration_max_fallback_report_age_hours = integration_max_fallback_report_age_hours_raw
+    else:
+        integration_max_fallback_report_age_hours = 0
+        errors.append(
+            "--integration-max-fallback-report-age-hours must be a non-negative integer"
+        )
+
+    lineage_max_signature_age_hours_raw = getattr(args, "max_signature_age_hours", 0)
+    if isinstance(lineage_max_signature_age_hours_raw, int) and not isinstance(
+        lineage_max_signature_age_hours_raw, bool
+    ):
+        lineage_max_signature_age_hours = lineage_max_signature_age_hours_raw
+    else:
+        lineage_max_signature_age_hours = 0
+        errors.append("--max-signature-age-hours must be a non-negative integer")
 
     if integration_max_fallback_report_age_hours < 0:
         errors.append(
@@ -207,9 +260,21 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
             "--integration-verify-report-input-signatures must be set when --integration-max-report-signature-age-hours is greater than 0"
         )
 
-    if bool(getattr(args, "verify_signed_artifacts", False)) and not str(
-        getattr(args, "signature_public_key", "") or ""
-    ).strip():
+    verify_signed_artifacts_raw = getattr(args, "verify_signed_artifacts", False)
+    if isinstance(verify_signed_artifacts_raw, bool):
+        verify_signed_artifacts = verify_signed_artifacts_raw
+    else:
+        verify_signed_artifacts = False
+        errors.append("--verify-signed-artifacts flag must be boolean")
+
+    signature_public_key_raw = getattr(args, "signature_public_key", "")
+    if isinstance(signature_public_key_raw, str):
+        signature_public_key = signature_public_key_raw.strip()
+    else:
+        signature_public_key = ""
+        errors.append("--signature-public-key must be a string path")
+
+    if verify_signed_artifacts and not signature_public_key:
         errors.append(
             "--signature-public-key is required when --verify-signed-artifacts is set"
         )

@@ -206,6 +206,38 @@ def test_validate_cli_configuration_rejects_non_boolean_policy_flags() -> None:
     assert any("--verify-signed-artifacts flag must be boolean" in row for row in errors)
 
 
+def test_validate_cli_configuration_rejects_non_boolean_orchestration_flags() -> None:
+    module = _load_module()
+
+    class _Args:
+        integration_fallback_on_pressure = "yes"  # type: ignore[assignment]
+        include_wsl_diagnosis = 1  # type: ignore[assignment]
+        fail_on_unenforced = "true"  # type: ignore[assignment]
+        fail_on_integration_unhealthy = 0  # type: ignore[assignment]
+        dry_run = "false"  # type: ignore[assignment]
+        skip_lineage_verify = "no"  # type: ignore[assignment]
+        require_signed_artifacts = 1  # type: ignore[assignment]
+
+        integration_verify_report_input_signatures = False
+        integration_require_signed_report_inputs = False
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_fallback_report_age_hours = 0
+        integration_max_report_signature_age_hours = 0
+        verify_signed_artifacts = False
+        signature_public_key = ""
+        max_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--integration-fallback-on-pressure flag must be boolean" in row for row in errors)
+    assert any("--include-wsl-diagnosis flag must be boolean" in row for row in errors)
+    assert any("--fail-on-unenforced flag must be boolean" in row for row in errors)
+    assert any("--fail-on-integration-unhealthy flag must be boolean" in row for row in errors)
+    assert any("--dry-run flag must be boolean" in row for row in errors)
+    assert any("--skip-lineage-verify flag must be boolean" in row for row in errors)
+    assert any("--require-signed-artifacts flag must be boolean" in row for row in errors)
+
+
 def test_validate_cli_configuration_rejects_non_integer_age_policy_types() -> None:
     module = _load_module()
 

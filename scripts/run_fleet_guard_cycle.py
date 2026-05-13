@@ -161,19 +161,30 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     errors: list[str] = []
-    integration_verify_raw = getattr(args, "integration_verify_report_input_signatures", False)
-    if isinstance(integration_verify_raw, bool):
-        integration_verify = integration_verify_raw
-    else:
-        integration_verify = False
-        errors.append("--integration-verify-report-input-signatures flag must be boolean")
 
-    integration_require_signed_raw = getattr(args, "integration_require_signed_report_inputs", False)
-    if isinstance(integration_require_signed_raw, bool):
-        integration_require_signed = integration_require_signed_raw
-    else:
-        integration_require_signed = False
-        errors.append("--integration-require-signed-report-inputs flag must be boolean")
+    def _bool_arg(name: str, option: str) -> bool:
+        raw = getattr(args, name, False)
+        if isinstance(raw, bool):
+            return raw
+        errors.append(f"{option} flag must be boolean")
+        return False
+
+    _bool_arg("integration_fallback_on_pressure", "--integration-fallback-on-pressure")
+    _bool_arg("include_wsl_diagnosis", "--include-wsl-diagnosis")
+    _bool_arg("fail_on_unenforced", "--fail-on-unenforced")
+    _bool_arg("fail_on_integration_unhealthy", "--fail-on-integration-unhealthy")
+    _bool_arg("dry_run", "--dry-run")
+    _bool_arg("skip_lineage_verify", "--skip-lineage-verify")
+    _bool_arg("require_signed_artifacts", "--require-signed-artifacts")
+    integration_verify = _bool_arg(
+        "integration_verify_report_input_signatures",
+        "--integration-verify-report-input-signatures",
+    )
+
+    integration_require_signed = _bool_arg(
+        "integration_require_signed_report_inputs",
+        "--integration-require-signed-report-inputs",
+    )
 
     integration_public_key_raw = getattr(args, "integration_report_signature_public_key", "")
     if isinstance(integration_public_key_raw, str):
@@ -260,12 +271,10 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
             "--integration-verify-report-input-signatures must be set when --integration-max-report-signature-age-hours is greater than 0"
         )
 
-    verify_signed_artifacts_raw = getattr(args, "verify_signed_artifacts", False)
-    if isinstance(verify_signed_artifacts_raw, bool):
-        verify_signed_artifacts = verify_signed_artifacts_raw
-    else:
-        verify_signed_artifacts = False
-        errors.append("--verify-signed-artifacts flag must be boolean")
+    verify_signed_artifacts = _bool_arg(
+        "verify_signed_artifacts",
+        "--verify-signed-artifacts",
+    )
 
     signature_public_key_raw = getattr(args, "signature_public_key", "")
     if isinstance(signature_public_key_raw, str):
@@ -313,7 +322,7 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
         "--output",
         str(integration_report),
     ]
-    if bool(args.integration_fallback_on_pressure):
+    if args.integration_fallback_on_pressure:
         integration_cmd.extend(["--fallback-on-pressure", "--fallback-report-dir", str(args.integration_fallback_report_dir)])
     if int(args.integration_max_fallback_report_age_hours or 0) > 0:
         integration_cmd.extend(
@@ -322,9 +331,9 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
                 str(int(args.integration_max_fallback_report_age_hours)),
             ]
         )
-    if bool(args.integration_require_signed_report_inputs):
+    if args.integration_require_signed_report_inputs:
         integration_cmd.append("--require-signed-report-inputs")
-    if bool(args.integration_verify_report_input_signatures):
+    if args.integration_verify_report_input_signatures:
         integration_cmd.append("--verify-report-input-signatures")
         key_path = str(args.integration_report_signature_public_key or "").strip()
         if key_path:
@@ -354,11 +363,11 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
         str(runtime_report),
         "--fail-on-run-id-mismatch",
     ]
-    if bool(args.include_wsl_diagnosis):
+    if args.include_wsl_diagnosis:
         runtime_cmd.append("--include-wsl-diagnosis")
-    if bool(args.fail_on_unenforced):
+    if args.fail_on_unenforced:
         runtime_cmd.append("--fail-on-unenforced")
-    if bool(args.fail_on_integration_unhealthy):
+    if args.fail_on_integration_unhealthy:
         runtime_cmd.append("--fail-on-integration-unhealthy")
     if args.fail_on_wsl_risk:
         runtime_cmd.extend(["--fail-on-wsl-risk", str(args.fail_on_wsl_risk)])
@@ -420,9 +429,9 @@ def _build_lineage_verify_command(
             cmd.extend(["--allowed-key-id", key])
     if int(max_signature_age_hours or 0) > 0:
         cmd.extend(["--max-signature-age-hours", str(int(max_signature_age_hours))])
-    if bool(expected_require_signed_report_inputs):
+    if expected_require_signed_report_inputs:
         cmd.append("--expected-require-signed-report-inputs")
-    if bool(expected_verify_report_input_signatures):
+    if expected_verify_report_input_signatures:
         cmd.append("--expected-verify-report-input-signatures")
     for key_id in list(expected_report_allowed_key_ids or []):
         key = str(key_id or "").strip()
@@ -565,22 +574,22 @@ def main() -> int:
         enforcement_report,
         integration_report,
         runtime_report,
-        require_signed=bool(args.require_signed_artifacts),
-        verify_signatures=bool(args.verify_signed_artifacts),
+        require_signed=args.require_signed_artifacts,
+        verify_signatures=args.verify_signed_artifacts,
         signature_public_key=str(args.signature_public_key),
         allowed_key_ids=list(args.allowed_key_id or []),
         max_signature_age_hours=int(args.max_signature_age_hours or 0),
-        expected_require_signed_report_inputs=bool(args.integration_require_signed_report_inputs),
-        expected_verify_report_input_signatures=bool(args.integration_verify_report_input_signatures),
+        expected_require_signed_report_inputs=args.integration_require_signed_report_inputs,
+        expected_verify_report_input_signatures=args.integration_verify_report_input_signatures,
         expected_report_allowed_key_ids=list(args.integration_report_allowed_key_id or []),
         expected_max_report_signature_age_hours=int(args.integration_max_report_signature_age_hours or 0),
     )
 
-    if bool(args.dry_run):
+    if args.dry_run:
         print("[dry-run] enforce:", " ".join(enforce_cmd))
         print("[dry-run] integration:", " ".join(integration_cmd))
         print("[dry-run] runtime:", " ".join(runtime_cmd))
-        if not bool(args.skip_lineage_verify):
+        if not args.skip_lineage_verify:
             print("[dry-run] lineage:", " ".join(lineage_verify_cmd))
         return 0
 
@@ -596,7 +605,7 @@ def main() -> int:
     if step3 != 0:
         return step3
 
-    if not bool(args.skip_lineage_verify):
+    if not args.skip_lineage_verify:
         step4 = _run_step(lineage_verify_cmd, repo_root)
         if step4 != 0:
             return step4

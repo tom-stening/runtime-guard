@@ -2674,6 +2674,11 @@ def enable_ray_actor_memory_monitoring(
     """
     actor_event_state: dict[str, dict[str, Any]] = {}
 
+    def _strict_non_negative_counter(value: Any) -> tuple[int, bool]:
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value, True
+        return 0, False
+
     config: dict[str, Any] = {
         "ok": True,
         "stage_prefix": stage_prefix,
@@ -2716,11 +2721,14 @@ def enable_ray_actor_memory_monitoring(
                 "actors": {},
             },
         )
-        node_row["events"] += 1
+        node_events, _ = _strict_non_negative_counter(node_row.get("events", 0))
+        node_row["events"] = node_events + 1
         if event_type == "entry":
-            node_row["entry_checks"] += 1
+            node_entry_checks, _ = _strict_non_negative_counter(node_row.get("entry_checks", 0))
+            node_row["entry_checks"] = node_entry_checks + 1
         elif event_type == "exit":
-            node_row["exit_checks"] += 1
+            node_exit_checks, _ = _strict_non_negative_counter(node_row.get("exit_checks", 0))
+            node_row["exit_checks"] = node_exit_checks + 1
 
         actors = node_row["actors"]
         actor_row = actors.setdefault(
@@ -2733,14 +2741,18 @@ def enable_ray_actor_memory_monitoring(
                 "methods": {},
             },
         )
-        actor_row["events"] += 1
+        actor_events, _ = _strict_non_negative_counter(actor_row.get("events", 0))
+        actor_row["events"] = actor_events + 1
         if event_type == "entry":
-            actor_row["entry_checks"] += 1
+            actor_entry_checks, _ = _strict_non_negative_counter(actor_row.get("entry_checks", 0))
+            actor_row["entry_checks"] = actor_entry_checks + 1
         elif event_type == "exit":
-            actor_row["exit_checks"] += 1
+            actor_exit_checks, _ = _strict_non_negative_counter(actor_row.get("exit_checks", 0))
+            actor_row["exit_checks"] = actor_exit_checks + 1
 
         methods = actor_row["methods"]
-        methods[method_key] = int(methods.get(method_key, 0)) + 1
+        method_count, _ = _strict_non_negative_counter(methods.get(method_key, 0))
+        methods[method_key] = method_count + 1
 
     def _get_actor_report(*, node_id: str | None = None, actor_id: str | None = None) -> dict[str, Any]:
         if node_id is None and actor_id is None:
@@ -2748,7 +2760,10 @@ def enable_ray_actor_memory_monitoring(
                 "ok": True,
                 "nodes": actor_event_state,
                 "nodes_monitored": len(actor_event_state),
-                "total_events": sum(int(v.get("events", 0)) for v in actor_event_state.values()),
+                "total_events": sum(
+                    _strict_non_negative_counter(v.get("events", 0))[0]
+                    for v in actor_event_state.values()
+                ),
             }
 
         if node_id is not None:
@@ -2792,24 +2807,27 @@ def enable_ray_actor_memory_monitoring(
             "ok": True,
             "nodes": actor_event_state,
             "nodes_monitored": len(actor_event_state),
-            "total_events": sum(int(v.get("events", 0)) for v in actor_event_state.values()),
+            "total_events": sum(
+                _strict_non_negative_counter(v.get("events", 0))[0]
+                for v in actor_event_state.values()
+            ),
         }
 
     def _cluster_summary() -> dict[str, Any]:
         node_rows = actor_event_state.values()
-        total_events = sum(int(v.get("events", 0)) for v in node_rows)
+        total_events = sum(_strict_non_negative_counter(v.get("events", 0))[0] for v in node_rows)
         total_actors = sum(len(v.get("actors", {})) for v in node_rows)
         busiest_node = None
         busiest_events = -1
         busiest_actor = None
         busiest_actor_events = -1
         for node_id, row in actor_event_state.items():
-            events = int(row.get("events", 0))
+            events, _ = _strict_non_negative_counter(row.get("events", 0))
             if events > busiest_events:
                 busiest_events = events
                 busiest_node = node_id
             for actor_id, actor_row in row.get("actors", {}).items():
-                actor_events = int(actor_row.get("events", 0))
+                actor_events, _ = _strict_non_negative_counter(actor_row.get("events", 0))
                 if actor_events > busiest_actor_events:
                     busiest_actor_events = actor_events
                     busiest_actor = actor_id

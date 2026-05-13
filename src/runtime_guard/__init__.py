@@ -4632,19 +4632,52 @@ def build_adoption_scorecard(
     }
     success_norm = stage_aliases.get(str(success_stage).strip().lower(), str(success_stage).strip().lower())
 
-    def _stage(value: Any) -> str:
-        raw = str(value or "discover").strip().lower()
-        return stage_aliases.get(raw, raw)
+    def _stage(value: Any) -> tuple[str, bool]:
+        if not isinstance(value, str):
+            return "unknown", False
+        raw = value.strip().lower()
+        if raw == "":
+            raw = "discover"
+        return stage_aliases.get(raw, raw), True
+
+    def _evidence_items(value: Any) -> tuple[list[str], bool]:
+        if value is None:
+            return [], True
+        if not isinstance(value, (list, tuple, set)):
+            return [], False
+        out: list[str] = []
+        valid = True
+        for item in value:
+            if not isinstance(item, str):
+                valid = False
+                continue
+            text = item.strip()
+            if text:
+                out.append(text)
+        return out, valid
 
     team_count = len(team_records)
     stage_counts: dict[str, int] = {name: 0 for name in stage_order}
     stage_counts["unknown"] = 0
     missing_evidence_teams: list[str] = []
+    invalid_stage_teams: list[str] = []
+    invalid_evidence_teams: list[str] = []
+    malformed_record_indexes: list[int] = []
 
     reached_success = 0
-    for row in team_records:
-        team_name = str(row.get("team") or row.get("name") or "unknown-team")
-        stage = _stage(row.get("stage"))
+    for idx, row in enumerate(team_records):
+        if not isinstance(row, dict):
+            malformed_record_indexes.append(idx)
+            continue
+
+        team_raw = row.get("team") if row.get("team") is not None else row.get("name")
+        team_name = str(team_raw).strip() if team_raw is not None else ""
+        if team_name == "":
+            team_name = f"unknown-team-{idx + 1}"
+
+        stage, stage_ok = _stage(row.get("stage"))
+        if not stage_ok:
+            invalid_stage_teams.append(team_name)
 
         if stage in stage_counts:
             stage_counts[stage] += 1
@@ -4654,8 +4687,9 @@ def build_adoption_scorecard(
         if stage_index.get(stage, -1) >= stage_index.get(success_norm, len(stage_order)):
             reached_success += 1
 
-        evidence = row.get("evidence", [])
-        evidence_items = [str(item).strip() for item in evidence if str(item).strip() != ""]
+        evidence_items, evidence_ok = _evidence_items(row.get("evidence", []))
+        if not evidence_ok:
+            invalid_evidence_teams.append(team_name)
         if stage in stage_index and stage != "discover" and len(evidence_items) == 0:
             missing_evidence_teams.append(team_name)
 
@@ -4668,6 +4702,9 @@ def build_adoption_scorecard(
         "success_stage": success_norm,
         "adoption_ratio": adoption_ratio,
         "stage_counts": stage_counts,
+        "malformed_record_indexes": sorted(malformed_record_indexes),
+        "invalid_stage_teams": sorted(invalid_stage_teams),
+        "invalid_evidence_teams": sorted(invalid_evidence_teams),
         "missing_evidence_teams": sorted(missing_evidence_teams),
         "status": status,
     }

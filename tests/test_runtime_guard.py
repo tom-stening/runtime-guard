@@ -3971,6 +3971,38 @@ class TestAdoptionScorecard:
         assert out["stage_counts"]["expanded"] == 1
         assert out["reached_success_stage"] == 2
 
+    def test_fails_closed_on_non_string_stage_values(self):
+        out = build_adoption_scorecard(
+            [
+                {"team": "alpha", "stage": True, "evidence": ["e1"]},
+                {"team": "beta", "stage": "production", "evidence": ["e2"]},
+            ]
+        )
+        assert out["stage_counts"]["unknown"] == 1
+        assert out["invalid_stage_teams"] == ["alpha"]
+        assert out["reached_success_stage"] == 1
+
+    def test_fails_closed_on_non_collection_evidence(self):
+        out = build_adoption_scorecard(
+            [
+                {"team": "alpha", "stage": "production", "evidence": "ticket-1"},
+                {"team": "beta", "stage": "production", "evidence": ["ticket-2"]},
+            ]
+        )
+        assert out["invalid_evidence_teams"] == ["alpha"]
+        assert "alpha" in out["missing_evidence_teams"]
+
+    def test_records_malformed_non_object_rows(self):
+        out = build_adoption_scorecard(
+            [
+                {"team": "alpha", "stage": "production", "evidence": ["e1"]},
+                ["bad", "row"],
+            ]
+        )
+        assert out["total_teams"] == 2
+        assert out["malformed_record_indexes"] == [1]
+        assert out["reached_success_stage"] == 1
+
 
 class TestUnsupportedPlatformWarning:
     def test_warns_on_unknown_platform(self, monkeypatch, caplog):

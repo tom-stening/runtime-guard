@@ -370,14 +370,25 @@ def _build_failed_gate(
 
 
 def _compute_overall_runtime_healthy(summary: dict[str, Any]) -> bool:
-    if not bool(summary.get("fully_enforced", False)):
+    fully_enforced, fully_enforced_ok = _strict_bool(summary.get("fully_enforced", False))
+    if not fully_enforced_ok or not fully_enforced:
         return False
 
-    integration_healthy = summary.get("integration_overall_healthy")
-    if integration_healthy is False:
-        return False
+    integration_healthy_raw = summary.get("integration_overall_healthy")
+    if integration_healthy_raw is not None:
+        integration_healthy, integration_ok = _strict_bool(integration_healthy_raw)
+        if not integration_ok or not integration_healthy:
+            return False
 
-    wsl_level = str(summary.get("wsl_risk_level", "low")).lower()
+    wsl_level, wsl_level_ok = _strict_non_empty_string(
+        summary.get("wsl_risk_level", "low"),
+        "",
+    )
+    if not wsl_level_ok:
+        return False
+    wsl_level = wsl_level.lower()
+    if wsl_level not in _ALLOWED_WSL_RISK_LEVELS:
+        return False
     if _risk_rank(wsl_level) >= _risk_rank("high"):
         return False
 

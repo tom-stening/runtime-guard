@@ -141,6 +141,34 @@ def test_recommendations_are_deduplicated(tmp_path: Path) -> None:
     assert len(docker_rows) <= 1
 
 
+def test_compute_overall_runtime_healthy_fails_closed_on_non_boolean_fully_enforced() -> None:
+    module = _load_module()
+    assert (
+        module._compute_overall_runtime_healthy(
+            {
+                "fully_enforced": "true",
+                "integration_overall_healthy": True,
+                "wsl_risk_level": "low",
+            }
+        )
+        is False
+    )
+
+
+def test_compute_overall_runtime_healthy_fails_closed_on_unknown_wsl_risk() -> None:
+    module = _load_module()
+    assert (
+        module._compute_overall_runtime_healthy(
+            {
+                "fully_enforced": True,
+                "integration_overall_healthy": True,
+                "wsl_risk_level": "unknown",
+            }
+        )
+        is False
+    )
+
+
 def test_fail_on_unenforced_exits_nonzero(tmp_path: Path) -> None:
     payload = {
         "repos": [

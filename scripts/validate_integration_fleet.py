@@ -701,11 +701,18 @@ def _component_from_report(
     }.get(tool_name, "")
 
     identity_errors: list[str] = []
-    if expected_tool and str(report_payload.get("tool", "")).strip() != expected_tool:
+    tool_value, tool_ok = _strict_string(report_payload.get("tool"))
+    if not tool_ok:
+        identity_errors.append(f"report tool must be a non-empty string for {tool_name}")
+    elif expected_tool and tool_value != expected_tool:
         identity_errors.append(
             f"report tool mismatch for {tool_name}: expected {expected_tool}"
         )
-    if expected_milestone and str(report_payload.get("milestone", "")).strip() != expected_milestone:
+
+    milestone_value, milestone_ok = _strict_string(report_payload.get("milestone"))
+    if not milestone_ok:
+        identity_errors.append(f"report milestone must be a non-empty string for {tool_name}")
+    elif expected_milestone and milestone_value != expected_milestone:
         identity_errors.append(
             f"report milestone mismatch for {tool_name}: expected {expected_milestone}"
         )
@@ -714,9 +721,11 @@ def _component_from_report(
     if not isinstance(provenance, dict):
         identity_errors.append(f"report provenance missing for {tool_name}")
     else:
-        artifact_sha = str(provenance.get("artifact_sha256") or "").strip()
-        if not artifact_sha:
-            identity_errors.append(f"report artifact_sha256 missing for {tool_name}")
+        artifact_sha, artifact_sha_ok = _strict_string(provenance.get("artifact_sha256"))
+        if not artifact_sha_ok:
+            identity_errors.append(
+                f"report artifact_sha256 must be a non-empty string for {tool_name}"
+            )
         elif artifact_sha != _expected_artifact_sha256(report_payload):
             identity_errors.append(f"report artifact_sha256 mismatch for {tool_name}")
 

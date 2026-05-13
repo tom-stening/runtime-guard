@@ -552,6 +552,32 @@ def test_component_from_report_rejects_non_string_artifact_sha(tmp_path: Path):
     assert any("report artifact_sha256 must be a non-empty string" in err for err in comp["errors"])
 
 
+def test_component_from_report_rejects_non_string_generated_at_for_staleness(tmp_path: Path):
+    module = _load_module()
+    report = tmp_path / "non-string-generated-at.json"
+    payload = _stamp_report_payload(
+        {
+            "tool": "validate_polars_integration",
+            "milestone": "M1-I01",
+            "ok": True,
+            "api_importable": True,
+            "scan_budget_api": {"available": True},
+            "native_callback_api": {"available": True},
+            "provenance": {"generated_at_utc": 101},
+        }
+    )
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    comp = module._component_from_report(
+        "polars",
+        report,
+        max_report_age_hours=1,
+    )
+
+    assert comp["healthy"] is False
+    assert any("report generated_at_utc must be a non-empty string" in err for err in comp["errors"])
+
+
 def test_component_from_report_requires_detached_signature_when_requested(tmp_path: Path):
     module = _load_module()
     report = tmp_path / "unsigned.json"

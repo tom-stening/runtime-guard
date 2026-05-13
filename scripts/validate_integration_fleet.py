@@ -760,8 +760,15 @@ def _component_from_report(
 
     if int(max_report_age_hours or 0) > 0:
         generated_at_text = ""
+        generated_at_ok = False
         if isinstance(provenance, dict):
-            generated_at_text = str(provenance.get("generated_at_utc") or "").strip()
+            generated_at_text, generated_at_ok = _strict_string(
+                provenance.get("generated_at_utc")
+            )
+        if not generated_at_ok:
+            identity_errors.append(
+                f"report generated_at_utc must be a non-empty string for {tool_name}"
+            )
         issued = _parse_utc_timestamp(generated_at_text)
         if issued is None:
             identity_errors.append(

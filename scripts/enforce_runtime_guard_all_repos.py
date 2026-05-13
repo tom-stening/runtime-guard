@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -94,6 +95,30 @@ def _normalize_run_id(value: Any) -> str:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return ""
+
+
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    for field in ["root", "report_path", "stage", "env_prefix", "posture"]:
+        value = getattr(args, field, "")
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"--{field.replace('_', '-')} must be a non-empty string")
+
+    for field in ["interval_s", "cooldown_s"]:
+        value = getattr(args, field, 0)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            errors.append(f"--{field.replace('_', '-')} must be a non-negative number")
+            continue
+        if value < 0:
+            errors.append(f"--{field.replace('_', '-')} must be a non-negative number")
+
+    for field in ["enforce_all_repos", "force_runtime_guard_sitecustomize", "dry_run"]:
+        value = getattr(args, field, False)
+        if not isinstance(value, bool):
+            errors.append(f"--{field.replace('_', '-')} flag must be boolean")
+
+    return errors
 
 
 def _discover_git_repos(root: Path) -> list[Path]:
@@ -278,6 +303,13 @@ def _build_signature_envelope(artifact_sha256: str) -> dict[str, str]:
 
 def main() -> int:
     args = _parse_args()
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
+
     root = Path(args.root).expanduser().resolve()
     if not root.is_dir():
         raise SystemExit(f"error: root path does not exist: {root}")

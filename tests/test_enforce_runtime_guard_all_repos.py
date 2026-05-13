@@ -164,3 +164,70 @@ def test_non_string_run_id_generates_uuid_in_enforcement_payload(tmp_path: Path,
     assert run_id != "123"
     assert report.get("summary", {}).get("run_id") == run_id
     assert report.get("provenance", {}).get("run_id") == run_id
+
+
+def test_validate_cli_configuration_rejects_non_boolean_flags() -> None:
+    module = _load_module()
+
+    class _Args:
+        root = "/tmp/workspace"
+        report_path = "reports/repo_guard_enforcement.json"
+        stage = "repo-autostart"
+        interval_s = 30.0
+        cooldown_s = 30.0
+        env_prefix = "RUNTIME_GUARD"
+        posture = "wsl_dev"
+        enforce_all_repos = "true"  # type: ignore[assignment]
+        force_runtime_guard_sitecustomize = 1  # type: ignore[assignment]
+        run_id = ""
+        dry_run = "false"  # type: ignore[assignment]
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--enforce-all-repos flag must be boolean" in row for row in errors)
+    assert any(
+        "--force-runtime-guard-sitecustomize flag must be boolean" in row
+        for row in errors
+    )
+    assert any("--dry-run flag must be boolean" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_invalid_interval_and_cooldown_types() -> None:
+    module = _load_module()
+
+    class _Args:
+        root = "/tmp/workspace"
+        report_path = "reports/repo_guard_enforcement.json"
+        stage = "repo-autostart"
+        interval_s = "30"  # type: ignore[assignment]
+        cooldown_s = -1
+        env_prefix = "RUNTIME_GUARD"
+        posture = "wsl_dev"
+        enforce_all_repos = False
+        force_runtime_guard_sitecustomize = False
+        run_id = ""
+        dry_run = False
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--interval-s must be a non-negative number" in row for row in errors)
+    assert any("--cooldown-s must be a non-negative number" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_non_string_root_and_report_path() -> None:
+    module = _load_module()
+
+    class _Args:
+        root = 101  # type: ignore[assignment]
+        report_path = None  # type: ignore[assignment]
+        stage = "repo-autostart"
+        interval_s = 30.0
+        cooldown_s = 30.0
+        env_prefix = "RUNTIME_GUARD"
+        posture = "wsl_dev"
+        enforce_all_repos = False
+        force_runtime_guard_sitecustomize = False
+        run_id = ""
+        dry_run = False
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--root must be a non-empty string" in row for row in errors)
+    assert any("--report-path must be a non-empty string" in row for row in errors)

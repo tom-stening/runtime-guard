@@ -416,6 +416,32 @@ def _validate_expected_integration_report_signature_policy(
     expected_max_report_signature_age_hours: int,
 ) -> list[str]:
     errors: list[str] = []
+
+    expected_require_signed_value = expected_require_signed_report_inputs
+    if not isinstance(expected_require_signed_report_inputs, bool):
+        errors.append(
+            "integration_fleet_status: expected require_signed_report_inputs policy must be boolean"
+        )
+        expected_require_signed_value = False
+
+    expected_verify_value = expected_verify_report_input_signatures
+    if not isinstance(expected_verify_report_input_signatures, bool):
+        errors.append(
+            "integration_fleet_status: expected verify_report_input_signatures policy must be boolean"
+        )
+        expected_verify_value = False
+
+    expected_age = expected_max_report_signature_age_hours
+    if (
+        not isinstance(expected_max_report_signature_age_hours, int)
+        or isinstance(expected_max_report_signature_age_hours, bool)
+        or expected_max_report_signature_age_hours < 0
+    ):
+        errors.append(
+            "integration_fleet_status: expected max_report_signature_age_hours policy must be a non-negative integer"
+        )
+        expected_age = 0
+
     provenance = payload.get("provenance")
     inputs = provenance.get("inputs") if isinstance(provenance, dict) else None
     if not isinstance(inputs, dict):
@@ -440,7 +466,7 @@ def _validate_expected_integration_report_signature_policy(
         errors.append(
             "integration_fleet_status: provenance.inputs.require_signed_report_inputs must be a boolean"
         )
-    elif raw_require_signed != bool(expected_require_signed_report_inputs):
+    elif raw_require_signed != expected_require_signed_value:
         errors.append(
             "integration_fleet_status: expected require_signed_report_inputs policy does not match provenance.inputs"
         )
@@ -450,7 +476,7 @@ def _validate_expected_integration_report_signature_policy(
         errors.append(
             "integration_fleet_status: provenance.inputs.verify_report_input_signatures must be a boolean"
         )
-    elif raw_verify != bool(expected_verify_report_input_signatures):
+    elif raw_verify != expected_verify_value:
         errors.append(
             "integration_fleet_status: expected verify_report_input_signatures policy does not match provenance.inputs"
         )
@@ -483,7 +509,6 @@ def _validate_expected_integration_report_signature_policy(
             "integration_fleet_status: expected report_allowed_key_ids policy does not match provenance.inputs"
         )
 
-    expected_age = int(expected_max_report_signature_age_hours or 0)
     raw_age = inputs.get("max_report_signature_age_hours")
     if not isinstance(raw_age, int) or isinstance(raw_age, bool) or raw_age < 0:
         errors.append(

@@ -314,6 +314,58 @@ def test_validate_expected_report_allowed_key_policy_rejects_non_string_expected
     )
 
 
+def test_validate_expected_report_signature_policy_rejects_non_boolean_expected_flags() -> None:
+    module = _load_module()
+    errors = module._validate_expected_integration_report_signature_policy(
+        {
+            "provenance": {
+                "inputs": {
+                    "require_signed_report_inputs": False,
+                    "verify_report_input_signatures": False,
+                    "report_allowed_key_ids": [],
+                    "max_report_signature_age_hours": 0,
+                }
+            }
+        },
+        expected_require_signed_report_inputs="false",  # type: ignore[arg-type]
+        expected_verify_report_input_signatures=1,  # type: ignore[arg-type]
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
+    )
+    assert any(
+        "expected require_signed_report_inputs policy must be boolean" in row
+        for row in errors
+    )
+    assert any(
+        "expected verify_report_input_signatures policy must be boolean" in row
+        for row in errors
+    )
+
+
+def test_validate_expected_report_signature_policy_rejects_non_integer_expected_age() -> None:
+    module = _load_module()
+    errors = module._validate_expected_integration_report_signature_policy(
+        {
+            "provenance": {
+                "inputs": {
+                    "require_signed_report_inputs": False,
+                    "verify_report_input_signatures": False,
+                    "report_allowed_key_ids": [],
+                    "max_report_signature_age_hours": 0,
+                }
+            }
+        },
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours="0",  # type: ignore[arg-type]
+    )
+    assert any(
+        "expected max_report_signature_age_hours policy must be a non-negative integer" in row
+        for row in errors
+    )
+
+
 def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
     module = _load_module()
 

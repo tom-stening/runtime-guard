@@ -567,6 +567,55 @@ def test_malformed_extension_rss_rows_fail_safe_with_warning(tmp_path: Path, mon
     assert any("guest_vscode_extension_rss[ms-python.python].rss_mb" in row for row in warnings)
 
 
+def test_malformed_activity_scan_count_fails_safe_with_warning(tmp_path: Path, monkeypatch) -> None:
+    enforcement_path = tmp_path / "enforcement.json"
+    enforcement_path.write_text(
+        json.dumps(
+            {
+                "run_id": "ci-sync-1",
+                "repos": [
+                    {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "runtime.json"
+
+    module = _load_module()
+
+    class _Args:
+        enforcement_report = str(enforcement_path)
+        output = str(output_path)
+        no_proc_scan = False
+        integration_report = str(tmp_path / "missing-integration.json")
+        include_wsl_diagnosis = False
+        fail_on_unenforced = False
+        fail_on_integration_unhealthy = False
+        fail_on_wsl_risk = None
+        fail_on_extension_total_rss_mb = 0
+        fail_on_extension_rss: list[str] = []
+        run_id = "ci-sync-1"
+        fail_on_run_id_mismatch = False
+
+    monkeypatch.setattr(module, "_parse_args", lambda: _Args())
+    monkeypatch.setattr(
+        module,
+        "_scan_repo_activity",
+        lambda _paths: {"/tmp/repo-a": "bad-count"},
+    )
+
+    result_code = module.main()
+    assert result_code == 0
+
+    runtime = json.loads(output_path.read_text(encoding="utf-8"))
+    repo = runtime.get("repos", [])[0]
+    assert repo.get("active_pid_count") == 0
+    warnings = runtime.get("summary", {}).get("parse_warnings", [])
+    assert isinstance(warnings, list)
+    assert any("activity_scan[/tmp/repo-a].active_pid_count" in row for row in warnings)
+
+
 def test_non_string_source_run_ids_are_not_coerced(tmp_path: Path) -> None:
     payload = {
         "run_id": 101,

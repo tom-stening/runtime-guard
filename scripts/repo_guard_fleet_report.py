@@ -420,6 +420,8 @@ def _build_payload(
     include_wsl_diagnosis: bool,
     integration_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    parse_warnings: list[str] = []
+
     repos = list(enforcement.get("repos", []))
     repo_paths = [str(r.get("repo_path", "")) for r in repos]
 
@@ -429,7 +431,11 @@ def _build_payload(
     for repo in repos:
         repo_path = str(repo.get("repo_path", ""))
         status = str(repo.get("status", ""))
-        pid_count = int(activity_counts.get(repo_path, 0))
+        pid_count, pid_count_ok = _strict_non_negative_int(activity_counts.get(repo_path, 0))
+        if not pid_count_ok:
+            parse_warnings.append(
+                f"activity_scan[{repo_path}].active_pid_count must be a non-negative integer"
+            )
         runtime_repos.append(
             {
                 **repo,
@@ -441,8 +447,6 @@ def _build_payload(
 
     enforced_count = sum(1 for r in runtime_repos if r["is_enforced"])
     active_count = sum(1 for r in runtime_repos if r["is_active"])
-
-    parse_warnings: list[str] = []
 
     summary: dict[str, Any] = {
         "total_repos": len(runtime_repos),

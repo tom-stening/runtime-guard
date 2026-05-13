@@ -1093,4 +1093,42 @@ def test_build_payload_generates_uuid_for_non_string_run_id(tmp_path: Path, monk
     assert isinstance(run_id, str)
     assert run_id
     assert run_id != "123"
-    assert payload.get("summary", {}).get("run_id") == run_id
+
+
+def test_build_payload_counts_non_boolean_healthy_values_as_unhealthy(
+    tmp_path: Path, monkeypatch
+):
+    module = _load_module()
+
+    def _fake_run(repo_root, tool_name, script_name, extra_args, timeout_s, run_id=""):
+        return {
+            "tool": tool_name,
+            "healthy": "false",
+            "api_importable": True,
+            "required_checks_ok": True,
+            "source": "live",
+            "warnings": [],
+            "errors": [],
+        }
+
+    monkeypatch.setattr(module, "_run_validator", _fake_run)
+
+    payload = module._build_payload(
+        tmp_path,
+        timeout_s=1,
+        include_wsl_diagnosis=False,
+        polars_report=None,
+        dask_report=None,
+        ray_report=None,
+        fallback_on_pressure=False,
+        fallback_report_dir="reports",
+        max_fallback_report_age_hours=0,
+        run_id="ci-run-live",
+    )
+
+    summary = payload.get("summary", {})
+    assert summary.get("components_total") == 3
+    assert summary.get("components_healthy") == 0
+    assert summary.get("components_unhealthy") == 3
+    assert summary.get("overall_healthy") is False
+    assert payload.get("summary", {}).get("run_id") == "ci-run-live"

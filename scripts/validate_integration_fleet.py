@@ -921,10 +921,15 @@ def _build_payload(
             )
         )
 
+    components_healthy = sum(
+        1
+        for c in components
+        if isinstance(c.get("healthy"), bool) and c.get("healthy")
+    )
     summary: dict[str, Any] = {
         "components_total": len(components),
-        "components_healthy": sum(1 for c in components if bool(c.get("healthy", False))),
-        "components_unhealthy": sum(1 for c in components if not bool(c.get("healthy", False))),
+        "components_healthy": components_healthy,
+        "components_unhealthy": len(components) - components_healthy,
     }
     summary["overall_healthy"] = summary["components_unhealthy"] == 0
     summary["risk_level"] = _risk_level(components)

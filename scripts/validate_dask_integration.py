@@ -103,6 +103,18 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     return errors
 
 
+def _strict_bool_field(
+    payload: dict[str, Any],
+    key: str,
+    *,
+    default: bool = False,
+) -> tuple[bool, bool]:
+    value = payload.get(key, default)
+    if isinstance(value, bool):
+        return value, True
+    return default, False
+
+
 def _safe_git_commit(repo_root: Path) -> str:
     try:
         proc = subprocess.run(
@@ -362,7 +374,11 @@ def main() -> int:
         try:
             restore = attach_dask_guard(guard, stage=args.stage, module=dask_mod)
             re_validation = validate_dask_integration(guard, stage=args.stage, module=dask_mod)
-            hooks_installed = bool(re_validation.get("methods_wrapped"))
+            hooks_installed, hooks_ok = _strict_bool_field(re_validation, "methods_wrapped")
+            if not hooks_ok:
+                report["errors"].append(
+                    "hook validation returned non-boolean methods_wrapped field"
+                )
             report["hooks_installed"] = hooks_installed
             restore()
         except Exception as exc:
@@ -384,17 +400,27 @@ def main() -> int:
         report["task_graph_guard_api"] = guard_check
         if guard_check.get("errors"):
             report["errors"].extend(guard_check["errors"])
-        guard_check_ok = bool(guard_check.get("available", False))
+        guard_check_ok, guard_ok = _strict_bool_field(guard_check, "available")
+        if not guard_ok:
+            report["errors"].append(
+                "task graph guard API probe returned non-boolean available field"
+            )
 
     if args.check_scheduler_api:
         scheduler_check = _check_scheduler_api()
         report["scheduler_callback_api"] = scheduler_check
         if scheduler_check.get("errors"):
             report["errors"].extend(scheduler_check["errors"])
-        scheduler_check_ok = bool(scheduler_check.get("available", False))
+        scheduler_check_ok, scheduler_ok = _strict_bool_field(scheduler_check, "available")
+        if not scheduler_ok:
+            report["errors"].append(
+                "scheduler callback API probe returned non-boolean available field"
+            )
 
     # ---- 7. Determine pass/fail -------------------------------------------
-    ok = report.get("api_importable", False)
+    ok, api_ok = _strict_bool_field(report, "api_importable")
+    if not api_ok:
+        report["errors"].append("invalid report field: api_importable must be boolean")
     if args.require_hooks:
         ok = ok and hooks_installed
     if args.check_guard_api:

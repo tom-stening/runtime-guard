@@ -72,3 +72,17 @@ def test_validate_cli_configuration_accepts_valid_inputs() -> None:
         run_id = "ci-123"
 
     assert module._validate_cli_configuration(_Args()) == []
+
+
+def test_strict_bool_field_rejects_non_boolean_values() -> None:
+    module = _load_module()
+    value, ok = module._strict_bool_field({"available": "true"}, "available")
+    assert value is False
+    assert ok is False
+
+
+def test_strict_bool_field_accepts_boolean_values() -> None:
+    module = _load_module()
+    value, ok = module._strict_bool_field({"available": True}, "available")
+    assert value is True
+    assert ok is True

@@ -103,6 +103,18 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     return errors
 
 
+def _strict_bool_field(
+    payload: dict[str, Any],
+    key: str,
+    *,
+    default: bool = False,
+) -> tuple[bool, bool]:
+    value = payload.get(key, default)
+    if isinstance(value, bool):
+        return value, True
+    return default, False
+
+
 def _safe_git_commit(repo_root: Path) -> str:
     try:
         proc = subprocess.run(
@@ -328,7 +340,11 @@ def main() -> int:
         try:
             restore = attach_polars_guard(guard, stage=args.stage, module=polars_mod)
             re_validation = validate_polars_integration(guard, stage=args.stage, module=polars_mod)
-            hooks_installed = bool(re_validation.get("methods_wrapped"))
+            hooks_installed, hooks_ok = _strict_bool_field(re_validation, "methods_wrapped")
+            if not hooks_ok:
+                report["errors"].append(
+                    "hook validation returned non-boolean methods_wrapped field"
+                )
             report["hooks_installed"] = hooks_installed
             report["wrapped_methods"] = re_validation.get("wrapped_methods", [])
             restore()
@@ -352,17 +368,27 @@ def main() -> int:
         report["scan_budget_api"] = budget_check
         if budget_check.get("errors"):
             report["errors"].extend(budget_check["errors"])
-        budget_check_ok = bool(budget_check.get("available", False))
+        budget_check_ok, budget_ok = _strict_bool_field(budget_check, "available")
+        if not budget_ok:
+            report["errors"].append(
+                "scan budget API probe returned non-boolean available field"
+            )
 
     if args.check_callback_api:
         callback_check = _check_callback_api()
         report["native_callback_api"] = callback_check
         if callback_check.get("errors"):
             report["errors"].extend(callback_check["errors"])
-        callback_check_ok = bool(callback_check.get("available", False))
+        callback_check_ok, callback_ok = _strict_bool_field(callback_check, "available")
+        if not callback_ok:
+            report["errors"].append(
+                "native callback API probe returned non-boolean available field"
+            )
 
     # ---- 7. Determine pass/fail -------------------------------------------
-    ok = report.get("api_importable", False)
+    ok, api_ok = _strict_bool_field(report, "api_importable")
+    if not api_ok:
+        report["errors"].append("invalid report field: api_importable must be boolean")
     if args.require_hooks:
         ok = ok and hooks_installed
     if args.check_budget_api:

@@ -1037,7 +1037,14 @@ def main() -> int:
         print(rendered)
     else:
         summary = payload.get("summary", {})
-        status = "PASS" if summary.get("overall_healthy") else "FAIL"
+        if not isinstance(summary, dict):
+            print("error: summary must be an object", file=sys.stderr)
+            return 2
+        overall_healthy_raw = summary.get("overall_healthy", False)
+        if not isinstance(overall_healthy_raw, bool):
+            print("error: summary.overall_healthy must be boolean", file=sys.stderr)
+            return 2
+        status = "PASS" if overall_healthy_raw else "FAIL"
         healthy = summary.get("components_healthy", 0)
         total = summary.get("components_total", 0)
         risk = summary.get("risk_level", "unknown")
@@ -1047,7 +1054,16 @@ def main() -> int:
             comp_state = "ok" if comp.get("healthy") else "FAIL"
             print(f"  {comp_name}: {comp_state}")
 
-    if args.require_healthy and not payload.get("summary", {}).get("overall_healthy", False):
+    summary = payload.get("summary", {})
+    if not isinstance(summary, dict):
+        print("error: summary must be an object", file=sys.stderr)
+        return 2
+    overall_healthy_raw = summary.get("overall_healthy", False)
+    if not isinstance(overall_healthy_raw, bool):
+        print("error: summary.overall_healthy must be boolean", file=sys.stderr)
+        return 2
+
+    if args.require_healthy and not overall_healthy_raw:
         return 1
     return 0
 

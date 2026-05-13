@@ -1132,3 +1132,63 @@ def test_build_payload_counts_non_boolean_healthy_values_as_unhealthy(
     assert summary.get("components_unhealthy") == 3
     assert summary.get("overall_healthy") is False
     assert payload.get("summary", {}).get("run_id") == "ci-run-live"
+
+
+def test_main_returns_2_for_non_dict_summary(monkeypatch) -> None:
+    module = _load_module()
+
+    class _Args:
+        json = False
+        output = ""
+        require_healthy = False
+        include_wsl_diagnosis = False
+        timeout_s = 1
+        polars_report = None
+        dask_report = None
+        ray_report = None
+        fallback_on_pressure = False
+        fallback_report_dir = "reports"
+        run_id = ""
+        max_fallback_report_age_hours = 0
+        require_signed_report_inputs = False
+        verify_report_input_signatures = False
+        report_signature_public_key = ""
+        report_allowed_key_id: list[str] = []
+        max_report_signature_age_hours = 0
+
+    monkeypatch.setattr(module, "_build_parser", lambda: type("_P", (), {"parse_args": lambda self: _Args()})())
+    monkeypatch.setattr(module, "_build_payload", lambda *args, **kwargs: {"summary": []})
+
+    assert module.main() == 2
+
+
+def test_main_returns_2_for_non_boolean_overall_healthy(monkeypatch) -> None:
+    module = _load_module()
+
+    class _Args:
+        json = False
+        output = ""
+        require_healthy = True
+        include_wsl_diagnosis = False
+        timeout_s = 1
+        polars_report = None
+        dask_report = None
+        ray_report = None
+        fallback_on_pressure = False
+        fallback_report_dir = "reports"
+        run_id = ""
+        max_fallback_report_age_hours = 0
+        require_signed_report_inputs = False
+        verify_report_input_signatures = False
+        report_signature_public_key = ""
+        report_allowed_key_id: list[str] = []
+        max_report_signature_age_hours = 0
+
+    monkeypatch.setattr(module, "_build_parser", lambda: type("_P", (), {"parse_args": lambda self: _Args()})())
+    monkeypatch.setattr(
+        module,
+        "_build_payload",
+        lambda *args, **kwargs: {"summary": {"overall_healthy": "false"}, "components": []},
+    )
+
+    assert module.main() == 2

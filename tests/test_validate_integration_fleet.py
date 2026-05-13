@@ -213,6 +213,22 @@ def test_risk_level_rules():
     assert medium == "medium"
 
 
+def test_risk_level_fails_closed_on_non_boolean_component_fields():
+    module = _load_module()
+
+    risk = module._risk_level(
+        [
+            {
+                "healthy": "true",
+                "api_importable": "true",
+                "required_checks_ok": "true",
+            }
+        ]
+    )
+
+    assert risk == "high"
+
+
 def test_component_from_payload_marks_healthy_with_required_checks():
     module = _load_module()
     comp = module._component_from_payload(

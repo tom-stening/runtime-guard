@@ -794,12 +794,15 @@ def _component_from_report(
 
 
 def _risk_level(components: list[dict[str, Any]]) -> str:
-    if all(bool(c.get("healthy", False)) for c in components):
+    if all(isinstance(c.get("healthy"), bool) and c.get("healthy") for c in components):
         return "low"
 
-    if any(not bool(c.get("api_importable", False)) for c in components):
+    if any(not (isinstance(c.get("api_importable"), bool) and c.get("api_importable")) for c in components):
         return "high"
-    if any(not bool(c.get("required_checks_ok", False)) for c in components):
+    if any(
+        not (isinstance(c.get("required_checks_ok"), bool) and c.get("required_checks_ok"))
+        for c in components
+    ):
         return "high"
 
     # Otherwise unhealthy due to execution/reporting issues.

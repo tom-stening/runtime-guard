@@ -4823,9 +4823,42 @@ def make_worker_report(
 
 def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate worker reports from a process pool or job queue."""
+
+    def _worker_name(row: dict[str, Any], index: int) -> str:
+        worker_id = row.get("worker_id")
+        if isinstance(worker_id, str):
+            text = worker_id.strip()
+            if text:
+                return text
+        return f"unknown-worker-{index + 1}"
+
     total = len(reports)
-    pressured = [r for r in reports if bool(r.get("pressure"))]
-    critical = [r for r in pressured if str(r.get("severity", "")).lower() == "critical"]
+    pressured: list[dict[str, Any]] = []
+    critical: list[dict[str, Any]] = []
+    invalid_pressure_workers: list[str] = []
+    invalid_severity_workers: list[str] = []
+
+    for index, row in enumerate(reports):
+        worker_name = _worker_name(row, index)
+
+        pressure_raw = row.get("pressure", False)
+        if isinstance(pressure_raw, bool):
+            pressure = pressure_raw
+        else:
+            pressure = False
+            invalid_pressure_workers.append(worker_name)
+
+        severity_raw = row.get("severity", "")
+        if isinstance(severity_raw, str):
+            severity = severity_raw.strip().lower()
+        else:
+            severity = ""
+            invalid_severity_workers.append(worker_name)
+
+        if pressure:
+            pressured.append(row)
+            if severity == "critical":
+                critical.append(row)
 
     max_missing = 0
     max_swap = 0
@@ -4853,6 +4886,8 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "worst_severity": worst_severity,
         "max_missing_mem_mb": max_missing,
         "max_swap_used_pct": max_swap,
+        "invalid_pressure_workers": sorted(set(invalid_pressure_workers)),
+        "invalid_severity_workers": sorted(set(invalid_severity_workers)),
         "workers": reports,
     }
 

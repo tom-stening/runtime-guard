@@ -3830,6 +3830,34 @@ class TestMultiProcessOrchestration:
         assert summary["worst_severity"] == "critical"
         assert summary["max_missing_mem_mb"] == 900
         assert summary["max_swap_used_pct"] == 99
+        assert summary["invalid_pressure_workers"] == []
+        assert summary["invalid_severity_workers"] == []
+
+    def test_aggregate_worker_reports_fail_closed_on_non_boolean_pressure(self):
+        summary = aggregate_worker_reports(
+            [
+                {"worker_id": "a", "pressure": "false", "severity": "critical"},
+                {"worker_id": "b", "pressure": 1, "severity": "critical"},
+                {"worker_id": "c", "pressure": True, "severity": "critical"},
+            ]
+        )
+
+        assert summary["total_workers"] == 3
+        assert summary["pressured_workers"] == 1
+        assert summary["critical_workers"] == 1
+        assert summary["invalid_pressure_workers"] == ["a", "b"]
+
+    def test_aggregate_worker_reports_fail_closed_on_non_string_severity(self):
+        summary = aggregate_worker_reports(
+            [
+                {"worker_id": "a", "pressure": True, "severity": None},
+                {"worker_id": "b", "pressure": True, "severity": "critical"},
+            ]
+        )
+
+        assert summary["pressured_workers"] == 2
+        assert summary["critical_workers"] == 1
+        assert summary["invalid_severity_workers"] == ["a"]
 
     def test_runtime_guard_worker_wrappers(self, monkeypatch):
         guard = RuntimeGuard()

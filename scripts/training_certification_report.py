@@ -22,20 +22,82 @@ def _load_attendees(path: Path) -> list[dict[str, Any]]:
     return out
 
 
-def _passed(record: dict[str, Any], *, required_labs: int, min_score: float) -> bool:
-    labs_completed = int(record.get("labs_completed", 0) or 0)
-    capstone_submitted = bool(record.get("capstone_submitted", False))
-    framework_demo = bool(record.get("framework_demo", False))
-    automation_demo = bool(record.get("automation_demo", False))
-    score = float(record.get("assessment_score", 0.0) or 0.0)
+def _strict_non_negative_int(value: Any) -> tuple[int, bool]:
+    if isinstance(value, bool):
+        return 0, False
+    if isinstance(value, int) and value >= 0:
+        return value, True
+    return 0, False
 
-    return (
+
+def _strict_bool(value: Any) -> tuple[bool, bool]:
+    if isinstance(value, bool):
+        return value, True
+    return False, False
+
+
+def _strict_number(value: Any) -> tuple[float, bool]:
+    if isinstance(value, bool):
+        return 0.0, False
+    if isinstance(value, (int, float)):
+        return float(value), True
+    return 0.0, False
+
+
+def _evaluate_attendee(
+    record: dict[str, Any],
+    *,
+    required_labs: int,
+    min_score: float,
+) -> tuple[dict[str, Any], list[str]]:
+    errors: list[str] = []
+
+    labs_completed, labs_ok = _strict_non_negative_int(record.get("labs_completed", 0))
+    if not labs_ok:
+        errors.append("labs_completed must be a non-negative integer")
+
+    capstone_submitted, capstone_ok = _strict_bool(record.get("capstone_submitted", False))
+    if not capstone_ok:
+        errors.append("capstone_submitted must be boolean")
+
+    framework_demo, framework_ok = _strict_bool(record.get("framework_demo", False))
+    if not framework_ok:
+        errors.append("framework_demo must be boolean")
+
+    automation_demo, automation_ok = _strict_bool(record.get("automation_demo", False))
+    if not automation_ok:
+        errors.append("automation_demo must be boolean")
+
+    score, score_ok = _strict_number(record.get("assessment_score", 0.0))
+    if not score_ok:
+        errors.append("assessment_score must be numeric")
+
+    passed = (
         labs_completed >= required_labs
         and capstone_submitted
         and framework_demo
         and automation_demo
         and score >= min_score
+        and not errors
     )
+
+    return {
+        "passed": passed,
+        "labs_completed": labs_completed,
+        "assessment_score": score,
+        "capstone_submitted": capstone_submitted,
+        "framework_demo": framework_demo,
+        "automation_demo": automation_demo,
+    }, errors
+
+
+def _passed(record: dict[str, Any], *, required_labs: int, min_score: float) -> bool:
+    evaluated, _errors = _evaluate_attendee(
+        record,
+        required_labs=required_labs,
+        min_score=min_score,
+    )
+    return bool(evaluated.get("passed", False))
 
 
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
@@ -113,16 +175,21 @@ def main() -> int:
     results: list[dict[str, Any]] = []
     for idx, attendee in enumerate(attendees, start=1):
         name = str(attendee.get("name") or attendee.get("id") or f"attendee-{idx}").strip()
-        passed = _passed(attendee, required_labs=args.required_labs, min_score=args.min_score)
+        evaluated, validation_errors = _evaluate_attendee(
+            attendee,
+            required_labs=args.required_labs,
+            min_score=args.min_score,
+        )
         results.append(
             {
                 "name": name,
-                "passed": passed,
-                "labs_completed": int(attendee.get("labs_completed", 0) or 0),
-                "assessment_score": float(attendee.get("assessment_score", 0.0) or 0.0),
-                "capstone_submitted": bool(attendee.get("capstone_submitted", False)),
-                "framework_demo": bool(attendee.get("framework_demo", False)),
-                "automation_demo": bool(attendee.get("automation_demo", False)),
+                "passed": bool(evaluated.get("passed", False)),
+                "labs_completed": evaluated.get("labs_completed", 0),
+                "assessment_score": evaluated.get("assessment_score", 0.0),
+                "capstone_submitted": evaluated.get("capstone_submitted", False),
+                "framework_demo": evaluated.get("framework_demo", False),
+                "automation_demo": evaluated.get("automation_demo", False),
+                "validation_errors": validation_errors,
             }
         )
 

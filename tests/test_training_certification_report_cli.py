@@ -98,3 +98,43 @@ def test_training_report_passes_when_all_certified(tmp_path: Path):
     payload = json.loads(proc.stdout)
     assert payload["all_certified"] is True
     assert payload["pass_rate"] == 1.0
+
+
+def test_training_report_fails_closed_on_malformed_attendee_field_types(tmp_path: Path):
+    attendees = tmp_path / "attendees.json"
+    attendees.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "alice",
+                    "labs_completed": 5,
+                    "capstone_submitted": "false",
+                    "framework_demo": "true",
+                    "automation_demo": "true",
+                    "assessment_score": "95",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(_script_path()),
+            "--attendees",
+            str(attendees),
+            "--fail-on-gaps",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 1
+    payload = json.loads(proc.stdout)
+    assert payload["all_certified"] is False
+    assert payload["failed_attendees"] == 1
+    row = payload["attendees"][0]
+    assert row["passed"] is False
+    assert any("must be boolean" in err or "must be numeric" in err for err in row["validation_errors"])

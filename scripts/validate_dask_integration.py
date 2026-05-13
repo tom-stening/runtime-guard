@@ -84,6 +84,25 @@ def _normalize_run_id(value: Any) -> str:
     return ""
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    for field in ["json", "require_hooks", "check_guard_api", "check_scheduler_api"]:
+        value = getattr(args, field, False)
+        if not isinstance(value, bool):
+            errors.append(f"--{field.replace('_', '-')} flag must be boolean")
+
+    stage = getattr(args, "stage", "")
+    if not isinstance(stage, str) or not stage.strip():
+        errors.append("--stage must be a non-empty string")
+
+    run_id = getattr(args, "run_id", "")
+    if not isinstance(run_id, str):
+        errors.append("--run-id must be a string")
+
+    return errors
+
+
 def _safe_git_commit(repo_root: Path) -> str:
     try:
         proc = subprocess.run(
@@ -281,6 +300,13 @@ def _check_scheduler_api() -> dict[str, Any]:
 
 def main() -> int:
     args = _build_parser().parse_args()
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
+
     repo_root = Path(__file__).resolve().parent.parent
 
     report: dict[str, Any] = {

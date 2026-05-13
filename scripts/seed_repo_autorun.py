@@ -8,6 +8,7 @@ started from that repo automatically start RuntimeGuard background checks.
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from runtime_guard import make_sitecustomize_content
@@ -30,8 +31,45 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    repo_path = getattr(args, "repo_path", "")
+    if not isinstance(repo_path, str) or not repo_path.strip():
+        errors.append("--repo-path must be a non-empty string")
+
+    stage = getattr(args, "stage", "")
+    if not isinstance(stage, str) or not stage.strip():
+        errors.append("--stage must be a non-empty string")
+
+    for field in ["interval_s", "cooldown_s"]:
+        value = getattr(args, field, 0)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            errors.append(f"--{field.replace('_', '-')} must be a non-negative number")
+            continue
+        if value < 0:
+            errors.append(f"--{field.replace('_', '-')} must be a non-negative number")
+
+    env_prefix = getattr(args, "env_prefix", "")
+    if not isinstance(env_prefix, str) or not env_prefix.strip():
+        errors.append("--env-prefix must be a non-empty string")
+
+    force = getattr(args, "force", False)
+    if not isinstance(force, bool):
+        errors.append("--force flag must be boolean")
+
+    return errors
+
+
 def main() -> int:
     args = _parse_args()
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
+
     repo_path = Path(args.repo_path).expanduser().resolve()
     if not repo_path.is_dir():
         raise SystemExit(f"error: repo path does not exist: {repo_path}")

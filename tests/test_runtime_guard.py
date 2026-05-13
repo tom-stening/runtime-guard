@@ -3874,6 +3874,38 @@ class TestAuditLog:
         assert bad["ok"] is False
         assert bad["reason"] in {"event-hash-mismatch", "chain-hash-mismatch"}
 
+    def test_verify_audit_log_chain_rejects_non_object_rows(self, tmp_path):
+        path = tmp_path / "audit.log"
+        path.write_text('"not-an-object"\n', encoding="utf-8")
+
+        out = verify_audit_log_chain(str(path))
+        assert out["ok"] is False
+        assert out["reason"] == "invalid-row-type"
+
+    def test_verify_audit_log_chain_rejects_malformed_field_types(self, tmp_path):
+        path = tmp_path / "audit.log"
+        append_audit_log(str(path), {"n": 1})
+
+        lines = path.read_text(encoding="utf-8").splitlines()
+        row = json.loads(lines[0])
+
+        row["ts"] = "not-int"
+        lines[0] = json.dumps(row, separators=(",", ":"))
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        out = verify_audit_log_chain(str(path))
+        assert out["ok"] is False
+        assert out["reason"] == "invalid-ts-type"
+
+        row = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+        row["ts"] = 123
+        row["event_hash"] = 123
+        path.write_text(json.dumps(row, separators=(",", ":")) + "\n", encoding="utf-8")
+
+        out = verify_audit_log_chain(str(path))
+        assert out["ok"] is False
+        assert out["reason"] == "invalid-event-hash-type"
+
     def test_runtime_guard_audit_hash_algo_passthrough(self, tmp_path):
         guard = RuntimeGuard(log_tag="audit-test")
         out = guard.audit(_make_report(), path=str(tmp_path / "a.log"), hash_algo="sha384")

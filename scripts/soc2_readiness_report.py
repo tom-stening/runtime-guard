@@ -93,8 +93,13 @@ def main() -> int:
     else:
         print(rendered)
 
-    if args.fail_on_gaps and str(report.get("status", "")).strip().lower() != "ready":
-        return 1
+    if args.fail_on_gaps:
+        status = report.get("status", "")
+        if not isinstance(status, str):
+            print("error: report status must be a string", file=sys.stderr)
+            return 2
+        if status.strip().lower() != "ready":
+            return 1
 
     return 0
 

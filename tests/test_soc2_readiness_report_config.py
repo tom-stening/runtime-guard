@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import sys
 from pathlib import Path
@@ -59,3 +60,51 @@ def test_validate_cli_configuration_accepts_valid_values() -> None:
         fail_on_gaps = True
 
     assert module._validate_cli_configuration(_Args()) == []
+
+
+def test_main_rejects_non_string_report_status_for_fail_on_gaps(tmp_path, monkeypatch, capsys) -> None:
+    module = _load_module()
+
+    controls = tmp_path / "controls.json"
+    evidence = tmp_path / "evidence.json"
+    controls.write_text("{}\n", encoding="utf-8")
+    evidence.write_text("{}\n", encoding="utf-8")
+
+    args = argparse.Namespace(
+        controls=str(controls),
+        required_controls=None,
+        evidence=str(evidence),
+        output=None,
+        fail_on_gaps=True,
+    )
+
+    monkeypatch.setattr(module.argparse.ArgumentParser, "parse_args", lambda self: args)
+    monkeypatch.setattr(module, "soc2_readiness_report", lambda *_args, **_kwargs: {"status": 7})
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: report status must be a string" in captured.err
+
+
+def test_main_returns_one_when_status_not_ready(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+
+    controls = tmp_path / "controls.json"
+    evidence = tmp_path / "evidence.json"
+    controls.write_text("{}\n", encoding="utf-8")
+    evidence.write_text("{}\n", encoding="utf-8")
+
+    args = argparse.Namespace(
+        controls=str(controls),
+        required_controls=None,
+        evidence=str(evidence),
+        output=None,
+        fail_on_gaps=True,
+    )
+
+    monkeypatch.setattr(module.argparse.ArgumentParser, "parse_args", lambda self: args)
+    monkeypatch.setattr(module, "soc2_readiness_report", lambda *_args, **_kwargs: {"status": "needs-work"})
+
+    assert module.main() == 1

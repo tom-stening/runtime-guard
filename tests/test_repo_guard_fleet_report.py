@@ -32,6 +32,26 @@ def _run_script(tmp_path: Path, enforcement_payload: dict[str, object], *args: s
     )
 
 
+def _run_script_with_paths(enforcement_path: Path, output_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    script = Path("scripts/repo_guard_fleet_report.py").resolve()
+    return subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--enforcement-report",
+            str(enforcement_path),
+            "--output",
+            str(output_path),
+            *args,
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        text=True,
+        capture_output=True,
+        check=False,
+        env=os.environ.copy(),
+    )
+
+
 def _load_module():
     repo_root = Path(__file__).resolve().parent.parent
     script_path = repo_root / "scripts" / "repo_guard_fleet_report.py"
@@ -533,3 +553,38 @@ def test_non_string_source_run_ids_are_not_coerced(tmp_path: Path) -> None:
     source_ids = runtime.get("source_run_ids", {})
     assert source_ids.get("repo_guard_enforcement") == ""
     assert source_ids.get("integration_fleet_status") == "101"
+
+
+def test_invalid_enforcement_report_exits_with_config_error(tmp_path: Path) -> None:
+    enforcement_path = tmp_path / "enforcement.json"
+    enforcement_path.write_text("{not json", encoding="utf-8")
+    output_path = tmp_path / "runtime.json"
+
+    result = _run_script_with_paths(enforcement_path, output_path, "--no-proc-scan")
+
+    assert result.returncode == 2
+    assert "unable to read enforcement report" in result.stderr
+
+
+def test_invalid_integration_report_is_ignored_with_parse_warning(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ]
+    }
+    integration_path = tmp_path / "integration.json"
+    integration_path.write_text("{not json", encoding="utf-8")
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--integration-report",
+        str(integration_path),
+    )
+
+    assert result.returncode == 0, result.stderr
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    warnings = runtime.get("summary", {}).get("parse_warnings", [])
+    assert isinstance(warnings, list)
+    assert any("unable to read integration report" in row for row in warnings)

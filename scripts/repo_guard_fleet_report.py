@@ -108,8 +108,14 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+def _load_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return None, str(exc)
+    if not isinstance(parsed, dict):
+        return None, "report payload must be a JSON object"
+    return parsed, None
 
 
 def _cwd_in_repo(cwd: str, repo_path: str) -> bool:
@@ -598,16 +604,27 @@ def main() -> int:
     if not enforcement_path.exists():
         raise SystemExit(f"error: enforcement report not found: {enforcement_path}")
 
-    enforcement = _load_json(enforcement_path)
+    enforcement, enforcement_error = _load_json(enforcement_path)
+    if enforcement_error is not None or not isinstance(enforcement, dict):
+        print(
+            f"error: unable to read enforcement report {enforcement_path}: {enforcement_error or 'unknown error'}",
+            file=sys.stderr,
+        )
+        return 2
 
     integration_payload: dict[str, Any] | None = None
+    integration_parse_warning = ""
     integration_path = Path(args.integration_report)
     if not integration_path.is_absolute():
         integration_path = Path.cwd() / integration_path
     if integration_path.exists():
-        loaded = _load_json(integration_path)
+        loaded, integration_error = _load_json(integration_path)
         if isinstance(loaded, dict):
             integration_payload = loaded
+        elif integration_error:
+            integration_parse_warning = (
+                f"unable to read integration report {integration_path}: {integration_error}"
+            )
 
     payload = _build_payload(
         enforcement,
@@ -617,6 +634,12 @@ def main() -> int:
     )
 
     summary = payload.get("summary", {})
+    if integration_parse_warning and isinstance(summary, dict):
+        warnings = summary.get("parse_warnings", [])
+        if not isinstance(warnings, list):
+            warnings = [str(warnings)]
+        warnings.append(integration_parse_warning)
+        summary["parse_warnings"] = warnings
     run_id = _normalize_run_id(args.run_id)
     if not run_id:
         run_id = str(uuid.uuid4())

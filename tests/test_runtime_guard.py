@@ -635,6 +635,44 @@ class TestWslRuntimeContext:
         assert any("3500 MB" in row for row in causes)
         assert prevention
 
+    def test_derive_guest_pressure_offender_hints_handles_non_numeric_metrics(self):
+        from runtime_guard import _derive_guest_pressure_offender_hints
+
+        causes, prevention = _derive_guest_pressure_offender_hints(
+            {
+                "guest_mem_available_mb": "bad",
+                "guest_swap_used_pct": "bad",
+                "psi_full_avg10": "bad",
+                "psi_some_avg10": "bad",
+                "guest_top_memory_processes": [
+                    {"pid": 1, "rss_mb": 900, "command": "python worker.py"},
+                ],
+            }
+        )
+
+        assert any("top guest RSS offenders" in row for row in causes)
+        assert prevention
+
+    def test_derive_guest_pressure_offender_hints_rejects_non_typed_rows(self):
+        from runtime_guard import _derive_guest_pressure_offender_hints
+
+        causes, prevention = _derive_guest_pressure_offender_hints(
+            {
+                "guest_mem_available_mb": 1000,
+                "guest_swap_used_pct": 80,
+                "psi_full_avg10": 11.0,
+                "psi_some_avg10": 21.0,
+                "guest_top_memory_processes": [
+                    {"pid": "1", "rss_mb": "900", "command": "python worker.py"},
+                    {"pid": 2, "rss_mb": True, "command": "tsserver"},
+                    {"pid": 3, "rss_mb": 700, "command": 123},
+                ],
+            }
+        )
+
+        assert not any("top guest RSS offenders" in row for row in causes)
+        assert prevention
+
 
 class TestDiagnoseWslCrash:
     def test_diagnose_wsl_crash_includes_top_processes_and_runtime_context(self, monkeypatch):

@@ -5919,6 +5919,20 @@ def _derive_guest_pressure_offender_hints(metrics: dict[str, Any]) -> tuple[list
     causes: list[str] = []
     prevention: list[str] = []
 
+    def _metric_int(name: str, default: int = 0) -> int:
+        raw = metrics.get(name, default)
+        if isinstance(raw, int) and not isinstance(raw, bool):
+            return raw
+        return default
+
+    def _metric_float(name: str, default: float = 0.0) -> float:
+        raw = metrics.get(name, default)
+        if isinstance(raw, bool):
+            return default
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        return default
+
     rows_raw = metrics.get("guest_top_memory_processes", [])
     if not isinstance(rows_raw, list):
         return causes, prevention
@@ -5932,10 +5946,10 @@ def _derive_guest_pressure_offender_hints(metrics: dict[str, Any]) -> tuple[list
         return causes, prevention
 
     pressure_like = (
-        int(metrics.get("guest_mem_available_mb", 0) or 0) < 2048
-        or int(metrics.get("guest_swap_used_pct", 0) or 0) >= 70
-        or float(metrics.get("psi_full_avg10", 0.0) or 0.0) >= 5
-        or float(metrics.get("psi_some_avg10", 0.0) or 0.0) >= 10
+        _metric_int("guest_mem_available_mb", 0) < 2048
+        or _metric_int("guest_swap_used_pct", 0) >= 70
+        or _metric_float("psi_full_avg10", 0.0) >= 5
+        or _metric_float("psi_some_avg10", 0.0) >= 10
     )
     if not pressure_like:
         return causes, prevention
@@ -5943,12 +5957,23 @@ def _derive_guest_pressure_offender_hints(metrics: dict[str, Any]) -> tuple[list
     top_rows = rows[:3]
     offenders = []
     for row in top_rows:
-        try:
-            pid = int(row.get("pid", 0) or 0)
-            rss_mb = int(row.get("rss_mb", 0) or 0)
-        except Exception:
+        pid_raw = row.get("pid", 0)
+        rss_raw = row.get("rss_mb", 0)
+        if (
+            not isinstance(pid_raw, int)
+            or isinstance(pid_raw, bool)
+            or pid_raw <= 0
+            or not isinstance(rss_raw, int)
+            or isinstance(rss_raw, bool)
+            or rss_raw < 0
+        ):
             continue
-        cmd = str(row.get("command", "")).strip()
+        pid = pid_raw
+        rss_mb = rss_raw
+        cmd_raw = row.get("command", "")
+        if not isinstance(cmd_raw, str):
+            continue
+        cmd = cmd_raw.strip()
         if not cmd:
             continue
         if len(cmd) > 96:
@@ -5958,7 +5983,11 @@ def _derive_guest_pressure_offender_hints(metrics: dict[str, Any]) -> tuple[list
     if offenders:
         causes.append("top guest RSS offenders are consuming significant memory: " + "; ".join(offenders))
 
-    commands = "\n".join(str(r.get("command", "")).lower() for r in top_rows)
+    commands = "\n".join(
+        row.get("command", "").lower()
+        for row in top_rows
+        if isinstance(row.get("command", ""), str)
+    )
     if "vscode-server" in commands or "extensionhost" in commands:
         prevention.append("close idle VS Code windows/workspaces to reduce extension host memory pressure")
     if "pylance" in commands or "server.bundle.js" in commands:

@@ -588,3 +588,32 @@ def test_invalid_integration_report_is_ignored_with_parse_warning(tmp_path: Path
     warnings = runtime.get("summary", {}).get("parse_warnings", [])
     assert isinstance(warnings, list)
     assert any("unable to read integration report" in row for row in warnings)
+
+
+def test_invalid_integration_report_triggers_fail_on_integration_unhealthy(tmp_path: Path) -> None:
+    payload = {
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ]
+    }
+    integration_path = tmp_path / "integration.json"
+    integration_path.write_text("{not json", encoding="utf-8")
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--integration-report",
+        str(integration_path),
+        "--fail-on-integration-unhealthy",
+    )
+
+    assert result.returncode == 1
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    assert runtime.get("summary", {}).get("integration_overall_healthy") is False
+    failed = [
+        row
+        for row in runtime.get("failed_gates", [])
+        if isinstance(row, dict) and row.get("gate") == "fail-on-integration-unhealthy"
+    ]
+    assert failed

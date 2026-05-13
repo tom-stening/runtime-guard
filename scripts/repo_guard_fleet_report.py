@@ -640,6 +640,8 @@ def main() -> int:
             warnings = [str(warnings)]
         warnings.append(integration_parse_warning)
         summary["parse_warnings"] = warnings
+        # Fail closed: malformed integration input must not be treated as healthy/unknown.
+        summary["integration_overall_healthy"] = False
     run_id = _normalize_run_id(args.run_id)
     if not run_id:
         run_id = str(uuid.uuid4())

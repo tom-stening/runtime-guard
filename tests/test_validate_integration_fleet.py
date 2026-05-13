@@ -122,6 +122,53 @@ def test_validate_cli_configuration_rejects_negative_age_policies():
     assert any("--max-fallback-report-age-hours" in row for row in errors)
 
 
+def test_validate_cli_configuration_rejects_non_boolean_policy_flags() -> None:
+    module = _load_module()
+
+    class _Args:
+        verify_report_input_signatures = "true"  # type: ignore[assignment]
+        require_signed_report_inputs = 1  # type: ignore[assignment]
+        report_signature_public_key = "/tmp/public.pem"
+        report_allowed_key_id: list[str] = []
+        max_report_signature_age_hours = 0
+        max_fallback_report_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--verify-report-input-signatures flag must be boolean" in row for row in errors)
+    assert any("--require-signed-report-inputs flag must be boolean" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_non_integer_age_policy_types() -> None:
+    module = _load_module()
+
+    class _Args:
+        verify_report_input_signatures = False
+        require_signed_report_inputs = False
+        report_signature_public_key = ""
+        report_allowed_key_id: list[str] = []
+        max_report_signature_age_hours = "4"  # type: ignore[assignment]
+        max_fallback_report_age_hours = 2.5  # type: ignore[assignment]
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--max-report-signature-age-hours must be a non-negative integer" in row for row in errors)
+    assert any("--max-fallback-report-age-hours must be a non-negative integer" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_non_string_allowed_key_ids() -> None:
+    module = _load_module()
+
+    class _Args:
+        verify_report_input_signatures = True
+        require_signed_report_inputs = True
+        report_signature_public_key = "/tmp/public.pem"
+        report_allowed_key_id = ["trusted-key", 42]  # type: ignore[list-item]
+        max_report_signature_age_hours = 0
+        max_fallback_report_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--report-allowed-key-id values must be strings" in row for row in errors)
+
+
 def test_summarize_validator_stderr_filters_pressure_event_json_lines():
     module = _load_module()
     stderr = (

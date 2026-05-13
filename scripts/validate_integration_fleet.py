@@ -125,16 +125,59 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     errors: list[str] = []
-    verify_signatures = bool(getattr(args, "verify_report_input_signatures", False))
-    require_signed = bool(getattr(args, "require_signed_report_inputs", False))
-    public_key = str(getattr(args, "report_signature_public_key", "") or "").strip()
-    allowed_key_ids = [
-        str(key_id).strip()
-        for key_id in list(getattr(args, "report_allowed_key_id", []) or [])
-        if str(key_id).strip()
-    ]
-    max_signature_age_hours = int(getattr(args, "max_report_signature_age_hours", 0) or 0)
-    max_fallback_report_age_hours = int(getattr(args, "max_fallback_report_age_hours", 0) or 0)
+    verify_signatures_raw = getattr(args, "verify_report_input_signatures", False)
+    if isinstance(verify_signatures_raw, bool):
+        verify_signatures = verify_signatures_raw
+    else:
+        verify_signatures = False
+        errors.append("--verify-report-input-signatures flag must be boolean")
+
+    require_signed_raw = getattr(args, "require_signed_report_inputs", False)
+    if isinstance(require_signed_raw, bool):
+        require_signed = require_signed_raw
+    else:
+        require_signed = False
+        errors.append("--require-signed-report-inputs flag must be boolean")
+
+    public_key_raw = getattr(args, "report_signature_public_key", "")
+    if isinstance(public_key_raw, str):
+        public_key = public_key_raw.strip()
+    else:
+        public_key = ""
+        errors.append("--report-signature-public-key must be a string path")
+
+    allowed_key_ids_raw = getattr(args, "report_allowed_key_id", [])
+    allowed_key_ids: list[str] = []
+    if allowed_key_ids_raw is None:
+        allowed_key_ids_raw = []
+    if not isinstance(allowed_key_ids_raw, list):
+        errors.append("--report-allowed-key-id values must be strings")
+    else:
+        for key_id in allowed_key_ids_raw:
+            if not isinstance(key_id, str):
+                errors.append("--report-allowed-key-id values must be strings")
+                continue
+            key = key_id.strip()
+            if key:
+                allowed_key_ids.append(key)
+
+    max_signature_age_hours_raw = getattr(args, "max_report_signature_age_hours", 0)
+    if isinstance(max_signature_age_hours_raw, int) and not isinstance(
+        max_signature_age_hours_raw, bool
+    ):
+        max_signature_age_hours = max_signature_age_hours_raw
+    else:
+        max_signature_age_hours = 0
+        errors.append("--max-report-signature-age-hours must be a non-negative integer")
+
+    max_fallback_report_age_hours_raw = getattr(args, "max_fallback_report_age_hours", 0)
+    if isinstance(max_fallback_report_age_hours_raw, int) and not isinstance(
+        max_fallback_report_age_hours_raw, bool
+    ):
+        max_fallback_report_age_hours = max_fallback_report_age_hours_raw
+    else:
+        max_fallback_report_age_hours = 0
+        errors.append("--max-fallback-report-age-hours must be a non-negative integer")
 
     if max_fallback_report_age_hours < 0:
         errors.append("--max-fallback-report-age-hours must be greater than or equal to 0")

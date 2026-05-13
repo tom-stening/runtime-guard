@@ -311,7 +311,13 @@ def _component_from_payload(
     if isinstance(payload_errors, list):
         warning_rows.extend(str(item) for item in payload_errors if str(item).strip())
 
-    effective_exit_code = 0 if exit_code is None else int(exit_code)
+    effective_exit_code = 0
+    if exit_code is not None:
+        if isinstance(exit_code, int) and not isinstance(exit_code, bool):
+            effective_exit_code = exit_code
+        else:
+            errors.append("validator exit_code must be an integer")
+            effective_exit_code = 1
     if effective_exit_code != 0:
         errors.append(f"validator exited non-zero: {effective_exit_code}")
 

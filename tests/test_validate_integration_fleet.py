@@ -365,6 +365,30 @@ def test_component_from_payload_rejects_string_booleans_for_health_fields():
     assert any("scheduler_callback_api check failed" in err for err in comp["errors"])
 
 
+def test_component_from_payload_rejects_non_integer_exit_code():
+    module = _load_module()
+    comp = module._component_from_payload(
+        "ray",
+        {
+            "ok": True,
+            "api_importable": True,
+            "actor_monitoring_api": {
+                "available": True,
+                "hotspot_fields_present": True,
+            },
+        },
+        source="report",
+        command=None,
+        exit_code="1",  # type: ignore[arg-type]
+        hard_errors=[],
+        warnings=[],
+    )
+
+    assert comp["healthy"] is False
+    assert comp["exit_code"] == 1
+    assert any("validator exit_code must be an integer" in err for err in comp["errors"])
+
+
 def test_component_from_report_invalid_file(tmp_path: Path):
     module = _load_module()
     bad = tmp_path / "bad.json"

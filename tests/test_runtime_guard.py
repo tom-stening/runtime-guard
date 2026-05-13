@@ -4429,6 +4429,33 @@ class TestCLI:
         code, _ = self._run_cli("--verify-audit-log", "audit.log")
         assert code == 1
 
+    def test_verify_audit_log_exits_2_on_non_boolean_ok_result(self, monkeypatch):
+        monkeypatch.setattr(
+            "runtime_guard.verify_audit_log_chain",
+            lambda path: {"ok": "true", "records": 2},
+        )
+        code, stderr = self._run_cli("--verify-audit-log", "audit.log")
+        assert code == 2
+        assert "'ok' must be boolean" in stderr
+
+    def test_verify_audit_log_exits_2_on_invalid_records_type(self, monkeypatch):
+        monkeypatch.setattr(
+            "runtime_guard.verify_audit_log_chain",
+            lambda path: {"ok": True, "records": "2"},
+        )
+        code, stderr = self._run_cli("--verify-audit-log", "audit.log")
+        assert code == 2
+        assert "'records' must be a non-negative integer" in stderr
+
+    def test_verify_audit_log_exits_2_on_invalid_reason_or_line_type(self, monkeypatch):
+        monkeypatch.setattr(
+            "runtime_guard.verify_audit_log_chain",
+            lambda path: {"ok": False, "reason": 123, "line": "4"},
+        )
+        code, stderr = self._run_cli("--verify-audit-log", "audit.log")
+        assert code == 2
+        assert "'reason' must be a string" in stderr
+
     def test_check_uses_policy_file_overrides(self, monkeypatch, tmp_path):
         policy = tmp_path / "policy.json"
         policy.write_text(

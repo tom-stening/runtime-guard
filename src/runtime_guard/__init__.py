@@ -6780,13 +6780,43 @@ def _cli() -> None:  # pragma: no cover
 
     if args.verify_audit_log:
         result = verify_audit_log_chain(args.verify_audit_log)
-        if bool(result.get("ok")):
-            records = int(result.get("records", 0) or 0)
+        ok_value = result.get("ok")
+        if not isinstance(ok_value, bool):
+            print(
+                "[RuntimeGuard] Invalid verify-audit-log result: 'ok' must be boolean",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+
+        if ok_value:
+            records_value = result.get("records", 0)
+            if not isinstance(records_value, int) or isinstance(records_value, bool) or records_value < 0:
+                print(
+                    "[RuntimeGuard] Invalid verify-audit-log result: 'records' must be a non-negative integer",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            records = records_value
             print(f"[RuntimeGuard] Audit chain OK ({records} record(s))")
             sys.exit(0)
 
-        reason = str(result.get("reason", "unknown"))
-        line = int(result.get("line", 0) or 0)
+        reason_value = result.get("reason", "unknown")
+        if not isinstance(reason_value, str):
+            print(
+                "[RuntimeGuard] Invalid verify-audit-log result: 'reason' must be a string",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        reason = reason_value.strip() or "unknown"
+
+        line_value = result.get("line", 0)
+        if not isinstance(line_value, int) or isinstance(line_value, bool) or line_value < 0:
+            print(
+                "[RuntimeGuard] Invalid verify-audit-log result: 'line' must be a non-negative integer",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        line = line_value
         print(
             f"[RuntimeGuard] Audit chain FAILED at line {line}: {reason}",
             file=sys.stderr,

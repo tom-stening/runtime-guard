@@ -69,6 +69,28 @@ def _normalize_records(
     return normalized, warnings
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    input_path = getattr(args, "input", "")
+    if not isinstance(input_path, str) or not input_path.strip():
+        errors.append("--input must be a non-empty string path")
+
+    output_path = getattr(args, "output", None)
+    if output_path is not None and not isinstance(output_path, str):
+        errors.append("--output must be a string path")
+
+    strict = getattr(args, "strict", False)
+    if not isinstance(strict, bool):
+        errors.append("--strict flag must be boolean")
+
+    success_stage = getattr(args, "success_stage", "")
+    if not isinstance(success_stage, str) or not success_stage.strip():
+        errors.append("--success-stage must be a non-empty string")
+
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build runtime-guard adoption scorecard")
     parser.add_argument("--input", required=True, help="Path to JSON array of team records")
@@ -85,9 +107,15 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
+
     try:
         records = _load_records(Path(args.input))
-        records, warnings = _normalize_records(records, strict=bool(args.strict))
+        records, warnings = _normalize_records(records, strict=args.strict)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

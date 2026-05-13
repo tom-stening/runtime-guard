@@ -153,6 +153,13 @@ def _build_signature_envelope(artifact_sha256: str) -> dict[str, str]:
     }
 
 
+def _extract_signature_artifact_sha256(provenance: dict[str, Any]) -> tuple[str, bool]:
+    artifact_sha256 = provenance.get("artifact_sha256")
+    if not isinstance(artifact_sha256, str):
+        return "", False
+    return artifact_sha256, True
+
+
 def _check_actor_api() -> dict[str, Any]:
     """Verify the actor memory monitoring API surface is present and callable."""
     result: dict[str, Any] = {
@@ -344,7 +351,11 @@ def main() -> int:
     _stamp_artifact_sha256(report)
     provenance = report.get("provenance")
     if isinstance(provenance, dict):
-        provenance["signature"] = _build_signature_envelope(str(provenance.get("artifact_sha256") or ""))
+        artifact_sha256, artifact_sha256_ok = _extract_signature_artifact_sha256(provenance)
+        if not artifact_sha256_ok:
+            print("error: provenance.artifact_sha256 must be a string", file=sys.stderr)
+            return 2
+        provenance["signature"] = _build_signature_envelope(artifact_sha256)
 
     # ---- 8. Emit output ---------------------------------------------------
     if args.json:

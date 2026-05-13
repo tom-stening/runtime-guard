@@ -91,3 +91,17 @@ def test_strict_bool_field_accepts_boolean_values() -> None:
     value, ok = module._strict_bool_field({"available": True}, "available")
     assert value is True
     assert ok is True
+
+
+def test_extract_signature_artifact_sha256_rejects_non_string() -> None:
+    module = _load_module()
+    value, ok = module._extract_signature_artifact_sha256({"artifact_sha256": 123})
+    assert value == ""
+    assert ok is False
+
+
+def test_extract_signature_artifact_sha256_accepts_string() -> None:
+    module = _load_module()
+    value, ok = module._extract_signature_artifact_sha256({"artifact_sha256": "abc"})
+    assert value == "abc"
+    assert ok is True

@@ -257,6 +257,20 @@ def test_validate_cli_configuration_rejects_invalid_wsl_threshold_type() -> None
     assert any("--fail-on-wsl-risk must be one of: moderate, high, critical" in row for row in errors)
 
 
+def test_extract_signature_artifact_sha256_rejects_non_string() -> None:
+    module = _load_module()
+    value, ok = module._extract_signature_artifact_sha256({"artifact_sha256": 123})
+    assert value == ""
+    assert ok is False
+
+
+def test_extract_signature_artifact_sha256_accepts_string() -> None:
+    module = _load_module()
+    value, ok = module._extract_signature_artifact_sha256({"artifact_sha256": "abc"})
+    assert value == "abc"
+    assert ok is True
+
+
 def test_build_recommendations_ignores_non_list_prevention_actions_and_fails_closed() -> None:
     module = _load_module()
     recs = module._build_recommendations(

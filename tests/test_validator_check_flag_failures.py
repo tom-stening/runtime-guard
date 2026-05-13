@@ -104,3 +104,16 @@ def test_validate_ray_json_emits_provenance_and_run_id(monkeypatch, capsys):
         payload["provenance"]["signature"]["signed_value"]
         == payload["provenance"]["artifact_sha256"]
     )
+
+
+def test_validator_run_id_normalizers_reject_non_string_inputs():
+    polars = _load_script("validate_polars_integration", "validate_polars_integration.py")
+    dask = _load_script("validate_dask_integration", "validate_dask_integration.py")
+    ray = _load_script("validate_ray_integration", "validate_ray_integration.py")
+
+    assert polars._normalize_run_id(123) == ""
+    assert dask._normalize_run_id(["ci-1"]) == ""
+    assert ray._normalize_run_id({"run_id": "ci-1"}) == ""
+    assert polars._normalize_run_id("  ci-polars  ") == "ci-polars"
+    assert dask._normalize_run_id("  ci-dask  ") == "ci-dask"
+    assert ray._normalize_run_id("  ci-ray  ") == "ci-ray"

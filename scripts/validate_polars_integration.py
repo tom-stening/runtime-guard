@@ -78,6 +78,12 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _normalize_run_id(value: Any) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return ""
+
+
 def _safe_git_commit(repo_root: Path) -> str:
     try:
         proc = subprocess.run(
@@ -339,13 +345,14 @@ def main() -> int:
         ok = ok and callback_check_ok
 
     report["ok"] = ok
-    report["run_id"] = str(args.run_id or "").strip()
+    run_id = _normalize_run_id(args.run_id)
+    report["run_id"] = run_id
     report["provenance"] = {
         "schema_version": 1,
         "tool": "validate_polars_integration",
         "script": str(Path(__file__).resolve()),
         "generated_at_utc": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "run_id": str(args.run_id or "").strip(),
+        "run_id": run_id,
         "git_commit": _safe_git_commit(repo_root),
         "inputs": {
             "check_budget_api": bool(args.check_budget_api),

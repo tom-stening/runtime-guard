@@ -162,6 +162,24 @@ def _validate_enforcement_payload(enforcement: dict[str, Any]) -> str | None:
     for index, row in enumerate(repos):
         if not isinstance(row, dict):
             return f"enforcement report field 'repos[{index}]' must be an object"
+        repo_path = row.get("repo_path")
+        if not isinstance(repo_path, str) or not repo_path.strip():
+            return (
+                f"enforcement report field 'repos[{index}].repo_path' "
+                "must be a non-empty string"
+            )
+        repo_name = row.get("repo_name")
+        if not isinstance(repo_name, str) or not repo_name.strip():
+            return (
+                f"enforcement report field 'repos[{index}].repo_name' "
+                "must be a non-empty string"
+            )
+        status = row.get("status")
+        if not isinstance(status, str) or not status.strip():
+            return (
+                f"enforcement report field 'repos[{index}].status' "
+                "must be a non-empty string"
+            )
     return None
 
 

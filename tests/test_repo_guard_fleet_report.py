@@ -738,6 +738,31 @@ def test_enforcement_report_with_non_string_status_exits_with_config_error(tmp_p
     assert "field 'repos[0].status' must be a non-empty string" in result.stderr
 
 
+def test_enforcement_report_with_unknown_status_exits_with_config_error(tmp_path: Path) -> None:
+    enforcement_path = tmp_path / "enforcement.json"
+    enforcement_path.write_text(
+        json.dumps(
+            {
+                "repos": [
+                    {
+                        "repo_path": "/tmp/repo-a",
+                        "repo_name": "repo-a",
+                        "status": "mystery_status",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "runtime.json"
+
+    result = _run_script_with_paths(enforcement_path, output_path, "--no-proc-scan")
+
+    assert result.returncode == 2
+    assert "invalid enforcement report" in result.stderr
+    assert "field 'repos[0].status' must be one of:" in result.stderr
+
+
 def test_invalid_integration_report_is_ignored_with_parse_warning(tmp_path: Path) -> None:
     payload = {
         "repos": [

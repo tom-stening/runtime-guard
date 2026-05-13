@@ -26,6 +26,13 @@ from runtime_guard import diagnose_wsl_crash
 
 
 _ENFORCED_STATES = {"enforced", "already_enforced"}
+_ALLOWED_ENFORCEMENT_STATES = {
+    "enforced",
+    "already_enforced",
+    "blocked_existing_sitecustomize",
+    "dry_run_candidate",
+    "watcher_only_candidate",
+}
 
 
 def _parse_args() -> argparse.Namespace:
@@ -179,6 +186,11 @@ def _validate_enforcement_payload(enforcement: dict[str, Any]) -> str | None:
             return (
                 f"enforcement report field 'repos[{index}].status' "
                 "must be a non-empty string"
+            )
+        if status.strip() not in _ALLOWED_ENFORCEMENT_STATES:
+            return (
+                f"enforcement report field 'repos[{index}].status' must be one of: "
+                f"{', '.join(sorted(_ALLOWED_ENFORCEMENT_STATES))}"
             )
     return None
 

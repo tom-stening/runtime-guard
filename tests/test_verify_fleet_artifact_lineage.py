@@ -433,6 +433,82 @@ def test_build_result_fails_on_hash_or_run_id_mismatch(tmp_path: Path):
     assert any("source hash mismatch" in row for row in result["errors"])
 
 
+def test_build_result_rejects_non_string_runtime_source_hash_values(tmp_path: Path):
+    module = _load_module()
+
+    enforcement_path = tmp_path / "repo_guard_enforcement.json"
+    integration_path = tmp_path / "integration_fleet_status.json"
+    runtime_path = tmp_path / "repo_guard_runtime_status.json"
+
+    enforcement = _stamp_signature_envelope(_stamp_artifact_sha256(
+        {
+            "run_id": "ci-1",
+            "provenance": {
+                "schema_version": 1,
+                "tool": "enforce_runtime_guard_all_repos",
+                "generated_at_utc": "2026-05-12T00:00:00Z",
+                "run_id": "ci-1",
+                "inputs": {},
+            },
+        }
+    ))
+    integration = _stamp_signature_envelope(_stamp_artifact_sha256(
+        {
+            "run_id": "ci-1",
+            "provenance": {
+                "schema_version": 1,
+                "tool": "validate_integration_fleet",
+                "generated_at_utc": "2026-05-12T00:00:01Z",
+                "run_id": "ci-1",
+                "inputs": {},
+            },
+        }
+    ))
+    runtime = _stamp_signature_envelope(_stamp_artifact_sha256(
+        {
+            "run_id": "ci-1",
+            "provenance": {
+                "schema_version": 1,
+                "tool": "repo_guard_fleet_report",
+                "generated_at_utc": "2026-05-12T00:00:02Z",
+                "run_id": "ci-1",
+                "inputs": {
+                    "source_artifact_hashes": {
+                        "repo_guard_enforcement": 101,
+                        "integration_fleet_status": "deadbeef",
+                    }
+                },
+            },
+        }
+    ))
+
+    enforcement_path.write_text(json.dumps(enforcement), encoding="utf-8")
+    integration_path.write_text(json.dumps(integration), encoding="utf-8")
+    runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
+
+    ok, result = module._build_result(
+        enforcement_path,
+        integration_path,
+        runtime_path,
+        strict=False,
+        require_signed=False,
+        verify_signatures=False,
+        signature_public_key="",
+        allowed_key_ids=[],
+        max_signature_age_hours=0,
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=[],
+        expected_max_report_signature_age_hours=0,
+    )
+
+    assert ok is False
+    assert any(
+        "source hash for repo_guard_enforcement must be a non-empty string" in row
+        for row in result["errors"]
+    )
+
+
 def test_build_result_fails_safely_on_invalid_artifact_json(tmp_path: Path):
     module = _load_module()
 

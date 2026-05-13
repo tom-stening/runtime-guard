@@ -831,10 +831,16 @@ def _build_result(
         "integration_fleet_status": _sha256_file(integration_path),
     }
     for key, expected in expected_source_hashes.items():
-        actual = str(runtime_source_hashes.get(key) or "").strip()
-        if not actual:
+        if key not in runtime_source_hashes:
             errors.append(f"repo_guard_runtime_status: missing source hash for {key}")
             continue
+        actual_raw = runtime_source_hashes.get(key)
+        if not isinstance(actual_raw, str) or not actual_raw.strip():
+            errors.append(
+                f"repo_guard_runtime_status: source hash for {key} must be a non-empty string"
+            )
+            continue
+        actual = actual_raw.strip()
         if actual != expected:
             errors.append(
                 f"repo_guard_runtime_status: source hash mismatch for {key}"

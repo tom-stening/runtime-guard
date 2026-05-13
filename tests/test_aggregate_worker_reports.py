@@ -94,3 +94,31 @@ def test_returns_2_for_non_object_summary_payload(monkeypatch, capsys) -> None:
 
     assert code == 2
     assert "aggregated summary payload must be a JSON object" in captured.err
+
+
+def test_validate_cli_configuration_rejects_non_boolean_flags() -> None:
+    module = _load_module()
+
+    class _Args:
+        input = "dummy.jsonl"
+        output = None
+        fail_on_pressure = "true"  # type: ignore[assignment]
+        fail_on_critical = 1  # type: ignore[assignment]
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--fail-on-pressure flag must be boolean" in row for row in errors)
+    assert any("--fail-on-critical flag must be boolean" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_non_string_paths() -> None:
+    module = _load_module()
+
+    class _Args:
+        input = 101  # type: ignore[assignment]
+        output = 202  # type: ignore[assignment]
+        fail_on_pressure = False
+        fail_on_critical = False
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--input must be a non-empty string path" in row for row in errors)
+    assert any("--output must be a string path" in row for row in errors)

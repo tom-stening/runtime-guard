@@ -25,6 +25,25 @@ def _strict_bool(value: object) -> tuple[bool, bool]:
     return False, False
 
 
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    input_path = getattr(args, "input", "")
+    if not isinstance(input_path, str) or not input_path.strip():
+        errors.append("--input must be a non-empty string path")
+
+    output_path = getattr(args, "output", None)
+    if output_path is not None and not isinstance(output_path, str):
+        errors.append("--output must be a string path")
+
+    for field in ["fail_on_pressure", "fail_on_critical"]:
+        value = getattr(args, field, False)
+        if not isinstance(value, bool):
+            errors.append(f"--{field.replace('_', '-')} flag must be boolean")
+
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Aggregate runtime-guard worker reports from a JSONL file"
@@ -42,6 +61,12 @@ def main() -> int:
         help="Return exit code 1 when any worker is critical",
     )
     args = parser.parse_args()
+
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
 
     summary = aggregate_worker_reports_jsonl(args.input)
     if not isinstance(summary, dict):

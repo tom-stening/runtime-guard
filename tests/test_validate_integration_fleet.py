@@ -47,6 +47,20 @@ def test_extract_last_json_object_handles_prefixed_lines():
     assert payload == {"ok": True, "value": 3}
 
 
+def test_extract_signature_artifact_sha256_rejects_non_string():
+    module = _load_module()
+    value, ok = module._extract_signature_artifact_sha256({"artifact_sha256": 123})
+    assert value == ""
+    assert ok is False
+
+
+def test_extract_signature_artifact_sha256_accepts_string():
+    module = _load_module()
+    value, ok = module._extract_signature_artifact_sha256({"artifact_sha256": "abc"})
+    assert value == "abc"
+    assert ok is True
+
+
 def test_validate_cli_configuration_requires_public_key_for_report_signature_verification():
     module = _load_module()
 

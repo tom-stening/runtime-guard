@@ -762,7 +762,17 @@ def main() -> int:
                 ext_name = str(row.get("extension", "") or "").strip()
                 if not ext_name:
                     continue
-                ext_totals[ext_name] = int(row.get("rss_mb", 0) or 0)
+                ext_rss_mb, ext_rss_ok = _strict_non_negative_int(row.get("rss_mb", 0))
+                if not ext_rss_ok:
+                    warnings = summary.get("parse_warnings", [])
+                    if not isinstance(warnings, list):
+                        warnings = [str(warnings)]
+                    warnings.append(
+                        f"wsl_diagnosis.guest_vscode_extension_rss[{ext_name}].rss_mb must be a non-negative integer"
+                    )
+                    summary["parse_warnings"] = warnings
+                    continue
+                ext_totals[ext_name] = ext_rss_mb
 
         for ext_name, threshold_mb in extension_specs.items():
             actual_mb = int(ext_totals.get(ext_name, 0) or 0)

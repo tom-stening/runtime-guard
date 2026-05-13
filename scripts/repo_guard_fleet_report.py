@@ -767,7 +767,7 @@ def main() -> int:
     payload = _build_payload(
         enforcement,
         include_proc_scan=not args.no_proc_scan,
-        include_wsl_diagnosis=bool(args.include_wsl_diagnosis),
+        include_wsl_diagnosis=args.include_wsl_diagnosis,
         integration_report=integration_payload,
     )
 
@@ -855,17 +855,25 @@ def main() -> int:
                     reason="unenforced repos present",
                 )
             )
-    if args.fail_on_integration_unhealthy and summary.get("integration_overall_healthy") is False:
-        failed_gates.append(
-            _build_failed_gate(
-                gate="fail-on-integration-unhealthy",
-                run_id=run_id,
-                evaluated_at_utc=evaluated_at_utc,
-                actual=False,
-                threshold=True,
-                reason="integration overall health is false",
+    if args.fail_on_integration_unhealthy:
+        integration_overall_healthy = summary.get("integration_overall_healthy")
+        if not isinstance(integration_overall_healthy, bool):
+            print(
+                "error: summary.integration_overall_healthy must be boolean",
+                file=sys.stderr,
             )
-        )
+            return 2
+        if integration_overall_healthy is False:
+            failed_gates.append(
+                _build_failed_gate(
+                    gate="fail-on-integration-unhealthy",
+                    run_id=run_id,
+                    evaluated_at_utc=evaluated_at_utc,
+                    actual=False,
+                    threshold=True,
+                    reason="integration overall health is false",
+                )
+            )
     if args.fail_on_wsl_risk:
         threshold = str(args.fail_on_wsl_risk)
         actual_raw = summary.get("wsl_risk_level", "low")
@@ -952,7 +960,7 @@ def main() -> int:
                     )
                 )
 
-    if bool(args.fail_on_run_id_mismatch) and not run_id_consistent:
+    if args.fail_on_run_id_mismatch and not run_id_consistent:
         failed_gates.append(
             _build_failed_gate(
                 gate="fail-on-run-id-mismatch",

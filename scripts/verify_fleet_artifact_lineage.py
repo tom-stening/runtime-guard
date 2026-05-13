@@ -455,7 +455,16 @@ def _validate_expected_integration_report_signature_policy(
             "integration_fleet_status: expected verify_report_input_signatures policy does not match provenance.inputs"
         )
 
-    expected_allowed = sorted({str(k).strip() for k in list(expected_report_allowed_key_ids or []) if str(k).strip()})
+    expected_allowed_values: list[str] = []
+    expected_allowed_raw = list(expected_report_allowed_key_ids or [])
+    if any(not isinstance(k, str) for k in expected_allowed_raw):
+        errors.append(
+            "integration_fleet_status: expected report_allowed_key_ids policy values must be strings"
+        )
+    for key_id in expected_allowed_raw:
+        if isinstance(key_id, str) and key_id.strip():
+            expected_allowed_values.append(key_id.strip())
+    expected_allowed = sorted(set(expected_allowed_values))
     actual_allowed_raw = inputs.get("report_allowed_key_ids", [])
     actual_allowed: list[str] = []
     if not isinstance(actual_allowed_raw, list):

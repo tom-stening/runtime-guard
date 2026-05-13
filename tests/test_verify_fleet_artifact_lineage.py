@@ -290,6 +290,30 @@ def test_validate_expected_tool_rejects_non_string_provenance_tool() -> None:
     assert errors == ["integration_fleet_status: provenance.tool missing"]
 
 
+def test_validate_expected_report_allowed_key_policy_rejects_non_string_expected_values() -> None:
+    module = _load_module()
+    errors = module._validate_expected_integration_report_signature_policy(
+        {
+            "provenance": {
+                "inputs": {
+                    "require_signed_report_inputs": False,
+                    "verify_report_input_signatures": False,
+                    "report_allowed_key_ids": [],
+                    "max_report_signature_age_hours": 0,
+                }
+            }
+        },
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids=["", 101],
+        expected_max_report_signature_age_hours=0,
+    )
+    assert any(
+        "expected report_allowed_key_ids policy values must be strings" in row
+        for row in errors
+    )
+
+
 def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
     module = _load_module()
 

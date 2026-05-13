@@ -216,6 +216,74 @@ def test_validate_cli_configuration_rejects_negative_age_policies():
     assert any("--expected-max-report-signature-age-hours" in row for row in errors)
 
 
+def test_validate_cli_configuration_rejects_non_boolean_policy_flags() -> None:
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = "true"  # type: ignore[assignment]
+        require_signed = 1  # type: ignore[assignment]
+        signature_public_key = "/tmp/public.pem"
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = 0
+        expected_verify_report_input_signatures = "false"  # type: ignore[assignment]
+        expected_require_signed_report_inputs = 0  # type: ignore[assignment]
+        expected_report_allowed_key_id: list[str] = []
+        expected_max_report_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--verify-signatures flag must be boolean" in row for row in errors)
+    assert any("--require-signed flag must be boolean" in row for row in errors)
+    assert any(
+        "--expected-verify-report-input-signatures flag must be boolean" in row
+        for row in errors
+    )
+    assert any(
+        "--expected-require-signed-report-inputs flag must be boolean" in row
+        for row in errors
+    )
+
+
+def test_validate_cli_configuration_rejects_non_integer_age_policy_types() -> None:
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = False
+        require_signed = False
+        signature_public_key = ""
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = "4"  # type: ignore[assignment]
+        expected_verify_report_input_signatures = False
+        expected_require_signed_report_inputs = False
+        expected_report_allowed_key_id: list[str] = []
+        expected_max_report_signature_age_hours = 2.5  # type: ignore[assignment]
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--max-signature-age-hours must be a non-negative integer" in row for row in errors)
+    assert any(
+        "--expected-max-report-signature-age-hours must be a non-negative integer" in row
+        for row in errors
+    )
+
+
+def test_validate_cli_configuration_rejects_non_string_key_id_values() -> None:
+    module = _load_module()
+
+    class _Args:
+        verify_signatures = True
+        require_signed = True
+        signature_public_key = "/tmp/public.pem"
+        allowed_key_id = ["fleet-key", 101]  # type: ignore[list-item]
+        max_signature_age_hours = 0
+        expected_verify_report_input_signatures = True
+        expected_require_signed_report_inputs = True
+        expected_report_allowed_key_id = ["report-key", object()]  # type: ignore[list-item]
+        expected_max_report_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--allowed-key-id values must be strings" in row for row in errors)
+    assert any("--expected-report-allowed-key-id values must be strings" in row for row in errors)
+
+
 def test_validate_provenance_rejects_invalid_core_field_types():
     module = _load_module()
     errors = module._validate_provenance(

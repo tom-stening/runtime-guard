@@ -104,24 +104,86 @@ def _build_parser() -> argparse.ArgumentParser:
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     errors: list[str] = []
 
-    verify_signatures = bool(getattr(args, "verify_signatures", False))
-    require_signed = bool(getattr(args, "require_signed", False))
-    signature_public_key = str(getattr(args, "signature_public_key", "") or "").strip()
-    allowed_key_ids = [
-        str(key_id).strip()
-        for key_id in list(getattr(args, "allowed_key_id", []) or [])
-        if str(key_id).strip()
-    ]
-    max_signature_age_hours = int(getattr(args, "max_signature_age_hours", 0) or 0)
+    verify_signatures_raw = getattr(args, "verify_signatures", False)
+    if isinstance(verify_signatures_raw, bool):
+        verify_signatures = verify_signatures_raw
+    else:
+        verify_signatures = False
+        errors.append("--verify-signatures flag must be boolean")
 
-    expected_verify = bool(getattr(args, "expected_verify_report_input_signatures", False))
-    expected_require_signed = bool(getattr(args, "expected_require_signed_report_inputs", False))
-    expected_allowed_key_ids = [
-        str(key_id).strip()
-        for key_id in list(getattr(args, "expected_report_allowed_key_id", []) or [])
-        if str(key_id).strip()
-    ]
-    expected_max_age = int(getattr(args, "expected_max_report_signature_age_hours", 0) or 0)
+    require_signed_raw = getattr(args, "require_signed", False)
+    if isinstance(require_signed_raw, bool):
+        require_signed = require_signed_raw
+    else:
+        require_signed = False
+        errors.append("--require-signed flag must be boolean")
+
+    signature_public_key_raw = getattr(args, "signature_public_key", "")
+    if isinstance(signature_public_key_raw, str):
+        signature_public_key = signature_public_key_raw.strip()
+    else:
+        signature_public_key = ""
+        errors.append("--signature-public-key must be a string path")
+
+    allowed_key_ids_raw = getattr(args, "allowed_key_id", [])
+    allowed_key_ids: list[str] = []
+    if allowed_key_ids_raw is None:
+        allowed_key_ids_raw = []
+    if not isinstance(allowed_key_ids_raw, list):
+        errors.append("--allowed-key-id values must be strings")
+    else:
+        for key_id in allowed_key_ids_raw:
+            if not isinstance(key_id, str):
+                errors.append("--allowed-key-id values must be strings")
+                continue
+            key = key_id.strip()
+            if key:
+                allowed_key_ids.append(key)
+
+    max_signature_age_hours_raw = getattr(args, "max_signature_age_hours", 0)
+    if isinstance(max_signature_age_hours_raw, int) and not isinstance(
+        max_signature_age_hours_raw, bool
+    ):
+        max_signature_age_hours = max_signature_age_hours_raw
+    else:
+        max_signature_age_hours = 0
+        errors.append("--max-signature-age-hours must be a non-negative integer")
+
+    expected_verify_raw = getattr(args, "expected_verify_report_input_signatures", False)
+    if isinstance(expected_verify_raw, bool):
+        expected_verify = expected_verify_raw
+    else:
+        expected_verify = False
+        errors.append("--expected-verify-report-input-signatures flag must be boolean")
+
+    expected_require_signed_raw = getattr(args, "expected_require_signed_report_inputs", False)
+    if isinstance(expected_require_signed_raw, bool):
+        expected_require_signed = expected_require_signed_raw
+    else:
+        expected_require_signed = False
+        errors.append("--expected-require-signed-report-inputs flag must be boolean")
+
+    expected_allowed_key_ids_raw = getattr(args, "expected_report_allowed_key_id", [])
+    expected_allowed_key_ids: list[str] = []
+    if expected_allowed_key_ids_raw is None:
+        expected_allowed_key_ids_raw = []
+    if not isinstance(expected_allowed_key_ids_raw, list):
+        errors.append("--expected-report-allowed-key-id values must be strings")
+    else:
+        for key_id in expected_allowed_key_ids_raw:
+            if not isinstance(key_id, str):
+                errors.append("--expected-report-allowed-key-id values must be strings")
+                continue
+            key = key_id.strip()
+            if key:
+                expected_allowed_key_ids.append(key)
+
+    expected_max_age_raw = getattr(args, "expected_max_report_signature_age_hours", 0)
+    if isinstance(expected_max_age_raw, int) and not isinstance(expected_max_age_raw, bool):
+        expected_max_age = expected_max_age_raw
+    else:
+        expected_max_age = 0
+        errors.append("--expected-max-report-signature-age-hours must be a non-negative integer")
 
     if max_signature_age_hours < 0:
         errors.append("--max-signature-age-hours must be greater than or equal to 0")

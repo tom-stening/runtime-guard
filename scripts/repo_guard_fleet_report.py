@@ -754,17 +754,27 @@ def main() -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    if args.fail_on_unenforced and int(summary.get("unenforced_repos", 0) or 0) > 0:
-        failed_gates.append(
-            _build_failed_gate(
-                gate="fail-on-unenforced",
-                run_id=run_id,
-                evaluated_at_utc=evaluated_at_utc,
-                actual=int(summary.get("unenforced_repos", 0) or 0),
-                threshold=0,
-                reason="unenforced repos present",
-            )
+    if args.fail_on_unenforced:
+        unenforced_repos, unenforced_ok = _strict_non_negative_int(
+            summary.get("unenforced_repos", 0)
         )
+        if not unenforced_ok:
+            print(
+                "error: summary.unenforced_repos must be a non-negative integer",
+                file=sys.stderr,
+            )
+            return 2
+        if unenforced_repos > 0:
+            failed_gates.append(
+                _build_failed_gate(
+                    gate="fail-on-unenforced",
+                    run_id=run_id,
+                    evaluated_at_utc=evaluated_at_utc,
+                    actual=unenforced_repos,
+                    threshold=0,
+                    reason="unenforced repos present",
+                )
+            )
     if args.fail_on_integration_unhealthy and summary.get("integration_overall_healthy") is False:
         failed_gates.append(
             _build_failed_gate(
@@ -792,7 +802,15 @@ def main() -> int:
             )
 
     if args.fail_on_extension_total_rss_mb > 0:
-        actual_total = int(summary.get("wsl_vscode_extension_total_rss_mb", 0) or 0)
+        actual_total, total_ok = _strict_non_negative_int(
+            summary.get("wsl_vscode_extension_total_rss_mb", 0)
+        )
+        if not total_ok:
+            print(
+                "error: summary.wsl_vscode_extension_total_rss_mb must be a non-negative integer",
+                file=sys.stderr,
+            )
+            return 2
         if actual_total >= int(args.fail_on_extension_total_rss_mb):
             failed_gates.append(
                 _build_failed_gate(

@@ -3915,55 +3915,74 @@ def resolve_signal_recovery_policy(
     def _env(name: str, default: str | None = None) -> str | None:
         return os.getenv(f"{env_prefix}_{name}", default)
 
-    def _as_bool(raw: str | None, default: bool) -> bool:
+    def _as_bool(raw: str | None, default: bool) -> tuple[bool, bool]:
         if raw is None:
-            return default
-        value = str(raw).strip().lower()
+            return default, False
+        value = raw.strip().lower()
         if value in {"1", "true", "yes", "on"}:
-            return True
+            return True, False
         if value in {"0", "false", "no", "off"}:
-            return False
-        return default
+            return False, False
+        return default, True
 
-    def _as_positive_int(raw: str | None) -> int | None:
+    def _as_positive_int(raw: str | None) -> tuple[int | None, bool]:
         if raw is None:
-            return None
-        value = str(raw).strip()
+            return None, False
+        value = raw.strip()
         if value == "":
-            return None
+            return None, False
         try:
             parsed = int(value)
         except (TypeError, ValueError):
-            return None
+            return None, True
         if parsed <= 0:
-            return None
-        return parsed
+            return None, True
+        return parsed, False
 
-    def _as_positive_float(raw: str | None) -> float | None:
+    def _as_positive_float(raw: str | None) -> tuple[float | None, bool]:
         if raw is None:
-            return None
-        value = str(raw).strip()
+            return None, False
+        value = raw.strip()
         if value == "":
-            return None
+            return None, False
         try:
             parsed = float(value)
         except (TypeError, ValueError):
-            return None
+            return None, True
         if parsed <= 0:
-            return None
-        return parsed
+            return None, True
+        return parsed, False
 
-    enabled = _as_bool(_env("SIGNAL_RECOVERY_ENABLE"), True)
-    auto_intervene = _as_bool(_env("SIGNAL_RECOVERY_AUTO_INTERVENE"), False)
-    intervene_on = str(_env("SIGNAL_RECOVERY_INTERVENE_ON", "critical") or "critical").strip().lower()
+    invalid_policy_fields: list[str] = []
+
+    enabled, enabled_invalid = _as_bool(_env("SIGNAL_RECOVERY_ENABLE"), True)
+    if enabled_invalid:
+        enabled = False
+        invalid_policy_fields.append("SIGNAL_RECOVERY_ENABLE")
+
+    auto_intervene, auto_intervene_invalid = _as_bool(_env("SIGNAL_RECOVERY_AUTO_INTERVENE"), False)
+    if auto_intervene_invalid:
+        auto_intervene = False
+        invalid_policy_fields.append("SIGNAL_RECOVERY_AUTO_INTERVENE")
+
+    intervene_on = (_env("SIGNAL_RECOVERY_INTERVENE_ON", "critical") or "critical").strip().lower()
     if intervene_on not in {"critical", "any"}:
         intervene_on = "critical"
-    chain_previous = _as_bool(_env("SIGNAL_RECOVERY_CHAIN_PREVIOUS"), False)
-    stage_prefix = str(_env("SIGNAL_RECOVERY_STAGE_PREFIX", "signal") or "signal").strip()
+        invalid_policy_fields.append("SIGNAL_RECOVERY_INTERVENE_ON")
+
+    chain_previous, chain_previous_invalid = _as_bool(_env("SIGNAL_RECOVERY_CHAIN_PREVIOUS"), False)
+    if chain_previous_invalid:
+        chain_previous = False
+        invalid_policy_fields.append("SIGNAL_RECOVERY_CHAIN_PREVIOUS")
+
+    stage_prefix = (_env("SIGNAL_RECOVERY_STAGE_PREFIX", "signal") or "signal").strip()
     if stage_prefix == "":
         stage_prefix = "signal"
+        invalid_policy_fields.append("SIGNAL_RECOVERY_STAGE_PREFIX")
 
-    kill_hogs_above_mb = _as_positive_int(_env("SIGNAL_RECOVERY_KILL_HOGS_MB"))
+    kill_hogs_above_mb, kill_hogs_invalid = _as_positive_int(_env("SIGNAL_RECOVERY_KILL_HOGS_MB"))
+    if kill_hogs_invalid:
+        invalid_policy_fields.append("SIGNAL_RECOVERY_KILL_HOGS_MB")
 
     signals_csv = _env("SIGNAL_RECOVERY_SIGNALS", "SIGTERM,SIGINT,SIGUSR1,SIGABRT") or ""
     signals_to_handle: list[int] = []
@@ -3988,10 +4007,14 @@ def resolve_signal_recovery_policy(
     if audit_log_path is not None:
         audit_log_path = audit_log_path.strip() or None
 
-    hash_algo_env = str(_env("SIGNAL_RECOVERY_HASH_ALGO", "sha256") or "sha256").strip().lower()
+    hash_algo_env = (_env("SIGNAL_RECOVERY_HASH_ALGO", "sha256") or "sha256").strip().lower()
     if hash_algo_env not in _FIPS_HASH_ALGOS:
         hash_algo_env = "sha256"
-    audit_dedup_ttl_s = _as_positive_float(_env("SIGNAL_RECOVERY_AUDIT_DEDUP_TTL_S"))
+        invalid_policy_fields.append("SIGNAL_RECOVERY_HASH_ALGO")
+
+    audit_dedup_ttl_s, ttl_invalid = _as_positive_float(_env("SIGNAL_RECOVERY_AUDIT_DEDUP_TTL_S"))
+    if ttl_invalid:
+        invalid_policy_fields.append("SIGNAL_RECOVERY_AUDIT_DEDUP_TTL_S")
 
     return {
         "enabled": enabled,
@@ -4004,6 +4027,7 @@ def resolve_signal_recovery_policy(
         "audit_log_path": audit_log_path,
         "hash_algo": hash_algo_env,
         "audit_dedup_ttl_s": audit_dedup_ttl_s,
+        "invalid_policy_fields": invalid_policy_fields,
     }
 
 
@@ -4015,28 +4039,80 @@ def install_signal_recovery_from_policy(
 ) -> Callable[[], None]:
     """Install signal recovery using environment-resolved policy settings."""
     policy = resolve_signal_recovery_policy(env_prefix=env_prefix, module=module)
-    if not bool(policy.get("enabled", True)):
+    enabled_value = policy.get("enabled", True)
+    if not isinstance(enabled_value, bool):
+        enabled_value = False
+    if not enabled_value:
         return lambda: None
 
+    auto_intervene = policy.get("auto_intervene", False)
+    if not isinstance(auto_intervene, bool):
+        auto_intervene = False
+
+    chain_previous = policy.get("chain_previous", False)
+    if not isinstance(chain_previous, bool):
+        chain_previous = False
+
+    intervene_on = policy.get("intervene_on", "critical")
+    if not isinstance(intervene_on, str):
+        intervene_on = "critical"
+    intervene_on = intervene_on.strip().lower()
+    if intervene_on not in {"critical", "any"}:
+        intervene_on = "critical"
+
+    stage_prefix = policy.get("stage_prefix", "signal")
+    if not isinstance(stage_prefix, str):
+        stage_prefix = "signal"
+    stage_prefix = stage_prefix.strip() or "signal"
+
+    hash_algo = policy.get("hash_algo", "sha256")
+    if not isinstance(hash_algo, str):
+        hash_algo = "sha256"
+    hash_algo = hash_algo.strip().lower()
+    if hash_algo not in _FIPS_HASH_ALGOS:
+        hash_algo = "sha256"
+
+    ttl_s_raw = policy.get("audit_dedup_ttl_s")
+    ttl_s: float | None = None
+    if isinstance(ttl_s_raw, (int, float)):
+        ttl_value = float(ttl_s_raw)
+        if ttl_value > 0:
+            ttl_s = ttl_value
+
+    signals_raw = policy.get("signals_to_handle", [])
+    signals_to_handle: list[int] = []
+    if isinstance(signals_raw, list):
+        for item in signals_raw:
+            if isinstance(item, int) and item > 0:
+                signals_to_handle.append(item)
+
+    kill_hogs_above_mb = policy.get("kill_hogs_above_mb")
+    if not isinstance(kill_hogs_above_mb, int) or kill_hogs_above_mb <= 0:
+        kill_hogs_above_mb = None
+
+    audit_log_path = policy.get("audit_log_path")
+    if not isinstance(audit_log_path, str):
+        audit_log_path = None
+    audit_log_path = audit_log_path.strip() or None
+
     audit_deduplicator: FipsDeduplicator | None = None
-    if policy.get("audit_log_path"):
-        ttl_s = policy.get("audit_dedup_ttl_s")
+    if audit_log_path:
         if ttl_s is not None:
             audit_deduplicator = FipsDeduplicator(
-                hash_algo=str(policy.get("hash_algo", "sha256")),
-                ttl_s=float(ttl_s),
+                hash_algo=hash_algo,
+                ttl_s=ttl_s,
             )
 
     return attach_signal_recovery(
         guard,
-        signals_to_handle=list(policy.get("signals_to_handle", [])),
-        stage_prefix=str(policy.get("stage_prefix", "signal")),
-        auto_intervene=bool(policy.get("auto_intervene", False)),
-        intervene_on=str(policy.get("intervene_on", "critical")),
-        kill_hogs_above_mb=policy.get("kill_hogs_above_mb"),
-        chain_previous=bool(policy.get("chain_previous", False)),
-        audit_log_path=policy.get("audit_log_path"),
-        hash_algo=str(policy.get("hash_algo", "sha256")),
+        signals_to_handle=signals_to_handle,
+        stage_prefix=stage_prefix,
+        auto_intervene=auto_intervene,
+        intervene_on=intervene_on,
+        kill_hogs_above_mb=kill_hogs_above_mb,
+        chain_previous=chain_previous,
+        audit_log_path=audit_log_path,
+        hash_algo=hash_algo,
         audit_deduplicator=audit_deduplicator,
         module=module,
     )

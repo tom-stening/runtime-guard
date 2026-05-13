@@ -3264,6 +3264,18 @@ class TestSignalRecovery:
         assert out["stage_prefix"] == "signal"
         assert out["kill_hogs_above_mb"] is None
         assert out["signals_to_handle"] == [sigmod.SIGTERM, sigmod.SIGINT]
+        assert "SIGNAL_RECOVERY_INTERVENE_ON" in out["invalid_policy_fields"]
+        assert "SIGNAL_RECOVERY_STAGE_PREFIX" in out["invalid_policy_fields"]
+        assert "SIGNAL_RECOVERY_KILL_HOGS_MB" in out["invalid_policy_fields"]
+
+    def test_resolve_policy_fails_closed_on_invalid_enable_bool(self, monkeypatch):
+        sigmod = self._DummySignalModule()
+        monkeypatch.setenv("RUNTIME_GUARD_SIGNAL_RECOVERY_ENABLE", "definitely")
+
+        out = resolve_signal_recovery_policy(module=sigmod)
+
+        assert out["enabled"] is False
+        assert "SIGNAL_RECOVERY_ENABLE" in out["invalid_policy_fields"]
 
     def test_resolve_policy_ignores_non_positive_kill_hogs_threshold(self, monkeypatch):
         sigmod = self._DummySignalModule()
@@ -3279,6 +3291,29 @@ class TestSignalRecovery:
         restore = install_signal_recovery_from_policy(guard)
         assert callable(restore)
         restore()
+
+    def test_install_from_policy_fails_closed_on_non_boolean_enabled(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(
+            "runtime_guard.resolve_signal_recovery_policy",
+            lambda **kwargs: {
+                "enabled": "true",
+                "signals_to_handle": [15],
+            },
+        )
+
+        called = {"attach": False}
+
+        def _attach(*args, **kwargs):
+            called["attach"] = True
+            return lambda: None
+
+        monkeypatch.setattr("runtime_guard.attach_signal_recovery", _attach)
+        restore = install_signal_recovery_from_policy(guard)
+
+        assert callable(restore)
+        restore()
+        assert called["attach"] is False
 
     def test_default_signals_include_sigabrt(self):
         """SIGABRT must be in the default signal set (M2-C01)."""

@@ -40,6 +40,39 @@ _find_package()
 from runtime_guard import aggregate_worker_reports_jsonl  # noqa: E402
 
 
+def _strict_bool(value: object) -> tuple[bool, bool]:
+    if isinstance(value, bool):
+        return value, True
+    return False, False
+
+
+def _strict_non_negative_int(value: object) -> tuple[int, bool]:
+    if isinstance(value, bool):
+        return 0, False
+    if isinstance(value, int) and value >= 0:
+        return value, True
+    return 0, False
+
+
+def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+
+    input_path = getattr(args, "input", "")
+    if not isinstance(input_path, str) or not input_path.strip():
+        errors.append("--input must be a non-empty string path")
+
+    output_path = getattr(args, "output", None)
+    if output_path is not None and not isinstance(output_path, str):
+        errors.append("--output must be a string path")
+
+    for field in ["fail_on_pressure", "fail_on_critical", "pretty"]:
+        value = getattr(args, field, False)
+        if not isinstance(value, bool):
+            errors.append(f"--{field.replace('_', '-')} flag must be boolean")
+
+    return errors
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="aggregate_workers",
@@ -80,6 +113,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
+    config_errors = _validate_cli_configuration(args)
+    if config_errors:
+        for row in config_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
+
     path = os.path.expanduser(args.input)
     if not os.path.exists(path):
         print(f"error: input file not found: {path}", file=sys.stderr)
@@ -89,6 +128,10 @@ def main(argv: list[str] | None = None) -> int:
         summary = aggregate_worker_reports_jsonl(path)
     except OSError as exc:
         print(f"error: could not read {path}: {exc}", file=sys.stderr)
+        return 2
+
+    if not isinstance(summary, dict):
+        print("error: aggregated summary payload must be a JSON object", file=sys.stderr)
         return 2
 
     indent = 2 if args.pretty else None
@@ -106,21 +149,50 @@ def main(argv: list[str] | None = None) -> int:
         print(output_text)
 
     # Gating logic
-    if args.fail_on_pressure and summary.get("any_pressure"):
-        print(
-            f"FAIL: {summary['pressured_workers']} of {summary['total_workers']} "
-            "worker(s) reported pressure.",
-            file=sys.stderr,
-        )
-        return 1
+    if args.fail_on_pressure:
+        any_pressure, pressure_ok = _strict_bool(summary.get("any_pressure", False))
+        if not pressure_ok:
+            print("error: summary.any_pressure must be boolean", file=sys.stderr)
+            return 2
 
-    if args.fail_on_critical and summary.get("critical_workers", 0) > 0:
-        print(
-            f"FAIL: {summary['critical_workers']} of {summary['total_workers']} "
-            "worker(s) reported critical pressure.",
-            file=sys.stderr,
+        pressured_workers, pressured_ok = _strict_non_negative_int(
+            summary.get("pressured_workers", 0)
         )
-        return 1
+        total_workers, total_ok = _strict_non_negative_int(summary.get("total_workers", 0))
+        if not pressured_ok:
+            print("error: summary.pressured_workers must be a non-negative integer", file=sys.stderr)
+            return 2
+        if not total_ok:
+            print("error: summary.total_workers must be a non-negative integer", file=sys.stderr)
+            return 2
+
+        if any_pressure:
+            print(
+                f"FAIL: {pressured_workers} of {total_workers} "
+                "worker(s) reported pressure.",
+                file=sys.stderr,
+            )
+            return 1
+
+    if args.fail_on_critical:
+        critical_workers, critical_ok = _strict_non_negative_int(
+            summary.get("critical_workers", 0)
+        )
+        total_workers, total_ok = _strict_non_negative_int(summary.get("total_workers", 0))
+        if not critical_ok:
+            print("error: summary.critical_workers must be a non-negative integer", file=sys.stderr)
+            return 2
+        if not total_ok:
+            print("error: summary.total_workers must be a non-negative integer", file=sys.stderr)
+            return 2
+
+        if critical_workers > 0:
+            print(
+                f"FAIL: {critical_workers} of {total_workers} "
+                "worker(s) reported critical pressure.",
+                file=sys.stderr,
+            )
+            return 1
 
     return 0
 

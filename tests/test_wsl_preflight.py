@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+from unittest import mock
 
 
 _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[1] / "scripts" / "wsl_preflight.py"
@@ -59,6 +60,42 @@ def test_classify_wsl_risk_low_when_metrics_are_healthy():
     assert score == 0
     assert causes == []
     assert actions
+
+
+def test_classify_wsl_risk_handles_non_numeric_metrics_without_crashing():
+    level, score, causes, actions = wsl_preflight._classify_wsl_risk(
+        {
+            "guest_mem_available_mb": "bad",
+            "guest_swap_used_pct": "bad",
+            "psi_some_avg10": "bad",
+            "psi_full_avg10": "bad",
+            "host_vm_used_pct": "bad",
+        }
+    )
+
+    assert level in {"moderate", "high", "critical"}
+    assert score >= 1
+    assert any("below 1 GiB" in row for row in causes)
+    assert actions
+
+
+def test_read_host_snapshot_from_wsl_handles_non_numeric_csv(monkeypatch):
+    monkeypatch.setattr(
+        "subprocess.check_output",
+        mock.Mock(
+            return_value=(
+                '"TotalVisibleMemorySize","FreePhysicalMemory","TotalVirtualMemorySize","FreeVirtualMemory"\n'
+                '"not-a-number","123","oops","456"\n'
+            )
+        ),
+    )
+
+    out = wsl_preflight._read_host_snapshot_from_wsl()
+    assert out["host_mem_total_mb"] == 0
+    assert out["host_mem_free_mb"] == 0
+    assert out["host_vm_total_mb"] == 0
+    assert out["host_vm_free_mb"] == 0
+    assert out["host_vm_used_pct"] == 0
 
 
 def test_validate_cli_configuration_rejects_non_boolean_flags():

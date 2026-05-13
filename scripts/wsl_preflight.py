@@ -33,7 +33,9 @@ def _check_wslconfig_cap() -> tuple[bool, str]:
     # Heuristic: look for .wslconfig in common Windows user profile paths
     candidate_dirs = []
     host = _read_host_snapshot_from_wsl()
-    host_total_gb = float(host.get("host_mem_total_mb", 0) or 0) / 1024.0
+    host_total_mb_raw = host.get("host_mem_total_mb", 0)
+    host_total_mb = host_total_mb_raw if isinstance(host_total_mb_raw, int) else 0
+    host_total_gb = host_total_mb / 1024.0
     for d in pathlib.Path("/mnt/c/Users").iterdir() if pathlib.Path("/mnt/c/Users").is_dir() else []:
         candidate_dirs.append(d)
 
@@ -244,10 +246,21 @@ def _read_host_snapshot_from_wsl() -> dict[str, int]:
     values = [v.strip('"') for v in lines[1].split(",")]
     row = dict(zip(headers, values))
 
-    total_kb = int(row.get("TotalVisibleMemorySize", 0) or 0)
-    free_kb = int(row.get("FreePhysicalMemory", 0) or 0)
-    vm_total_kb = int(row.get("TotalVirtualMemorySize", 0) or 0)
-    vm_free_kb = int(row.get("FreeVirtualMemory", 0) or 0)
+    def _parse_kb_field(name: str) -> int:
+        raw = row.get(name, "0")
+        if not isinstance(raw, str):
+            return 0
+        text = raw.strip()
+        if not text:
+            return 0
+        if not text.isdigit():
+            return 0
+        return int(text)
+
+    total_kb = _parse_kb_field("TotalVisibleMemorySize")
+    free_kb = _parse_kb_field("FreePhysicalMemory")
+    vm_total_kb = _parse_kb_field("TotalVirtualMemorySize")
+    vm_free_kb = _parse_kb_field("FreeVirtualMemory")
 
     out["host_mem_total_mb"] = total_kb // 1024
     out["host_mem_free_mb"] = free_kb // 1024
@@ -261,15 +274,29 @@ def _read_host_snapshot_from_wsl() -> dict[str, int]:
 
 
 def _classify_wsl_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], list[str]]:
+    def _metric_int(name: str, default: int = 0) -> int:
+        raw = metrics.get(name, default)
+        if isinstance(raw, int) and not isinstance(raw, bool):
+            return raw
+        return default
+
+    def _metric_float(name: str, default: float = 0.0) -> float:
+        raw = metrics.get(name, default)
+        if isinstance(raw, bool):
+            return default
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        return default
+
     score = 0
     causes: list[str] = []
     prevention: list[str] = []
 
-    guest_mem_available_mb = int(metrics.get("guest_mem_available_mb", 0) or 0)
-    guest_swap_used_pct = int(metrics.get("guest_swap_used_pct", 0) or 0)
-    psi_some_avg10 = float(metrics.get("psi_some_avg10", 0.0) or 0.0)
-    psi_full_avg10 = float(metrics.get("psi_full_avg10", 0.0) or 0.0)
-    host_vm_used_pct = int(metrics.get("host_vm_used_pct", 0) or 0)
+    guest_mem_available_mb = _metric_int("guest_mem_available_mb", 0)
+    guest_swap_used_pct = _metric_int("guest_swap_used_pct", 0)
+    psi_some_avg10 = _metric_float("psi_some_avg10", 0.0)
+    psi_full_avg10 = _metric_float("psi_full_avg10", 0.0)
+    host_vm_used_pct = _metric_int("host_vm_used_pct", 0)
 
     if guest_mem_available_mb < 1024:
         score += 2

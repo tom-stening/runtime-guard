@@ -44,6 +44,9 @@ def main() -> int:
     args = parser.parse_args()
 
     summary = aggregate_worker_reports_jsonl(args.input)
+    if not isinstance(summary, dict):
+        print("error: aggregated summary payload must be a JSON object", file=sys.stderr)
+        return 2
     rendered = json.dumps(summary, indent=2, sort_keys=True)
 
     if args.output:

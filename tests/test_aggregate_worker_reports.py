@@ -74,3 +74,23 @@ def test_fail_on_pressure_returns_1_for_true_boolean(monkeypatch) -> None:
     )
 
     assert module.main() == 1
+
+
+def test_returns_2_for_non_object_summary_payload(monkeypatch, capsys) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: ["not", "an", "object"],
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["aggregate_worker_reports.py", "--input", "dummy.jsonl"],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "aggregated summary payload must be a JSON object" in captured.err

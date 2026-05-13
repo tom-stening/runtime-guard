@@ -3852,8 +3852,16 @@ class TestSoc2GapAssessment:
         assert out["missing_controls"] == []
         assert set(out["missing_required_controls"]) == all_required
         assert out["unknown_controls"] == []
+        assert out["invalid_control_state_fields"] == []
         assert out["coverage_ratio"] == 0.0
         assert out["status"] == "gaps-found"
+
+    def test_fails_closed_on_non_boolean_control_state_values(self):
+        out = soc2_gap_assessment({"CC6.1": "false", "CC7.1": 1})
+        assert out["covered_controls"] == 0
+        assert "CC6.1" in out["missing_controls"]
+        assert "CC7.1" in out["missing_controls"]
+        assert out["invalid_control_state_fields"] == ["CC6.1", "CC7.1"]
 
     def test_evidence_requirements_scoped_to_required_controls(self):
         req = soc2_evidence_requirements(required_controls={"CC6.1": "x", "CC8.1": "y"})
@@ -3894,6 +3902,28 @@ class TestSoc2GapAssessment:
         # All controls with evidence requirements should have some missing evidence
         assert len(out["missing_evidence_controls"]) > 0
         assert "CC6.1" in out["missing_evidence_controls"]
+
+    def test_readiness_report_fails_closed_on_non_collection_evidence_items(self):
+        out = soc2_readiness_report(
+            {"CC6.1": True},
+            evidence_state={"CC6.1": "access-review-log"},
+            required_controls={"CC6.1": "Logical access controls"},
+            evidence_requirements={"CC6.1": ["access-review-log"]},
+        )
+        assert out["status"] == "evidence-missing"
+        assert out["provided_evidence_count"] == 0
+        assert out["invalid_evidence_fields"] == ["CC6.1"]
+
+    def test_readiness_report_fails_closed_on_non_boolean_control_values(self):
+        out = soc2_readiness_report(
+            {"CC6.1": "true"},
+            evidence_state={"CC6.1": ["access-review-log"]},
+            required_controls={"CC6.1": "Logical access controls"},
+            evidence_requirements={"CC6.1": ["access-review-log"]},
+        )
+        assert out["status"] == "gaps-found"
+        assert out["missing_required_controls"] == ["CC6.1"]
+        assert out["invalid_control_state_fields"] == ["CC6.1"]
 
 
 class TestAdoptionScorecard:

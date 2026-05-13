@@ -4431,6 +4431,39 @@ def soc2_required_controls() -> dict[str, str]:
     return dict(_SOC2_RUNTIME_GUARD_CONTROLS)
 
 
+def _soc2_normalize_control_state(
+    control_state: dict[str, bool],
+) -> tuple[dict[str, bool], list[str]]:
+    normalized: dict[str, bool] = {}
+    invalid_fields: list[str] = []
+
+    for key, value in control_state.items():
+        control_id = str(key)
+        if isinstance(value, bool):
+            normalized[control_id] = value
+            continue
+        normalized[control_id] = False
+        invalid_fields.append(control_id)
+
+    return normalized, sorted(set(invalid_fields))
+
+
+def _soc2_normalize_evidence_items(raw: Any) -> tuple[set[str], bool]:
+    if not isinstance(raw, (list, tuple, set)):
+        return set(), False
+
+    normalized: set[str] = set()
+    valid = True
+    for item in raw:
+        if not isinstance(item, str):
+            valid = False
+            continue
+        text = item.strip()
+        if text:
+            normalized.add(text)
+    return normalized, valid
+
+
 def soc2_gap_assessment(
     control_state: dict[str, bool],
     *,
@@ -4445,10 +4478,13 @@ def soc2_gap_assessment(
     required = (
         dict(required_controls) if required_controls is not None else soc2_required_controls()
     )
+    normalized_control_state, invalid_control_state_fields = _soc2_normalize_control_state(
+        control_state
+    )
 
     items: list[tuple[str, bool]] = []
-    for key, value in control_state.items():
-        items.append((str(key), bool(value)))
+    for key, value in normalized_control_state.items():
+        items.append((str(key), value))
 
     provided: dict[str, bool] = {key: state for key, state in items}
     missing_required = [
@@ -4471,6 +4507,7 @@ def soc2_gap_assessment(
         "missing_controls": missing,
         "missing_required_controls": missing_required,
         "unknown_controls": unknown_controls,
+        "invalid_control_state_fields": invalid_control_state_fields,
         "coverage_ratio": score,
         "status": "ready" if missing_required == [] else "gaps-found",
     }
@@ -4511,7 +4548,10 @@ def soc2_readiness_report(
     required = (
         dict(required_controls) if required_controls is not None else soc2_required_controls()
     )
-    gap = soc2_gap_assessment(control_state, required_controls=required)
+    normalized_control_state, invalid_control_state_fields = _soc2_normalize_control_state(
+        control_state
+    )
+    gap = soc2_gap_assessment(normalized_control_state, required_controls=required)
     expected = (
         dict(evidence_requirements)
         if evidence_requirements is not None
@@ -4520,20 +4560,21 @@ def soc2_readiness_report(
     evidence_lookup = evidence_state or {}
 
     missing_evidence_by_control: dict[str, list[str]] = {}
+    invalid_evidence_fields: list[str] = []
     provided_evidence_count = 0
     expected_evidence_count = 0
 
     for control_id in sorted(required.keys()):
-        if not bool(control_state.get(control_id, False)):
+        if not normalized_control_state.get(control_id, False):
             continue
 
         required_items = list(expected.get(control_id, []))
         expected_evidence_count += len(required_items)
-        provided_items = {
-            str(item).strip()
-            for item in evidence_lookup.get(control_id, [])
-            if str(item).strip() != ""
-        }
+        provided_items, evidence_ok = _soc2_normalize_evidence_items(
+            evidence_lookup.get(control_id, [])
+        )
+        if not evidence_ok:
+            invalid_evidence_fields.append(control_id)
         provided_evidence_count += len([item for item in required_items if item in provided_items])
         missing_items = [item for item in required_items if item not in provided_items]
         if missing_items:
@@ -4562,6 +4603,8 @@ def soc2_readiness_report(
         "provided_evidence_count": provided_evidence_count,
         "missing_evidence_controls": missing_evidence_controls,
         "missing_evidence_by_control": missing_evidence_by_control,
+        "invalid_control_state_fields": sorted(set(invalid_control_state_fields)),
+        "invalid_evidence_fields": sorted(set(invalid_evidence_fields)),
         "evidence_ratio": evidence_ratio,
     }
 

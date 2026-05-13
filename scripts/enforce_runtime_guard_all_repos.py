@@ -301,6 +301,13 @@ def _build_signature_envelope(artifact_sha256: str) -> dict[str, str]:
     }
 
 
+def _extract_signature_artifact_sha256(provenance: dict[str, Any]) -> tuple[str, bool]:
+    artifact_sha256 = provenance.get("artifact_sha256")
+    if not isinstance(artifact_sha256, str):
+        return "", False
+    return artifact_sha256, True
+
+
 def main() -> int:
     args = _parse_args()
 
@@ -381,7 +388,11 @@ def main() -> int:
     _stamp_artifact_sha256(payload)
     prov = payload.get("provenance")
     if isinstance(prov, dict):
-        prov["signature"] = _build_signature_envelope(str(prov.get("artifact_sha256") or ""))
+        artifact_sha256, artifact_sha256_ok = _extract_signature_artifact_sha256(prov)
+        if not artifact_sha256_ok:
+            print("error: provenance.artifact_sha256 must be a string", file=sys.stderr)
+            return 2
+        prov["signature"] = _build_signature_envelope(artifact_sha256)
 
     report_path = Path(args.report_path)
     if not report_path.is_absolute():

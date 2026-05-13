@@ -1560,6 +1560,13 @@ def _read_windows_powershell(snap: MemSnapshot) -> bool:
 
 def _read_windows_wmic(snap: MemSnapshot) -> None:
     """Legacy wmic fallback for Windows 10 and earlier."""
+
+    def _parse_non_negative_int(raw: str) -> int | None:
+        text = raw.strip()
+        if not text or not text.isdigit():
+            return None
+        return int(text)
+
     try:
         out = subprocess.check_output(
             ["wmic", "OS", "get", "FreePhysicalMemory,TotalVisibleMemorySize", "/value"],
@@ -1572,10 +1579,9 @@ def _read_windows_wmic(snap: MemSnapshot) -> None:
             line = line.strip()
             if "=" in line:
                 k, _, v = line.partition("=")
-                try:
-                    fields[k.strip()] = int(v.strip())
-                except ValueError:
-                    pass
+                parsed = _parse_non_negative_int(v)
+                if parsed is not None:
+                    fields[k.strip()] = parsed
         snap.mem_total_mb = fields.get("TotalVisibleMemorySize", 0) // 1024
         snap.mem_available_mb = fields.get("FreePhysicalMemory", 0) // 1024
     except Exception:
@@ -1600,7 +1606,9 @@ def _read_windows_wmic(snap: MemSnapshot) -> None:
             line = line.strip()
             if line.startswith("WorkingSetSize="):
                 _, _, v = line.partition("=")
-                snap.rss_mb = int(v.strip()) // (1024 * 1024)
+                parsed = _parse_non_negative_int(v)
+                if parsed is not None:
+                    snap.rss_mb = parsed // (1024 * 1024)
                 break
     except Exception:
         pass

@@ -4363,6 +4363,32 @@ class TestWindowsPowerShellFallback:
         assert snap.mem_total_mb == 8192
         assert snap.mem_available_mb == 2048
 
+    def test_wmic_fallback_ignores_non_numeric_fields(self, monkeypatch):
+        """Malformed WMIC numeric values must fail closed without coercion."""
+        import runtime_guard as rg
+
+        def fake_check_output(cmd, **kwargs):
+            cmd_list = list(cmd)
+            if "powershell" in cmd_list[0].lower():
+                raise FileNotFoundError("powershell not found")
+            if "wmic" in cmd_list[0].lower():
+                cmd_str = " ".join(cmd_list)
+                if "FreePhysicalMemory" in cmd_str:
+                    return (
+                        "\r\nFreePhysicalMemory=bad\r\n"
+                        "TotalVisibleMemorySize=oops\r\n\r\n"
+                    )
+                return "WorkingSetSize=invalid\r\n"
+            return ""
+
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setattr("subprocess.check_output", fake_check_output)
+
+        snap = rg._read_snapshot()
+        assert snap.mem_total_mb == 0
+        assert snap.mem_available_mb == 0
+        assert snap.rss_mb == 0
+
 
 # ---------------------------------------------------------------------------
 # KI-003 — fork-safety: bg thread handles cleared in child process

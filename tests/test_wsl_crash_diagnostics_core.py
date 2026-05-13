@@ -156,6 +156,112 @@ def test_classify_wsl_risk_keeps_low_relevance_host_events_informational_only():
     assert any("prioritize guest memory pressure" in a for a in actions)
 
 
+def test_read_windows_wsl_event_hints_handles_malformed_event_types(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(rg, "_is_wsl", lambda: True)
+    monkeypatch.setattr(
+        "subprocess.check_output",
+        lambda *args, **kwargs: json.dumps(
+            [
+                {
+                    "LogName": "System",
+                    "TimeCreated": "2026-05-11T00:00:00",
+                    "Id": 42,
+                    "Level": "Warning",
+                    "Provider": "LxssManager",
+                    "Message": "WSL service warning",
+                },
+                {
+                    "LogName": 101,
+                    "TimeCreated": 999,
+                    "Id": "not-int",
+                    "Level": ["Warning"],
+                    "Provider": {"name": "broken"},
+                    "Message": {"text": "bad"},
+                },
+            ]
+        ),
+    )
+
+    out = rg._read_windows_wsl_event_hints(max_events=5)
+    assert out["host_error_event_count"] == 2
+    assert out["host_high_relevance_event_count"] >= 1
+    assert out["host_error_events"][0]["id"] == 42
+    assert out["host_error_events"][1]["id"] == 0
+    assert out["host_error_events"][1]["log"] == ""
+    assert out["host_error_events"][1]["provider"] == ""
+    assert out["host_error_events"][1]["message"] == ""
+
+
+def test_diagnose_wsl_crash_ignores_non_typed_extension_rss_in_total(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    snap = rg.MemSnapshot(
+        mem_total_mb=16000,
+        mem_available_mb=7000,
+        swap_total_mb=12000,
+        swap_free_mb=11000,
+        swap_used_pct=8,
+        host_mem_total_mb=64000,
+        host_mem_available_mb=32000,
+        host_swap_total_mb=100000,
+        host_swap_free_mb=85000,
+        host_swap_used_pct=15,
+        drift_mem_total_mb=-48000,
+        drift_mem_available_mb=-25000,
+        drift_swap_used_pct=7,
+    )
+    monkeypatch.setattr(rg, "_read_snapshot", lambda: snap)
+    monkeypatch.setattr(
+        rg,
+        "_read_linux_memory_psi",
+        lambda: {
+            "psi_some_avg10": 0.0,
+            "psi_some_avg60": 0.0,
+            "psi_full_avg10": 0.0,
+            "psi_full_avg60": 0.0,
+        },
+    )
+    monkeypatch.setattr(
+        rg,
+        "_top_memory_process_details",
+        lambda n=8: [],
+    )
+    monkeypatch.setattr(
+        rg,
+        "_summarize_vscode_extension_rss",
+        lambda rows, limit=5: [
+            {"extension": "good.one", "rss_mb": 1200},
+            {"extension": "bad.string", "rss_mb": "1300"},
+            {"extension": "bad.bool", "rss_mb": True},
+            {"extension": "bad.neg", "rss_mb": -5},
+        ],
+    )
+    monkeypatch.setattr(
+        rg,
+        "_read_wsl_running_distros",
+        lambda: {
+            "wsl_running_distros": [],
+            "wsl_running_distro_count": 0,
+            "docker_desktop_running": False,
+        },
+    )
+    monkeypatch.setattr(
+        rg,
+        "_read_windows_wsl_event_hints",
+        lambda max_events=6: {
+            "host_event_logs_checked": ["System"],
+            "host_error_event_count": 0,
+            "host_high_relevance_event_count": 0,
+            "host_error_events": [],
+        },
+    )
+
+    out = rg.diagnose_wsl_crash()
+    assert out["guest_vscode_extension_total_rss_mb"] == 1200
+
+
 def test_classify_wsl_risk_does_not_coerce_non_boolean_docker_flag():
     level, score, _causes, _actions = rg._classify_wsl_crash_risk(
         {

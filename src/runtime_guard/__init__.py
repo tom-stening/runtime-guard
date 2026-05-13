@@ -6303,16 +6303,34 @@ def _read_windows_wsl_event_hints(max_events: int = 6) -> dict[str, Any]:
         for item in parsed:
             if not isinstance(item, dict):
                 continue
-            msg = str(item.get("Message", "") or "").replace("\r", " ").replace("\n", " ").strip()
+            message_raw = item.get("Message", "")
+            msg = message_raw if isinstance(message_raw, str) else ""
+            msg = msg.replace("\r", " ").replace("\n", " ").strip()
             if len(msg) > 220:
                 msg = msg[:220] + "..."
+
+            log_raw = item.get("LogName", "")
+            log_name = log_raw if isinstance(log_raw, str) else ""
+
+            time_raw = item.get("TimeCreated", "")
+            event_time = time_raw if isinstance(time_raw, str) else ""
+
+            level_raw = item.get("Level", "")
+            level = level_raw if isinstance(level_raw, str) else ""
+
+            provider_raw = item.get("Provider", "")
+            provider = provider_raw if isinstance(provider_raw, str) else ""
+
+            event_id_raw = item.get("Id", 0)
+            event_id = event_id_raw if isinstance(event_id_raw, int) and not isinstance(event_id_raw, bool) else 0
+
             events.append(
                 {
-                    "log": str(item.get("LogName", "")),
-                    "time": str(item.get("TimeCreated", "")),
-                    "id": int(item.get("Id", 0) or 0),
-                    "level": str(item.get("Level", "")),
-                    "provider": str(item.get("Provider", "")),
+                    "log": log_name,
+                    "time": event_time,
+                    "id": event_id,
+                    "level": level,
+                    "provider": provider,
                     "message": msg,
                 }
             )
@@ -6335,7 +6353,13 @@ def _read_windows_wsl_event_hints(max_events: int = 6) -> dict[str, Any]:
     for ev in events:
         ev["relevance"] = _event_relevance(ev)
 
-    events.sort(key=lambda e: {"high": 0, "medium": 1, "low": 2}.get(str(e.get("relevance", "low")), 3))
+    events.sort(
+        key=lambda e: {
+            "high": 0,
+            "medium": 1,
+            "low": 2,
+        }.get(e.get("relevance", "low") if isinstance(e.get("relevance"), str) else "low", 3)
+    )
     events = events[:max_events]
 
     high_count = sum(1 for e in events if e.get("relevance") == "high")
@@ -6380,9 +6404,12 @@ def diagnose_wsl_crash() -> dict[str, Any]:
         limit=5,
     )
     metrics["guest_vscode_extension_total_rss_mb"] = sum(
-        int(row.get("rss_mb", 0) or 0)
+        row.get("rss_mb", 0)
         for row in metrics.get("guest_vscode_extension_rss", [])
         if isinstance(row, dict)
+        and isinstance(row.get("rss_mb"), int)
+        and not isinstance(row.get("rss_mb"), bool)
+        and row.get("rss_mb", 0) >= 0
     )
     metrics.update(psi)
     metrics.update(_read_wsl_running_distros())

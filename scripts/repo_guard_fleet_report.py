@@ -166,6 +166,7 @@ def _validate_enforcement_payload(enforcement: dict[str, Any]) -> str | None:
     repos = enforcement.get("repos")
     if not isinstance(repos, list):
         return "enforcement report field 'repos' must be a list"
+    seen_repo_paths: set[str] = set()
     for index, row in enumerate(repos):
         if not isinstance(row, dict):
             return f"enforcement report field 'repos[{index}]' must be an object"
@@ -175,6 +176,12 @@ def _validate_enforcement_payload(enforcement: dict[str, Any]) -> str | None:
                 f"enforcement report field 'repos[{index}].repo_path' "
                 "must be a non-empty string"
             )
+        normalized_repo_path = repo_path.strip()
+        if normalized_repo_path in seen_repo_paths:
+            return (
+                f"enforcement report field 'repos[{index}].repo_path' duplicates an earlier row"
+            )
+        seen_repo_paths.add(normalized_repo_path)
         repo_name = row.get("repo_name")
         if not isinstance(repo_name, str) or not repo_name.strip():
             return (

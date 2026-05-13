@@ -4912,11 +4912,18 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
                 return text
         return f"unknown-worker-{index + 1}"
 
+    def _strict_non_negative_int(value: Any) -> tuple[int, bool]:
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value, True
+        return 0, False
+
     total = len(reports)
     pressured: list[dict[str, Any]] = []
     critical: list[dict[str, Any]] = []
     invalid_pressure_workers: list[str] = []
     invalid_severity_workers: list[str] = []
+    invalid_missing_mem_workers: list[str] = []
+    invalid_swap_workers: list[str] = []
 
     for index, row in enumerate(reports):
         worker_name = _worker_name(row, index)
@@ -4942,15 +4949,19 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
 
     max_missing = 0
     max_swap = 0
-    for r in reports:
-        try:
-            max_missing = max(max_missing, int(r.get("missing_mem_mb", 0) or 0))
-        except (TypeError, ValueError):
-            pass
-        try:
-            max_swap = max(max_swap, int(r.get("swap_used_pct", 0) or 0))
-        except (TypeError, ValueError):
-            pass
+    for index, r in enumerate(reports):
+        worker_name = _worker_name(r, index)
+        missing_mem_mb, missing_mem_ok = _strict_non_negative_int(r.get("missing_mem_mb", 0))
+        if missing_mem_ok:
+            max_missing = max(max_missing, missing_mem_mb)
+        else:
+            invalid_missing_mem_workers.append(worker_name)
+
+        swap_used_pct, swap_used_pct_ok = _strict_non_negative_int(r.get("swap_used_pct", 0))
+        if swap_used_pct_ok:
+            max_swap = max(max_swap, swap_used_pct)
+        else:
+            invalid_swap_workers.append(worker_name)
 
     worst_severity = "none"
     if critical:
@@ -4968,6 +4979,8 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "max_swap_used_pct": max_swap,
         "invalid_pressure_workers": sorted(set(invalid_pressure_workers)),
         "invalid_severity_workers": sorted(set(invalid_severity_workers)),
+        "invalid_missing_mem_workers": sorted(set(invalid_missing_mem_workers)),
+        "invalid_swap_workers": sorted(set(invalid_swap_workers)),
         "workers": reports,
     }
 

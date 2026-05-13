@@ -4101,6 +4101,38 @@ class TestMultiProcessOrchestration:
         assert summary["critical_workers"] == 1
         assert summary["invalid_severity_workers"] == ["a"]
 
+    def test_aggregate_worker_reports_fail_closed_on_non_integer_max_fields(self):
+        summary = aggregate_worker_reports(
+            [
+                {
+                    "worker_id": "a",
+                    "pressure": False,
+                    "severity": "none",
+                    "missing_mem_mb": "900",
+                    "swap_used_pct": "99",
+                },
+                {
+                    "worker_id": "b",
+                    "pressure": False,
+                    "severity": "none",
+                    "missing_mem_mb": -1,
+                    "swap_used_pct": True,
+                },
+                {
+                    "worker_id": "c",
+                    "pressure": False,
+                    "severity": "none",
+                    "missing_mem_mb": 120,
+                    "swap_used_pct": 60,
+                },
+            ]
+        )
+
+        assert summary["max_missing_mem_mb"] == 120
+        assert summary["max_swap_used_pct"] == 60
+        assert summary["invalid_missing_mem_workers"] == ["a", "b"]
+        assert summary["invalid_swap_workers"] == ["a", "b"]
+
     def test_runtime_guard_worker_wrappers(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check", lambda stage="": None)

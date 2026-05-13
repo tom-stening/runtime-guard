@@ -263,6 +263,19 @@ def test_extract_run_id_rejects_non_string_fields():
     assert module._extract_run_id(summary_payload) == "ci-2"
 
 
+def test_validate_artifact_sha256_rejects_non_string_value() -> None:
+    module = _load_module()
+    errors = module._validate_artifact_sha256(
+        "integration_fleet_status",
+        {
+            "provenance": {
+                "artifact_sha256": 101,
+            }
+        },
+    )
+    assert errors == ["integration_fleet_status: missing provenance artifact_sha256"]
+
+
 def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
     module = _load_module()
 

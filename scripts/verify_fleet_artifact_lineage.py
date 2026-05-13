@@ -260,9 +260,10 @@ def _validate_artifact_sha256(name: str, payload: dict[str, Any]) -> list[str]:
     prov = payload.get("provenance")
     if not isinstance(prov, dict):
         return [f"{name}: missing provenance block"]
-    actual = str(prov.get("artifact_sha256") or "").strip()
-    if not actual:
+    actual_raw = prov.get("artifact_sha256")
+    if not isinstance(actual_raw, str) or not actual_raw.strip():
         return [f"{name}: missing provenance artifact_sha256"]
+    actual = actual_raw.strip()
     expected = _expected_artifact_sha256(payload)
     if actual != expected:
         return [f"{name}: artifact_sha256 mismatch"]

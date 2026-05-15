@@ -5551,6 +5551,19 @@ class TestDistributedTracePropagator:
         ctx = tp["extract"]({"Traceparent": tp_value})
         assert ctx["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
 
+    def test_extract_ignores_non_string_header_values(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+        ctx = tp["extract"]({"traceparent": 123})
+        assert ctx == {}
+
+    def test_extract_ignores_non_string_header_keys(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+        tp_value = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        ctx = tp["extract"]([(1, tp_value)])
+        assert ctx == {}
+
     def test_inject_with_no_otel_returns_unchanged(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard, module=object())  # no OTEL
@@ -5588,6 +5601,12 @@ class TestDistributedTracePropagator:
         out = tp["inject"](headers)
         assert out.get("authorization") == "Bearer token123"  # value preserved; key lowercased
         assert out.get("x-request-id") == "abc"
+
+    def test_inject_drops_non_string_header_entries(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard, module=object())
+        out = tp["inject"]({"ok": "yes", "bad": 1, 2: "bad-key"})
+        assert out == {"ok": "yes"}
 
     def test_custom_header_name(self):
         guard = self._make_guard()

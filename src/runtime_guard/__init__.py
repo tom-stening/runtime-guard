@@ -3677,12 +3677,26 @@ def install_distributed_trace_propagator(
     )
 
     def _normalise_headers(headers: Any) -> dict[str, str]:
+        out: dict[str, str] = {}
+
+        def _add_pair(key: Any, value: Any) -> None:
+            if not isinstance(key, str) or not isinstance(value, str):
+                return
+            key_norm = key.strip().lower()
+            if not key_norm:
+                return
+            out[key_norm] = value
+
         if isinstance(headers, dict):
-            return {k.lower(): str(v) for k, v in headers.items()}
+            for k, v in headers.items():
+                _add_pair(k, v)
+            return out
         try:
-            return {k.lower(): str(v) for k, v in headers}
+            for k, v in headers:
+                _add_pair(k, v)
         except (TypeError, ValueError):
             return {}
+        return out
 
     def extract(headers: Any) -> dict[str, Any]:
         normalised = _normalise_headers(headers)

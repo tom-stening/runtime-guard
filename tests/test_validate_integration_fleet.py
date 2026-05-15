@@ -992,6 +992,27 @@ def test_build_payload_propagates_run_id(tmp_path: Path, monkeypatch):
     assert script_hashes.get("ray")
 
 
+def test_build_payload_rejects_non_boolean_pressure_override(tmp_path: Path):
+    module = _load_module()
+
+    try:
+        module._build_payload(
+            tmp_path,
+            timeout_s=1,
+            include_wsl_diagnosis=False,
+            polars_report=None,
+            dask_report=None,
+            ray_report=None,
+            fallback_on_pressure=True,
+            fallback_report_dir="reports",
+            pressure_detected_override="yes",
+        )
+    except ValueError as exc:
+        assert "pressure_detected_override" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for non-boolean pressure_detected_override")
+
+
 def test_run_validator_timeout_returns_unhealthy_component(tmp_path: Path, monkeypatch):
     module = _load_module()
 

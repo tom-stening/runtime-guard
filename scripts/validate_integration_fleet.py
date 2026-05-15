@@ -894,7 +894,9 @@ def _build_payload(
         if pressure_detected_override is None:
             pressure_detected, pressure_probe_note = _detect_runtime_pressure()
         else:
-            pressure_detected = bool(pressure_detected_override)
+            if not isinstance(pressure_detected_override, bool):
+                raise ValueError("pressure_detected_override must be a boolean when provided")
+            pressure_detected = pressure_detected_override
 
     fallback_dir = Path(fallback_report_dir)
     if not fallback_dir.is_absolute():

@@ -326,6 +326,22 @@ def main() -> int:
             print(f"error: {row}", file=sys.stderr)
         return 2
 
+    if not isinstance(args.json, bool):
+        print("error: --json flag must be boolean", file=sys.stderr)
+        return 2
+    if not isinstance(args.require_hooks, bool):
+        print("error: --require-hooks flag must be boolean", file=sys.stderr)
+        return 2
+    if not isinstance(args.check_guard_api, bool):
+        print("error: --check-guard-api flag must be boolean", file=sys.stderr)
+        return 2
+    if not isinstance(args.check_scheduler_api, bool):
+        print("error: --check-scheduler-api flag must be boolean", file=sys.stderr)
+        return 2
+    if not isinstance(args.stage, str):
+        print("error: --stage must be a non-empty string", file=sys.stderr)
+        return 2
+
     repo_root = Path(__file__).resolve().parent.parent
 
     report: dict[str, Any] = {
@@ -446,10 +462,10 @@ def main() -> int:
         "run_id": run_id,
         "git_commit": _safe_git_commit(repo_root),
         "inputs": {
-            "check_guard_api": bool(args.check_guard_api),
-            "check_scheduler_api": bool(args.check_scheduler_api),
-            "require_hooks": bool(args.require_hooks),
-            "stage": str(args.stage),
+            "check_guard_api": args.check_guard_api,
+            "check_scheduler_api": args.check_scheduler_api,
+            "require_hooks": args.require_hooks,
+            "stage": args.stage,
         },
     }
     _stamp_artifact_sha256(report)

@@ -4972,6 +4972,9 @@ def make_worker_report(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create a single worker report suitable for parent-process aggregation."""
+    if metadata is not None and not isinstance(metadata, dict):
+        raise ValueError("metadata must be a dictionary when provided")
+
     report = guard.check(stage=stage)
     snap = report.snapshot if report is not None else _read_snapshot()
     severity = "none"
@@ -4994,7 +4997,7 @@ def make_worker_report(
         "swap_used_pct": snap.swap_used_pct,
         "rss_mb": snap.rss_mb,
     }
-    if metadata:
+    if metadata is not None:
         out["metadata"] = metadata
     return out
 

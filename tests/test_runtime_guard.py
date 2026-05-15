@@ -4301,6 +4301,25 @@ class TestMultiProcessOrchestration:
         assert report["severity"] == "critical"
         assert report["missing_mem_mb"] >= 0
 
+    def test_make_worker_report_preserves_empty_metadata_dict(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        monkeypatch.setattr(
+            "runtime_guard._read_snapshot",
+            lambda: MemSnapshot(
+                mem_available_mb=7000, mem_total_mb=8000, swap_used_pct=1, rss_mb=100
+            ),
+        )
+        report = make_worker_report(guard, stage="worker-a", worker_id="w1", metadata={})
+        assert "metadata" in report
+        assert report["metadata"] == {}
+
+    def test_make_worker_report_rejects_non_dict_metadata(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        with pytest.raises(ValueError, match="metadata must be a dictionary"):
+            make_worker_report(guard, stage="worker-a", metadata=["bad"])
+
     def test_aggregate_worker_reports(self):
         summary = aggregate_worker_reports(
             [

@@ -4588,13 +4588,19 @@ def soc2_required_controls() -> dict[str, str]:
 
 
 def _soc2_normalize_control_state(
-    control_state: dict[str, bool],
+    control_state: Any,
 ) -> tuple[dict[str, bool], list[str]]:
+    if not isinstance(control_state, dict):
+        return {}, ["<root>"]
+
     normalized: dict[str, bool] = {}
     invalid_fields: list[str] = []
 
     for key, value in control_state.items():
-        control_id = str(key)
+        if not isinstance(key, str) or not key.strip():
+            invalid_fields.append("<non-string-control-id>")
+            continue
+        control_id = key.strip()
         if isinstance(value, bool):
             normalized[control_id] = value
             continue
@@ -4634,9 +4640,7 @@ def soc2_gap_assessment(
     required = (
         dict(required_controls) if required_controls is not None else soc2_required_controls()
     )
-    normalized_control_state, invalid_control_state_fields = _soc2_normalize_control_state(
-        control_state
-    )
+    normalized_control_state, invalid_control_state_fields = _soc2_normalize_control_state(control_state)
 
     items: list[tuple[str, bool]] = []
     for key, value in normalized_control_state.items():
@@ -4646,7 +4650,7 @@ def soc2_gap_assessment(
     missing_required = [
         control_id
         for control_id in sorted(required.keys())
-        if not bool(provided.get(control_id, False))
+        if not provided.get(control_id, False)
     ]
     unknown_controls = [
         control_id for control_id in sorted(provided.keys()) if control_id not in required
@@ -4704,19 +4708,25 @@ def soc2_readiness_report(
     required = (
         dict(required_controls) if required_controls is not None else soc2_required_controls()
     )
-    normalized_control_state, invalid_control_state_fields = _soc2_normalize_control_state(
-        control_state
-    )
+    normalized_control_state, invalid_control_state_fields = _soc2_normalize_control_state(control_state)
     gap = soc2_gap_assessment(normalized_control_state, required_controls=required)
     expected = (
         dict(evidence_requirements)
         if evidence_requirements is not None
         else soc2_evidence_requirements(required_controls=required)
     )
-    evidence_lookup = evidence_state or {}
+    evidence_lookup: dict[str, list[str] | tuple[str, ...] | set[str]] = {}
+    if evidence_state is None:
+        evidence_lookup = {}
+    elif isinstance(evidence_state, dict):
+        evidence_lookup = evidence_state
+    else:
+        evidence_lookup = {}
 
     missing_evidence_by_control: dict[str, list[str]] = {}
     invalid_evidence_fields: list[str] = []
+    if evidence_state is not None and not isinstance(evidence_state, dict):
+        invalid_evidence_fields.append("<root>")
     provided_evidence_count = 0
     expected_evidence_count = 0
 

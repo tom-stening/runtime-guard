@@ -4200,6 +4200,14 @@ class TestSoc2GapAssessment:
         assert "CC7.1" in out["missing_controls"]
         assert out["invalid_control_state_fields"] == ["CC6.1", "CC7.1"]
 
+    def test_fails_closed_on_non_mapping_control_state_root(self):
+        out = soc2_gap_assessment("not-a-dict")  # type: ignore[arg-type]
+        all_required = set(soc2_required_controls())
+        assert out["total_controls"] == 0
+        assert out["covered_controls"] == 0
+        assert set(out["missing_required_controls"]) == all_required
+        assert out["invalid_control_state_fields"] == ["<root>"]
+
     def test_evidence_requirements_scoped_to_required_controls(self):
         req = soc2_evidence_requirements(required_controls={"CC6.1": "x", "CC8.1": "y"})
         assert sorted(req.keys()) == ["CC6.1", "CC8.1"]
@@ -4250,6 +4258,17 @@ class TestSoc2GapAssessment:
         assert out["status"] == "evidence-missing"
         assert out["provided_evidence_count"] == 0
         assert out["invalid_evidence_fields"] == ["CC6.1"]
+
+    def test_readiness_report_fails_closed_on_non_mapping_evidence_root(self):
+        out = soc2_readiness_report(
+            {"CC6.1": True},
+            evidence_state=["access-review-log"],  # type: ignore[arg-type]
+            required_controls={"CC6.1": "Logical access controls"},
+            evidence_requirements={"CC6.1": ["access-review-log"]},
+        )
+        assert out["status"] == "evidence-missing"
+        assert out["provided_evidence_count"] == 0
+        assert "<root>" in out["invalid_evidence_fields"]
 
     def test_readiness_report_fails_closed_on_non_boolean_control_values(self):
         out = soc2_readiness_report(

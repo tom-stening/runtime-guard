@@ -4633,6 +4633,60 @@ class TestWslconfigMerge:
         assert not out.exists()
         assert "memory=8GB" in content
 
+    def test_generate_wslconfig_rejects_bool_memory_gb(self):
+        from runtime_guard import generate_wslconfig
+
+        with pytest.raises(ValueError, match="memory_gb must be a positive integer"):
+            generate_wslconfig(memory_gb=True)  # type: ignore[arg-type]
+
+    def test_generate_wslconfig_rejects_non_positive_memory_gb(self):
+        from runtime_guard import generate_wslconfig
+
+        with pytest.raises(ValueError, match="memory_gb must be a positive integer"):
+            generate_wslconfig(memory_gb=0)
+
+    def test_generate_wslconfig_rejects_bool_swap_gb(self):
+        from runtime_guard import generate_wslconfig
+
+        with pytest.raises(ValueError, match="swap_gb must be a non-negative integer"):
+            generate_wslconfig(memory_gb=8, swap_gb=True)  # type: ignore[arg-type]
+
+    def test_generate_wslconfig_rejects_negative_swap_gb(self):
+        from runtime_guard import generate_wslconfig
+
+        with pytest.raises(ValueError, match="swap_gb must be a non-negative integer"):
+            generate_wslconfig(memory_gb=8, swap_gb=-1)
+
+    def test_generate_wslconfig_rejects_bool_processors(self):
+        from runtime_guard import generate_wslconfig
+
+        with pytest.raises(ValueError, match="processors must be a positive integer"):
+            generate_wslconfig(memory_gb=8, processors=False)  # type: ignore[arg-type]
+
+    def test_generate_wslconfig_rejects_non_positive_processors(self):
+        from runtime_guard import generate_wslconfig
+
+        with pytest.raises(ValueError, match="processors must be a positive integer"):
+            generate_wslconfig(memory_gb=8, processors=0)
+
+    def test_generate_wslconfig_rejects_non_string_output_path(self):
+        from runtime_guard import generate_wslconfig
+
+        with pytest.raises(ValueError, match="output_path must be a string"):
+            generate_wslconfig(memory_gb=8, output_path=123)  # type: ignore[arg-type]
+
+    def test_generate_wslconfig_rejects_non_bool_dry_run(self):
+        from runtime_guard import generate_wslconfig
+
+        with pytest.raises(ValueError, match="dry_run must be a boolean"):
+            generate_wslconfig(memory_gb=8, dry_run=1)  # type: ignore[arg-type]
+
+    def test_generate_wslconfig_zero_swap_allowed(self):
+        from runtime_guard import generate_wslconfig
+
+        content = generate_wslconfig(memory_gb=8, swap_gb=0)
+        assert "swap=0GB" in content
+
 
 # ---------------------------------------------------------------------------
 # CLI — argument parsing

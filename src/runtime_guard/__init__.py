@@ -5159,6 +5159,21 @@ def generate_wslconfig(
 
     Returns the generated file content as a string.
     """
+    if not isinstance(memory_gb, int) or isinstance(memory_gb, bool) or memory_gb < 1:
+        raise ValueError("memory_gb must be a positive integer")
+    if swap_gb is not None and (
+        not isinstance(swap_gb, int) or isinstance(swap_gb, bool) or swap_gb < 0
+    ):
+        raise ValueError("swap_gb must be a non-negative integer when provided")
+    if processors is not None and (
+        not isinstance(processors, int) or isinstance(processors, bool) or processors < 1
+    ):
+        raise ValueError("processors must be a positive integer when provided")
+    if output_path is not None and not isinstance(output_path, str):
+        raise ValueError("output_path must be a string when provided")
+    if not isinstance(dry_run, bool):
+        raise ValueError("dry_run must be a boolean")
+
     if swap_gb is None:
         swap_gb = max(2, memory_gb // 2)
     if processors is None:

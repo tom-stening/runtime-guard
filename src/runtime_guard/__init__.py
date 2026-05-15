@@ -1270,29 +1270,40 @@ class RuntimeGuard:
         self.reload_policy_if_changed()
 
         env_posture_key = os.environ.get(f"{self._prefix}_POSTURE", "").strip().lower()
-        policy_posture_key = str(self._policy_overrides.get("posture", "")).strip().lower()
+        policy_posture_raw = self._policy_overrides.get("posture", "")
+        policy_posture_key = policy_posture_raw.strip().lower() if isinstance(policy_posture_raw, str) else ""
         posture_key = env_posture_key or policy_posture_key
         preset = _PRESETS.get(posture_key, (2048, 85, 1024, 95, 20))
 
+        def _policy_int(key: str, default: int, *, minimum: int = 0, maximum: int | None = None) -> int:
+            raw = self._policy_overrides.get(key, default)
+            if not isinstance(raw, int) or isinstance(raw, bool):
+                return default
+            if raw < minimum:
+                return default
+            if maximum is not None and raw > maximum:
+                return default
+            return raw
+
         min_mem_mb = self._int_env(
             "MIN_MEM_AVAILABLE_MB",
-            int(self._policy_overrides.get("min_mem_available_mb", preset[0])),
+            _policy_int("min_mem_available_mb", preset[0], minimum=0),
         )
         max_swap_pct = self._int_env(
             "MAX_SWAP_USED_PCT",
-            int(self._policy_overrides.get("max_swap_used_pct", preset[1])),
+            _policy_int("max_swap_used_pct", preset[1], minimum=0, maximum=100),
         )
         critical_mem_mb = self._int_env(
             "CRITICAL_MEM_MB",
-            int(self._policy_overrides.get("critical_mem_mb", preset[2])),
+            _policy_int("critical_mem_mb", preset[2], minimum=0),
         )
         critical_swap_pct = self._int_env(
             "CRITICAL_SWAP_PCT",
-            int(self._policy_overrides.get("critical_swap_pct", preset[3])),
+            _policy_int("critical_swap_pct", preset[3], minimum=0, maximum=100),
         )
         self_inflicted_pct = self._int_env(
             "SELF_INFLICTED_PCT",
-            int(self._policy_overrides.get("self_inflicted_pct", preset[4])),
+            _policy_int("self_inflicted_pct", preset[4], minimum=0, maximum=100),
         )
         return min_mem_mb, max_swap_pct, critical_mem_mb, critical_swap_pct, self_inflicted_pct
 

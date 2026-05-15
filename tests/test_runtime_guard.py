@@ -3151,6 +3151,33 @@ class TestDynamicPolicyReload:
         min_mem_mb, *_ = guard._resolve_thresholds()
         assert min_mem_mb == 5555
 
+    def test_resolve_thresholds_fails_closed_on_non_typed_policy_overrides(self):
+        guard = RuntimeGuard()
+        guard._policy_overrides = {
+            "posture": ["ci"],
+            "min_mem_available_mb": "3333",
+            "max_swap_used_pct": True,
+            "critical_mem_mb": 1.5,
+            "critical_swap_pct": {"pct": 70},
+            "self_inflicted_pct": object(),
+        }
+
+        assert guard._resolve_thresholds() == (2048, 85, 1024, 95, 20)
+
+    def test_resolve_thresholds_fails_closed_on_out_of_range_policy_overrides(self):
+        guard = RuntimeGuard()
+        guard._policy_overrides = {
+            "posture": "ci",
+            "min_mem_available_mb": -1,
+            "max_swap_used_pct": 101,
+            "critical_mem_mb": -5,
+            "critical_swap_pct": 1000,
+            "self_inflicted_pct": -1,
+        }
+
+        # Falls back to CI preset defaults when override values are invalid.
+        assert guard._resolve_thresholds() == (1024, 90, 512, 97, 20)
+
 
 class TestSitecustomizeContent:
     def test_contains_autostart_toggle_and_background_start(self):

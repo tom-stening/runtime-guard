@@ -174,3 +174,42 @@ def test_training_report_rejects_non_object_attendee_rows(tmp_path: Path):
 
     assert proc.returncode == 2
     assert "attendees[1] must be a JSON object" in proc.stderr
+
+
+def test_training_report_fails_closed_on_non_string_attendee_identity(tmp_path: Path):
+    attendees = tmp_path / "attendees.json"
+    attendees.write_text(
+        json.dumps(
+            [
+                {
+                    "name": {"display": "alice"},
+                    "labs_completed": 5,
+                    "capstone_submitted": True,
+                    "framework_demo": True,
+                    "automation_demo": True,
+                    "assessment_score": 90,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(_script_path()),
+            "--attendees",
+            str(attendees),
+            "--fail-on-gaps",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 1
+    payload = json.loads(proc.stdout)
+    row = payload["attendees"][0]
+    assert row["name"] == "attendee-1"
+    assert row["passed"] is False
+    assert any("name/id must be a non-empty string" in err for err in row["validation_errors"])

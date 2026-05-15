@@ -45,6 +45,24 @@ def _strict_number(value: Any) -> tuple[float, bool]:
     return 0.0, False
 
 
+def _attendee_name(record: dict[str, Any], index: int) -> tuple[str, bool]:
+    fallback = f"attendee-{index}"
+
+    raw_name = record.get("name")
+    if raw_name is not None:
+        if isinstance(raw_name, str) and raw_name.strip():
+            return raw_name.strip(), True
+        return fallback, False
+
+    raw_id = record.get("id")
+    if raw_id is not None:
+        if isinstance(raw_id, str) and raw_id.strip():
+            return raw_id.strip(), True
+        return fallback, False
+
+    return fallback, True
+
+
 def _evaluate_attendee(
     record: dict[str, Any],
     *,
@@ -176,19 +194,26 @@ def main() -> int:
 
     results: list[dict[str, Any]] = []
     for idx, attendee in enumerate(attendees, start=1):
-        name = str(attendee.get("name") or attendee.get("id") or f"attendee-{idx}").strip()
+        name, name_ok = _attendee_name(attendee, idx)
         evaluated, validation_errors = _evaluate_attendee(
             attendee,
             required_labs=args.required_labs,
             min_score=args.min_score,
         )
+        if not name_ok:
+            validation_errors = list(validation_errors) + [
+                "name/id must be a non-empty string when provided"
+            ]
         passed_value, passed_ok = _strict_bool(evaluated.get("passed", False))
         if not passed_ok:
             validation_errors = list(validation_errors) + ["passed must be boolean"]
+        final_passed = passed_value if passed_ok else False
+        if not name_ok:
+            final_passed = False
         results.append(
             {
                 "name": name,
-                "passed": passed_value if passed_ok else False,
+                "passed": final_passed,
                 "labs_completed": evaluated.get("labs_completed", 0),
                 "assessment_score": evaluated.get("assessment_score", 0.0),
                 "capstone_submitted": evaluated.get("capstone_submitted", False),

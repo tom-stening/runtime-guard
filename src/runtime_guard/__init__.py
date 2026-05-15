@@ -6599,6 +6599,26 @@ def make_conftest_content(
     to ``make_pytest_guard(...)`` so threshold presets are applied via the
     same validated path as direct factory usage.
     """
+    if not isinstance(repo_name, str) or not repo_name.strip():
+        raise ValueError("repo_name must be a non-empty string")
+    if hints is not None:
+        if not isinstance(hints, list):
+            raise ValueError("hints must be a list of strings when provided")
+        if any(not isinstance(item, str) for item in hints):
+            raise ValueError("hints must contain only strings")
+    if not isinstance(skip_on_critical, bool):
+        raise ValueError("skip_on_critical must be a boolean")
+    if not isinstance(intervene_on_warning, bool):
+        raise ValueError("intervene_on_warning must be a boolean")
+    if kill_hogs_above_mb is not None and (
+        not isinstance(kill_hogs_above_mb, int)
+        or isinstance(kill_hogs_above_mb, bool)
+        or kill_hogs_above_mb < 1
+    ):
+        raise ValueError("kill_hogs_above_mb must be a positive integer when provided")
+    if posture is not None and not isinstance(posture, str):
+        raise ValueError("posture must be a string when provided")
+
     hints_repr = repr(hints or [])
     kill_repr = repr(kill_hogs_above_mb)
     skip_repr = repr(skip_on_critical)
@@ -6710,6 +6730,25 @@ def make_sitecustomize_content(
     RuntimeGuard begins background checks automatically when Python starts.
     Set ``<ENV_PREFIX>_AUTOSTART=0`` to disable without deleting the file.
     """
+    if not isinstance(repo_name, str) or not repo_name.strip():
+        raise ValueError("repo_name must be a non-empty string")
+    if not isinstance(stage, str) or not stage.strip():
+        raise ValueError("stage must be a non-empty string")
+    if isinstance(interval_s, bool) or not isinstance(interval_s, (int, float)):
+        raise ValueError("interval_s must be a positive number")
+    if isinstance(cooldown_s, bool) or not isinstance(cooldown_s, (int, float)):
+        raise ValueError("cooldown_s must be a non-negative number")
+    interval_val = float(interval_s)
+    cooldown_val = float(cooldown_s)
+    if math.isnan(interval_val) or math.isinf(interval_val) or interval_val <= 0:
+        raise ValueError("interval_s must be a positive number")
+    if math.isnan(cooldown_val) or math.isinf(cooldown_val) or cooldown_val < 0:
+        raise ValueError("cooldown_s must be a non-negative number")
+    if not isinstance(env_prefix, str) or not env_prefix.strip():
+        raise ValueError("env_prefix must be a non-empty string")
+    if posture is not None and not isinstance(posture, str):
+        raise ValueError("posture must be a string when provided")
+
     posture_value: str | None = None
     if posture is not None:
         posture_cfg = validate_runtime_guard_config(

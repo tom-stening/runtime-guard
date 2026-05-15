@@ -196,6 +196,22 @@ class TestConftestContent:
         with pytest.raises(ValueError, match="Invalid posture"):
             make_conftest_content(repo_name="myrepo", posture="fast")
 
+    def test_conftest_rejects_non_boolean_flags(self):
+        with pytest.raises(ValueError, match="skip_on_critical must be a boolean"):
+            make_conftest_content(repo_name="myrepo", skip_on_critical="yes")
+        with pytest.raises(ValueError, match="intervene_on_warning must be a boolean"):
+            make_conftest_content(repo_name="myrepo", intervene_on_warning=1)
+
+    def test_conftest_rejects_invalid_hints_and_kill_hogs(self):
+        with pytest.raises(ValueError, match="hints must be a list of strings"):
+            make_conftest_content(repo_name="myrepo", hints="not-a-list")
+        with pytest.raises(ValueError, match="hints must contain only strings"):
+            make_conftest_content(repo_name="myrepo", hints=["ok", 1])
+        with pytest.raises(ValueError, match="kill_hogs_above_mb must be a positive integer"):
+            make_conftest_content(repo_name="myrepo", kill_hogs_above_mb=True)
+        with pytest.raises(ValueError, match="kill_hogs_above_mb must be a positive integer"):
+            make_conftest_content(repo_name="myrepo", kill_hogs_above_mb=0)
+
 
 # ---------------------------------------------------------------------------
 # Structured JSON events
@@ -3072,6 +3088,26 @@ class TestSitecustomizeContent:
     def test_posture_is_validated(self):
         with pytest.raises(ValueError, match="Invalid posture"):
             make_sitecustomize_content(repo_name="myrepo", posture="fast")
+
+    def test_rejects_invalid_numeric_inputs(self):
+        with pytest.raises(ValueError, match="interval_s must be a positive number"):
+            make_sitecustomize_content(repo_name="myrepo", interval_s=True)
+        with pytest.raises(ValueError, match="interval_s must be a positive number"):
+            make_sitecustomize_content(repo_name="myrepo", interval_s=0)
+        with pytest.raises(ValueError, match="cooldown_s must be a non-negative number"):
+            make_sitecustomize_content(repo_name="myrepo", cooldown_s=False)
+        with pytest.raises(ValueError, match="cooldown_s must be a non-negative number"):
+            make_sitecustomize_content(repo_name="myrepo", cooldown_s=-1)
+
+    def test_rejects_invalid_string_inputs(self):
+        with pytest.raises(ValueError, match="repo_name must be a non-empty string"):
+            make_sitecustomize_content(repo_name="")
+        with pytest.raises(ValueError, match="stage must be a non-empty string"):
+            make_sitecustomize_content(repo_name="myrepo", stage="")
+        with pytest.raises(ValueError, match="env_prefix must be a non-empty string"):
+            make_sitecustomize_content(repo_name="myrepo", env_prefix="")
+        with pytest.raises(ValueError, match="posture must be a string"):
+            make_sitecustomize_content(repo_name="myrepo", posture=1)
 
 
 # ---------------------------------------------------------------------------

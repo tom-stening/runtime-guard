@@ -5022,8 +5022,18 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
     invalid_severity_workers: list[str] = []
     invalid_missing_mem_workers: list[str] = []
     invalid_swap_workers: list[str] = []
+    malformed_worker_rows: list[str] = []
+    parse_warning_count = 0
 
+    typed_rows: list[dict[str, Any]] = []
     for index, row in enumerate(reports):
+        if isinstance(row, dict):
+            typed_rows.append(row)
+            continue
+        malformed_worker_rows.append(f"unknown-worker-{index + 1}")
+        parse_warning_count += 1
+
+    for index, row in enumerate(typed_rows):
         worker_name = _worker_name(row, index)
 
         pressure_raw = row.get("pressure", False)
@@ -5047,7 +5057,7 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
 
     max_missing = 0
     max_swap = 0
-    for index, r in enumerate(reports):
+    for index, r in enumerate(typed_rows):
         worker_name = _worker_name(r, index)
         missing_mem_mb, missing_mem_ok = _strict_non_negative_int(r.get("missing_mem_mb", 0))
         if missing_mem_ok:
@@ -5069,17 +5079,20 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "total_workers": total,
+        "typed_workers": len(typed_rows),
         "pressured_workers": len(pressured),
         "critical_workers": len(critical),
         "any_pressure": bool(pressured),
         "worst_severity": worst_severity,
         "max_missing_mem_mb": max_missing,
         "max_swap_used_pct": max_swap,
+        "parse_warning_count": parse_warning_count,
+        "malformed_worker_rows": sorted(set(malformed_worker_rows)),
         "invalid_pressure_workers": sorted(set(invalid_pressure_workers)),
         "invalid_severity_workers": sorted(set(invalid_severity_workers)),
         "invalid_missing_mem_workers": sorted(set(invalid_missing_mem_workers)),
         "invalid_swap_workers": sorted(set(invalid_swap_workers)),
-        "workers": reports,
+        "workers": typed_rows,
     }
 
 

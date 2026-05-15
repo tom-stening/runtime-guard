@@ -4389,6 +4389,23 @@ class TestMultiProcessOrchestration:
         assert summary["invalid_missing_mem_workers"] == ["a", "b"]
         assert summary["invalid_swap_workers"] == ["a", "b"]
 
+    def test_aggregate_worker_reports_fail_closed_on_non_object_rows(self):
+        summary = aggregate_worker_reports(
+            [
+                "not-a-dict",
+                {"worker_id": "a", "pressure": True, "severity": "critical"},
+                123,
+            ]
+        )
+
+        assert summary["total_workers"] == 3
+        assert summary["typed_workers"] == 1
+        assert summary["pressured_workers"] == 1
+        assert summary["critical_workers"] == 1
+        assert summary["parse_warning_count"] == 2
+        assert summary["malformed_worker_rows"] == ["unknown-worker-1", "unknown-worker-3"]
+        assert len(summary["workers"]) == 1
+
     def test_runtime_guard_worker_wrappers(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check", lambda stage="": None)

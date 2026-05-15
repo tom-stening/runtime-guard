@@ -632,12 +632,33 @@ class TestWslRuntimeContext:
             "Ubuntu-24.04",
             "docker-desktop",
         ]
+        assert ctx["wsl_parse_warning_count"] == 0
+
+    def test_read_wsl_running_distros_counts_unparseable_rows(self, monkeypatch):
+        from runtime_guard import _read_wsl_running_distros
+
+        monkeypatch.setattr("runtime_guard._is_wsl", lambda: True)
+        monkeypatch.setattr(
+            "subprocess.check_output",
+            mock.Mock(
+                return_value=(
+                    "NAME                   STATE           VERSION\n"
+                    "Ubuntu-24.04          Running         2\n"
+                    "this line is malformed and should increment warning count\n"
+                )
+            ),
+        )
+
+        ctx = _read_wsl_running_distros()
+        assert ctx["wsl_running_distro_count"] == 1
+        assert ctx["wsl_parse_warning_count"] == 1
 
     def test_read_wsl_running_distros_returns_empty_when_not_wsl(self):
         from runtime_guard import _read_wsl_running_distros
 
         ctx = _read_wsl_running_distros()
         assert ctx["wsl_running_distro_count"] >= 0
+        assert ctx["wsl_parse_warning_count"] == 0
 
     def test_summarize_vscode_extension_rss_aggregates_and_normalizes(self):
         from runtime_guard import _summarize_vscode_extension_rss

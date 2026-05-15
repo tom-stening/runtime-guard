@@ -1731,6 +1731,7 @@ def _read_wsl_running_distros() -> dict[str, Any]:
         "wsl_running_distros": [],
         "wsl_running_distro_count": 0,
         "docker_desktop_running": False,
+        "wsl_parse_warning_count": 0,
     }
 
     if not _is_wsl():
@@ -1760,6 +1761,7 @@ def _read_wsl_running_distros() -> dict[str, Any]:
             continue
         match = line_re.match(line)
         if not match:
+            out["wsl_parse_warning_count"] = out["wsl_parse_warning_count"] + 1
             continue
         name, state, version = match.groups()
         if state != "Running":
@@ -1770,7 +1772,8 @@ def _read_wsl_running_distros() -> dict[str, Any]:
     out["wsl_running_distros"] = running
     out["wsl_running_distro_count"] = len(running)
     out["docker_desktop_running"] = any(
-        str(row.get("name", "")).lower() == "docker-desktop" for row in running
+        isinstance(row.get("name"), str) and row.get("name", "").lower() == "docker-desktop"
+        for row in running
     )
     return out
 

@@ -2708,11 +2708,24 @@ def enable_ray_actor_memory_monitoring(
     - Remote function wrappers are recommended for lightweight monitoring
     """
     actor_event_state: dict[str, dict[str, Any]] = {}
+    parse_warning_count = 0
 
     def _strict_non_negative_counter(value: Any) -> tuple[int, bool]:
         if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
             return value, True
         return 0, False
+
+    def _warn_parse() -> None:
+        nonlocal parse_warning_count
+        parse_warning_count += 1
+
+    def _normalize_key(raw: Any, *, fallback: str) -> str:
+        if isinstance(raw, str):
+            value = raw.strip()
+            if value:
+                return value
+        _warn_parse()
+        return fallback
 
     config: dict[str, Any] = {
         "ok": True,
@@ -2727,6 +2740,7 @@ def enable_ray_actor_memory_monitoring(
         "reset_node_reports": None,
         "get_all_node_reports": None,
         "cluster_summary": None,
+        "parse_warning_count": 0,
         "instructions": [
             "1. Add 'from runtime_guard import guard' to actor module (or pass via init)",
             "2. Wrap method calls with: if guard.check(stage='actor-method') is not None: handle_pressure()",
@@ -2742,9 +2756,9 @@ def enable_ray_actor_memory_monitoring(
         method_name: str,
         event_type: str,
     ) -> None:
-        node_key = str(node_id or "unknown-node").strip() or "unknown-node"
-        actor_key = str(actor_id or "unknown-actor").strip() or "unknown-actor"
-        method_key = str(method_name or "unknown-method").strip() or "unknown-method"
+        node_key = _normalize_key(node_id, fallback="unknown-node")
+        actor_key = _normalize_key(actor_id, fallback="unknown-actor")
+        method_key = _normalize_key(method_name, fallback="unknown-method")
 
         node_row = actor_event_state.setdefault(
             node_key,
@@ -2799,16 +2813,23 @@ def enable_ray_actor_memory_monitoring(
                     _strict_non_negative_counter(v.get("events", 0))[0]
                     for v in actor_event_state.values()
                 ),
+                "parse_warning_count": parse_warning_count,
             }
 
         if node_id is not None:
-            node_key = str(node_id)
+            node_key = _normalize_key(node_id, fallback="unknown-node")
             node_row = actor_event_state.get(node_key)
             if node_row is None:
-                return {"ok": True, "node_id": node_key, "events": 0, "actors": {}}
+                return {
+                    "ok": True,
+                    "node_id": node_key,
+                    "events": 0,
+                    "actors": {},
+                    "parse_warning_count": parse_warning_count,
+                }
             if actor_id is None:
-                return {"ok": True, **node_row}
-            actor_key = str(actor_id)
+                return {"ok": True, **node_row, "parse_warning_count": parse_warning_count}
+            actor_key = _normalize_key(actor_id, fallback="unknown-actor")
             actor_row = node_row.get("actors", {}).get(actor_key)
             if actor_row is None:
                 return {
@@ -2817,16 +2838,23 @@ def enable_ray_actor_memory_monitoring(
                     "actor_id": actor_key,
                     "events": 0,
                     "methods": {},
+                    "parse_warning_count": parse_warning_count,
                 }
-            return {"ok": True, "node_id": node_key, **actor_row}
+            return {"ok": True, "node_id": node_key, **actor_row, "parse_warning_count": parse_warning_count}
 
-        actor_key = str(actor_id)
+        actor_key = _normalize_key(actor_id, fallback="unknown-actor")
         for node_key, node_row in actor_event_state.items():
             actor_row = node_row.get("actors", {}).get(actor_key)
             if actor_row is not None:
-                return {"ok": True, "node_id": node_key, **actor_row}
+                return {"ok": True, "node_id": node_key, **actor_row, "parse_warning_count": parse_warning_count}
 
-        return {"ok": True, "actor_id": actor_key, "events": 0, "methods": {}}
+        return {
+            "ok": True,
+            "actor_id": actor_key,
+            "events": 0,
+            "methods": {},
+            "parse_warning_count": parse_warning_count,
+        }
 
     def _reset_actor_report() -> None:
         actor_event_state.clear()
@@ -2846,6 +2874,7 @@ def enable_ray_actor_memory_monitoring(
                 _strict_non_negative_counter(v.get("events", 0))[0]
                 for v in actor_event_state.values()
             ),
+            "parse_warning_count": parse_warning_count,
         }
 
     def _cluster_summary() -> dict[str, Any]:
@@ -2875,6 +2904,7 @@ def enable_ray_actor_memory_monitoring(
             "busiest_node_events": max(busiest_events, 0),
             "busiest_actor": busiest_actor,
             "busiest_actor_events": max(busiest_actor_events, 0),
+            "parse_warning_count": parse_warning_count,
         }
 
     def _method_decorator(method: Any) -> Any:
@@ -2882,9 +2912,13 @@ def enable_ray_actor_memory_monitoring(
 
         def _wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             stage = f"{stage_prefix}::{method.__name__}"
-            node_id = str(getattr(self, "_runtime_guard_node_id", "unknown-node"))
-            actor_id = str(
-                getattr(self, "_runtime_guard_actor_id", f"{self.__class__.__name__}:{id(self)}")
+            node_id = _normalize_key(
+                getattr(self, "_runtime_guard_node_id", "unknown-node"),
+                fallback="unknown-node",
+            )
+            actor_id = _normalize_key(
+                getattr(self, "_runtime_guard_actor_id", f"{self.__class__.__name__}:{id(self)}"),
+                fallback="unknown-actor",
             )
             if check_on_entry:
                 guard.check_and_log(stage=f"{stage}:entry")
@@ -2914,8 +2948,8 @@ def enable_ray_actor_memory_monitoring(
 
         def _wrapper(*args: Any, **kwargs: Any) -> Any:
             stage = f"{stage_prefix}::{fn.__name__}"
-            node_id = str(kwargs.pop("node_id", "remote-node"))
-            actor_id = str(kwargs.pop("actor_id", f"remote::{fn.__name__}"))
+            node_id = _normalize_key(kwargs.pop("node_id", "remote-node"), fallback="remote-node")
+            actor_id = _normalize_key(kwargs.pop("actor_id", f"remote::{fn.__name__}"), fallback="remote-actor")
             if check_on_entry:
                 guard.check_and_log(stage=f"{stage}:entry")
                 _record_actor_event(
@@ -2947,6 +2981,7 @@ def enable_ray_actor_memory_monitoring(
     config["reset_node_reports"] = _reset_node_reports
     config["get_all_node_reports"] = _get_all_node_reports
     config["cluster_summary"] = _cluster_summary
+    config["parse_warning_count"] = parse_warning_count
 
     return config
 

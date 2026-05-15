@@ -2955,6 +2955,29 @@ class TestRayActorMemoryMonitoring:
         assert report["events"] == 1
         assert report["methods"]["compute"] == 1
 
+    def test_actor_monitoring_tracks_key_parse_warnings(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id=123, actor_id={"id": "bad"}) == 2
+
+        all_nodes = config["get_all_node_reports"]()
+        assert all_nodes["nodes_monitored"] == 1
+        assert all_nodes["parse_warning_count"] >= 2
+
+        summary = config["cluster_summary"]()
+        assert summary["parse_warning_count"] >= 2
+
+        fallback_report = config["get_actor_report"](node_id=123, actor_id={"id": "bad"})
+        assert fallback_report["parse_warning_count"] >= 2
+
 
 # ---------------------------------------------------------------------------
 # M1-C04 — OpenTelemetry exporter scaffold

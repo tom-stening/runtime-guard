@@ -934,11 +934,28 @@ def main() -> int:
         )
         ext_totals: dict[str, int] = {}
         if isinstance(ext_rows, list):
-            for row in ext_rows:
+            for idx, row in enumerate(ext_rows):
                 if not isinstance(row, dict):
                     continue
-                ext_name = str(row.get("extension", "") or "").strip()
+                ext_name_raw = row.get("extension", "")
+                if not isinstance(ext_name_raw, str):
+                    warnings = summary.get("parse_warnings", [])
+                    if not isinstance(warnings, list):
+                        warnings = [str(warnings)]
+                    warnings.append(
+                        f"wsl_diagnosis.guest_vscode_extension_rss[{idx}].extension must be non-empty string"
+                    )
+                    summary["parse_warnings"] = warnings
+                    continue
+                ext_name = ext_name_raw.strip()
                 if not ext_name:
+                    warnings = summary.get("parse_warnings", [])
+                    if not isinstance(warnings, list):
+                        warnings = [str(warnings)]
+                    warnings.append(
+                        f"wsl_diagnosis.guest_vscode_extension_rss[{idx}].extension must be non-empty string"
+                    )
+                    summary["parse_warnings"] = warnings
                     continue
                 ext_rss_mb, ext_rss_ok = _strict_non_negative_int(row.get("rss_mb", 0))
                 if not ext_rss_ok:
@@ -953,7 +970,7 @@ def main() -> int:
                 ext_totals[ext_name] = ext_rss_mb
 
         for ext_name, threshold_mb in extension_specs.items():
-            actual_mb = int(ext_totals.get(ext_name, 0) or 0)
+            actual_mb = ext_totals.get(ext_name, 0)
             if actual_mb >= threshold_mb:
                 failed_gates.append(
                     _build_failed_gate(

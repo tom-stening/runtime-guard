@@ -6389,6 +6389,7 @@ def _read_windows_wsl_event_hints(max_events: int = 6) -> dict[str, Any]:
         ],
         "host_error_event_count": 0,
         "host_high_relevance_event_count": 0,
+        "host_event_parse_warning_count": 0,
         "host_error_events": [],
     }
 
@@ -6444,26 +6445,39 @@ def _read_windows_wsl_event_hints(max_events: int = 6) -> dict[str, Any]:
     if isinstance(parsed, list):
         for item in parsed:
             if not isinstance(item, dict):
+                out["host_event_parse_warning_count"] = out["host_event_parse_warning_count"] + 1
                 continue
             message_raw = item.get("Message", "")
+            if "Message" in item and not isinstance(message_raw, str):
+                out["host_event_parse_warning_count"] = out["host_event_parse_warning_count"] + 1
             msg = message_raw if isinstance(message_raw, str) else ""
             msg = msg.replace("\r", " ").replace("\n", " ").strip()
             if len(msg) > 220:
                 msg = msg[:220] + "..."
 
             log_raw = item.get("LogName", "")
+            if "LogName" in item and not isinstance(log_raw, str):
+                out["host_event_parse_warning_count"] = out["host_event_parse_warning_count"] + 1
             log_name = log_raw if isinstance(log_raw, str) else ""
 
             time_raw = item.get("TimeCreated", "")
+            if "TimeCreated" in item and not isinstance(time_raw, str):
+                out["host_event_parse_warning_count"] = out["host_event_parse_warning_count"] + 1
             event_time = time_raw if isinstance(time_raw, str) else ""
 
             level_raw = item.get("Level", "")
+            if "Level" in item and not isinstance(level_raw, str):
+                out["host_event_parse_warning_count"] = out["host_event_parse_warning_count"] + 1
             level = level_raw if isinstance(level_raw, str) else ""
 
             provider_raw = item.get("Provider", "")
+            if "Provider" in item and not isinstance(provider_raw, str):
+                out["host_event_parse_warning_count"] = out["host_event_parse_warning_count"] + 1
             provider = provider_raw if isinstance(provider_raw, str) else ""
 
             event_id_raw = item.get("Id", 0)
+            if "Id" in item and not (isinstance(event_id_raw, int) and not isinstance(event_id_raw, bool)):
+                out["host_event_parse_warning_count"] = out["host_event_parse_warning_count"] + 1
             event_id = event_id_raw if isinstance(event_id_raw, int) and not isinstance(event_id_raw, bool) else 0
 
             events.append(
@@ -6478,9 +6492,13 @@ def _read_windows_wsl_event_hints(max_events: int = 6) -> dict[str, Any]:
             )
 
     def _event_relevance(ev: dict[str, Any]) -> str:
-        log_name = str(ev.get("log", "") or "").lower()
-        provider = str(ev.get("provider", "") or "").lower()
-        message = str(ev.get("message", "") or "").lower()
+        log_raw = ev.get("log", "")
+        provider_raw = ev.get("provider", "")
+        message_raw = ev.get("message", "")
+
+        log_name = log_raw.lower() if isinstance(log_raw, str) else ""
+        provider = provider_raw.lower() if isinstance(provider_raw, str) else ""
+        message = message_raw.lower() if isinstance(message_raw, str) else ""
 
         if "hyper-v" in log_name or "hyper-v" in provider:
             return "high"

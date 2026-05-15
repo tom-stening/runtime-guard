@@ -776,6 +776,52 @@ class TestDiagnoseWslCrash:
         assert any("could not be parsed" in item for item in causes)
         assert any("missing/malformed PSI" in item for item in prevention)
 
+    def test_read_windows_wsl_event_hints_counts_parse_warnings(self, monkeypatch):
+        from runtime_guard import _read_windows_wsl_event_hints
+
+        monkeypatch.setattr("runtime_guard._is_wsl", lambda: True)
+        monkeypatch.setattr(
+            "runtime_guard.subprocess.check_output",
+            lambda *args, **kwargs: json.dumps(
+                [
+                    {
+                        "LogName": "System",
+                        "TimeCreated": "2026-05-16T10:00:00",
+                        "Id": 101,
+                        "Level": "Warning",
+                        "Provider": "LxssManager",
+                        "Message": "WSL memory pressure warning",
+                    },
+                    {
+                        "LogName": 123,
+                        "TimeCreated": 456,
+                        "Id": "bad-id",
+                        "Level": True,
+                        "Provider": ["Hyper-V"],
+                        "Message": {"text": "bad"},
+                    },
+                    "not-a-dict",
+                ]
+            ),
+        )
+
+        out = _read_windows_wsl_event_hints(max_events=6)
+
+        assert out["host_error_event_count"] == 2
+        assert out["host_high_relevance_event_count"] == 1
+        assert out["host_event_parse_warning_count"] >= 7
+        assert any(e.get("provider") == "LxssManager" for e in out["host_error_events"])
+
+    def test_read_windows_wsl_event_hints_non_wsl_defaults(self, monkeypatch):
+        from runtime_guard import _read_windows_wsl_event_hints
+
+        monkeypatch.setattr("runtime_guard._is_wsl", lambda: False)
+        out = _read_windows_wsl_event_hints()
+
+        assert out["host_error_event_count"] == 0
+        assert out["host_high_relevance_event_count"] == 0
+        assert out["host_event_parse_warning_count"] == 0
+
     def test_diagnose_wsl_crash_includes_top_processes_and_runtime_context(self, monkeypatch):
         from runtime_guard import diagnose_wsl_crash
 

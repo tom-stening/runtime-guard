@@ -1350,6 +1350,37 @@ def test_build_result_fails_when_signature_age_exceeds_limit(tmp_path: Path):
     assert any("signature age" in row for row in result["errors"])
 
 
+def test_validate_signature_envelope_rejects_non_typed_policy_inputs():
+    module = _load_module()
+
+    payload = {
+        "provenance": {
+            "artifact_sha256": "abc",
+            "generated_at_utc": "2026-05-12T00:00:00Z",
+            "signature": {
+                "mode": "unsigned",
+                "signed_field": "artifact_sha256",
+                "signed_value": "abc",
+                "algorithm": "",
+                "key_id": "",
+                "signature": "",
+            },
+        }
+    }
+
+    errors = module._validate_signature_envelope(
+        "integration_fleet_status",
+        payload,
+        require_signed=False,
+        verify_signatures=True,
+        signature_public_key=123,  # type: ignore[arg-type]
+        allowed_key_ids=set(),
+        max_signature_age_hours="4",  # type: ignore[arg-type]
+    )
+    assert any("max_signature_age_hours must be a non-negative integer" in row for row in errors)
+    assert any("signature_public_key must be a string" in row for row in errors)
+
+
 def test_build_result_fails_on_integration_fallback_policy_mismatch(tmp_path: Path):
     module = _load_module()
 

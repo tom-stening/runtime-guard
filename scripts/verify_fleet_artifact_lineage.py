@@ -603,6 +603,16 @@ def _validate_signature_envelope(
 
     required = ["mode", "signed_field", "signed_value", "algorithm", "key_id", "signature"]
     errors: list[str] = []
+    if not isinstance(max_signature_age_hours, int) or isinstance(max_signature_age_hours, bool):
+        errors.append(f"{name}: max_signature_age_hours must be a non-negative integer")
+        max_signature_age_hours = 0
+    elif max_signature_age_hours < 0:
+        errors.append(f"{name}: max_signature_age_hours must be a non-negative integer")
+        max_signature_age_hours = 0
+    if not isinstance(signature_public_key, str):
+        errors.append(f"{name}: signature_public_key must be a string")
+        signature_public_key = ""
+
     for key in required:
         if key not in sig:
             errors.append(f"{name}: signature missing '{key}'")
@@ -651,7 +661,7 @@ def _validate_signature_envelope(
         elif key_id not in allowed_key_ids:
             errors.append(f"{name}: signature key_id '{key_id}' not in allowed-key-id policy")
 
-    if int(max_signature_age_hours or 0) > 0:
+    if max_signature_age_hours > 0:
         generated_at = ""
         if isinstance(prov, dict):
             generated_at, generated_ok = _strict_string(prov.get("generated_at_utc"))
@@ -665,14 +675,14 @@ def _validate_signature_envelope(
             age_h = (now - issued).total_seconds() / 3600.0
             if age_h > float(max_signature_age_hours):
                 errors.append(
-                    f"{name}: signature age {age_h:.2f}h exceeds max {int(max_signature_age_hours)}h"
+                    f"{name}: signature age {age_h:.2f}h exceeds max {max_signature_age_hours}h"
                 )
 
     if verify_signatures:
         if mode != "detached":
             errors.append(f"{name}: detached signature required for cryptographic verification")
             return errors
-        key_path = str(signature_public_key or "").strip()
+        key_path = signature_public_key.strip()
         if not key_path:
             errors.append(f"{name}: --signature-public-key is required when --verify-signatures is set")
             return errors

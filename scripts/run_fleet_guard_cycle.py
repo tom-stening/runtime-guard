@@ -271,6 +271,21 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
             "--integration-verify-report-input-signatures must be set when --integration-max-report-signature-age-hours is greater than 0"
         )
 
+    lineage_allowed_key_ids_raw = getattr(args, "allowed_key_id", [])
+    lineage_allowed_key_ids: list[str] = []
+    if lineage_allowed_key_ids_raw is None:
+        lineage_allowed_key_ids_raw = []
+    if not isinstance(lineage_allowed_key_ids_raw, list):
+        errors.append("--allowed-key-id values must be strings")
+    else:
+        for key_id in lineage_allowed_key_ids_raw:
+            if not isinstance(key_id, str):
+                errors.append("--allowed-key-id values must be strings")
+                continue
+            key = key_id.strip()
+            if key:
+                lineage_allowed_key_ids.append(key)
+
     verify_signed_artifacts = _bool_arg(
         "verify_signed_artifacts",
         "--verify-signed-artifacts",
@@ -286,6 +301,14 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     if verify_signed_artifacts and not signature_public_key:
         errors.append(
             "--signature-public-key is required when --verify-signed-artifacts is set"
+        )
+    if lineage_allowed_key_ids and not verify_signed_artifacts:
+        errors.append(
+            "--verify-signed-artifacts must be set when --allowed-key-id is used"
+        )
+    if lineage_max_signature_age_hours > 0 and not verify_signed_artifacts:
+        errors.append(
+            "--verify-signed-artifacts must be set when --max-signature-age-hours is greater than 0"
         )
     return errors
 

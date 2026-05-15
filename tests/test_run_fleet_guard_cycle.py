@@ -159,6 +159,48 @@ def test_validate_cli_configuration_requires_integration_verification_when_signa
     assert "--integration-max-report-signature-age-hours" in errors[0]
 
 
+def test_validate_cli_configuration_requires_lineage_verification_when_key_ids_are_constrained():
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = False
+        integration_require_signed_report_inputs = False
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_fallback_report_age_hours = 0
+        integration_max_report_signature_age_hours = 0
+        verify_signed_artifacts = False
+        signature_public_key = ""
+        allowed_key_id = ["lineage-key-a"]
+        max_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--verify-signed-artifacts" in errors[0]
+    assert "--allowed-key-id" in errors[0]
+
+
+def test_validate_cli_configuration_requires_lineage_verification_when_signature_age_policy_enabled():
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = False
+        integration_require_signed_report_inputs = False
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_fallback_report_age_hours = 0
+        integration_max_report_signature_age_hours = 0
+        verify_signed_artifacts = False
+        signature_public_key = ""
+        allowed_key_id: list[str] = []
+        max_signature_age_hours = 8
+
+    errors = module._validate_cli_configuration(_Args())
+    assert len(errors) == 1
+    assert "--verify-signed-artifacts" in errors[0]
+    assert "--max-signature-age-hours" in errors[0]
+
+
 def test_validate_cli_configuration_rejects_negative_age_policies():
     module = _load_module()
 
@@ -283,6 +325,25 @@ def test_validate_cli_configuration_rejects_non_string_allowed_key_ids() -> None
         "--integration-report-allowed-key-id values must be strings" in row
         for row in errors
     )
+
+
+def test_validate_cli_configuration_rejects_non_string_lineage_allowed_key_ids() -> None:
+    module = _load_module()
+
+    class _Args:
+        integration_verify_report_input_signatures = False
+        integration_require_signed_report_inputs = False
+        integration_report_signature_public_key = ""
+        integration_report_allowed_key_id: list[str] = []
+        integration_max_fallback_report_age_hours = 0
+        integration_max_report_signature_age_hours = 0
+        verify_signed_artifacts = False
+        signature_public_key = ""
+        allowed_key_id = ["lineage-key-a", 42]  # type: ignore[list-item]
+        max_signature_age_hours = 0
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--allowed-key-id values must be strings" in row for row in errors)
 
 
 def test_build_step_commands_generates_and_propagates_run_id_when_missing(tmp_path: Path):

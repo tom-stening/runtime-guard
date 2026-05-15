@@ -544,7 +544,13 @@ def _validate_expected_integration_report_signature_policy(
         )
 
     expected_allowed_values: list[str] = []
-    expected_allowed_raw = list(expected_report_allowed_key_ids or [])
+    if not isinstance(expected_report_allowed_key_ids, list):
+        errors.append(
+            "integration_fleet_status: expected report_allowed_key_ids policy must be a list of strings"
+        )
+        expected_allowed_raw: list[Any] = []
+    else:
+        expected_allowed_raw = list(expected_report_allowed_key_ids)
     if any(not isinstance(k, str) for k in expected_allowed_raw):
         errors.append(
             "integration_fleet_status: expected report_allowed_key_ids policy values must be strings"

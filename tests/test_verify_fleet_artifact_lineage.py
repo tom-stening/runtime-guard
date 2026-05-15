@@ -382,6 +382,30 @@ def test_validate_expected_report_allowed_key_policy_rejects_non_string_expected
     )
 
 
+def test_validate_expected_report_allowed_key_policy_rejects_non_list_expected_value() -> None:
+    module = _load_module()
+    errors = module._validate_expected_integration_report_signature_policy(
+        {
+            "provenance": {
+                "inputs": {
+                    "require_signed_report_inputs": False,
+                    "verify_report_input_signatures": False,
+                    "report_allowed_key_ids": [],
+                    "max_report_signature_age_hours": 0,
+                }
+            }
+        },
+        expected_require_signed_report_inputs=False,
+        expected_verify_report_input_signatures=False,
+        expected_report_allowed_key_ids="trusted-key",  # type: ignore[arg-type]
+        expected_max_report_signature_age_hours=0,
+    )
+    assert any(
+        "expected report_allowed_key_ids policy must be a list of strings" in row
+        for row in errors
+    )
+
+
 def test_validate_expected_report_signature_policy_rejects_non_boolean_expected_flags() -> None:
     module = _load_module()
     errors = module._validate_expected_integration_report_signature_policy(

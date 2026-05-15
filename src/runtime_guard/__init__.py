@@ -53,6 +53,7 @@ import json
 import hashlib
 import inspect
 import logging
+import math
 import os
 import re
 import subprocess
@@ -5995,14 +5996,31 @@ def wsl_system_report() -> str:
     return "\n".join(lines)
 
 
-def _read_linux_memory_psi() -> dict[str, float]:
+def _read_linux_memory_psi() -> dict[str, Any]:
     """Read Linux memory PSI metrics from /proc/pressure/memory when present."""
-    data = {
+    data: dict[str, Any] = {
         "psi_some_avg10": 0.0,
         "psi_some_avg60": 0.0,
         "psi_full_avg10": 0.0,
         "psi_full_avg60": 0.0,
+        "psi_parse_error": False,
     }
+
+    def _parse_avg(kv: dict[str, str], key: str) -> float:
+        raw = kv.get(key)
+        if not isinstance(raw, str) or not raw.strip():
+            data["psi_parse_error"] = True
+            return 0.0
+        try:
+            value = float(raw)
+        except ValueError:
+            data["psi_parse_error"] = True
+            return 0.0
+        if math.isnan(value) or math.isinf(value) or value < 0:
+            data["psi_parse_error"] = True
+            return 0.0
+        return value
+
     try:
         with open("/proc/pressure/memory", encoding="utf-8") as fh:
             for line in fh:
@@ -6016,18 +6034,19 @@ def _read_linux_memory_psi() -> dict[str, float]:
                 kv: dict[str, str] = {}
                 for token in parts[1:]:
                     if "=" not in token:
+                        data["psi_parse_error"] = True
                         continue
                     k, v = token.split("=", 1)
                     kv[k] = v
                 if scope == "some":
-                    data["psi_some_avg10"] = float(kv.get("avg10", "0") or 0)
-                    data["psi_some_avg60"] = float(kv.get("avg60", "0") or 0)
+                    data["psi_some_avg10"] = _parse_avg(kv, "avg10")
+                    data["psi_some_avg60"] = _parse_avg(kv, "avg60")
                 elif scope == "full":
-                    data["psi_full_avg10"] = float(kv.get("avg10", "0") or 0)
-                    data["psi_full_avg60"] = float(kv.get("avg60", "0") or 0)
+                    data["psi_full_avg10"] = _parse_avg(kv, "avg10")
+                    data["psi_full_avg60"] = _parse_avg(kv, "avg60")
+                elif scope:
+                    data["psi_parse_error"] = True
     except OSError:
-        return data
-    except ValueError:
         return data
     return data
 
@@ -6286,6 +6305,7 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
     guest_swap_used_pct = _metric_int("guest_swap_used_pct", 0)
     psi_some_avg10 = _metric_float("psi_some_avg10", 0.0)
     psi_full_avg10 = _metric_float("psi_full_avg10", 0.0)
+    psi_parse_error = _metric_bool("psi_parse_error", False)
     host_vm_used_pct = _metric_int("host_vm_used_pct", 0)
     host_error_event_count = _metric_int("host_error_event_count", 0)
     host_high_relevance_event_count = _metric_int("host_high_relevance_event_count", 0)
@@ -6308,6 +6328,10 @@ def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[st
         score += 1
         causes.append("guest some memory PSI avg10 indicates sustained contention")
         prevention.append("limit extension host count and long-running indexers during heavy jobs")
+    if psi_parse_error:
+        score += 2
+        causes.append("guest memory PSI data could not be parsed reliably")
+        prevention.append("treat missing/malformed PSI as high risk until pressure telemetry is healthy")
     if running_distro_count > 1 and (guest_mem_available_mb < 2048 or psi_full_avg10 >= 5 or guest_swap_used_pct >= 70):
         score += 1
         causes.append("multiple WSL distros are running concurrently during guest memory pressure")

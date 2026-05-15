@@ -720,6 +720,46 @@ class TestWslRuntimeContext:
 
 
 class TestDiagnoseWslCrash:
+    def test_read_linux_memory_psi_flags_parse_errors(self, monkeypatch):
+        from runtime_guard import _read_linux_memory_psi
+
+        psi_payload = io.StringIO(
+            "some avg10=bad avg60=1.00 avg300=0.20 total=123\n"
+            "full avg10=0.10 avg60=oops avg300=0.10 total=4\n"
+        )
+        monkeypatch.setattr("builtins.open", lambda *args, **kwargs: psi_payload)
+
+        psi = _read_linux_memory_psi()
+
+        assert psi["psi_parse_error"] is True
+        assert psi["psi_some_avg10"] == 0.0
+        assert psi["psi_some_avg60"] == 1.0
+        assert psi["psi_full_avg10"] == 0.1
+        assert psi["psi_full_avg60"] == 0.0
+
+    def test_classify_wsl_crash_risk_penalizes_psi_parse_error(self):
+        from runtime_guard import _classify_wsl_crash_risk
+
+        level, score, causes, prevention = _classify_wsl_crash_risk(
+            {
+                "guest_mem_available_mb": 8192,
+                "guest_swap_used_pct": 10,
+                "psi_some_avg10": 0.0,
+                "psi_full_avg10": 0.0,
+                "psi_parse_error": True,
+                "host_vm_used_pct": 10,
+                "host_error_event_count": 0,
+                "host_high_relevance_event_count": 0,
+                "wsl_running_distro_count": 1,
+                "docker_desktop_running": False,
+            }
+        )
+
+        assert level == "moderate"
+        assert score >= 2
+        assert any("could not be parsed" in item for item in causes)
+        assert any("missing/malformed PSI" in item for item in prevention)
+
     def test_diagnose_wsl_crash_includes_top_processes_and_runtime_context(self, monkeypatch):
         from runtime_guard import diagnose_wsl_crash
 

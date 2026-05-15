@@ -100,3 +100,28 @@ def test_extract_signature_artifact_sha256_accepts_string() -> None:
     value, ok = module._extract_signature_artifact_sha256({"artifact_sha256": "abc"})
     assert value == "abc"
     assert ok is True
+
+
+def test_main_rejects_non_boolean_flags_even_if_prevalidation_is_bypassed(
+    monkeypatch, capsys
+) -> None:
+    module = _load_module()
+
+    class _Args:
+        json = "true"  # type: ignore[assignment]
+        require_hooks = False
+        check_actor_api = False
+        stage = "ray-get"
+        run_id = ""
+
+    monkeypatch.setattr(
+        module,
+        "_build_parser",
+        lambda: type("_P", (), {"parse_args": lambda self: _Args()})(),
+    )
+    monkeypatch.setattr(module, "_validate_cli_configuration", lambda _args: [])
+
+    result_code = module.main()
+    captured = capsys.readouterr()
+    assert result_code == 2
+    assert "--json flag must be boolean" in captured.err

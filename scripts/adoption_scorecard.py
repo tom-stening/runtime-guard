@@ -18,9 +18,10 @@ def _load_records(path: Path) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         raise ValueError("Input JSON must be a list of team records")
     out: list[dict[str, Any]] = []
-    for item in raw:
-        if isinstance(item, dict):
-            out.append(dict(item))
+    for idx, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"records[{idx}] must be a JSON object")
+        out.append(dict(item))
     return out
 
 

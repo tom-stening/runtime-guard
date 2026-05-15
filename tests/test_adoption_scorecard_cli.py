@@ -80,3 +80,26 @@ def test_cli_warns_and_sets_unknown_stage_for_non_string_stage(tmp_path: Path):
     assert "stage must be a string" in proc.stderr
     payload = json.loads(proc.stdout)
     assert payload["stage_counts"]["unknown"] == 1
+
+
+def test_cli_rejects_non_object_input_rows(tmp_path: Path):
+    input_path = tmp_path / "records.json"
+    input_path.write_text(
+        json.dumps(
+            [
+                {"team": "alpha", "stage": "pilot", "evidence": ["ok"]},
+                "not-an-object",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [sys.executable, str(_script_path()), "--input", str(input_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 2
+    assert "records[1] must be a JSON object" in proc.stderr

@@ -254,6 +254,29 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     if lineage_max_signature_age_hours < 0:
         errors.append("--max-signature-age-hours must be greater than or equal to 0")
 
+    fail_on_extension_total_rss_mb_raw = getattr(args, "fail_on_extension_total_rss_mb", 0)
+    if isinstance(fail_on_extension_total_rss_mb_raw, int) and not isinstance(
+        fail_on_extension_total_rss_mb_raw, bool
+    ):
+        fail_on_extension_total_rss_mb = fail_on_extension_total_rss_mb_raw
+    else:
+        fail_on_extension_total_rss_mb = 0
+        errors.append("--fail-on-extension-total-rss-mb must be a non-negative integer")
+
+    if fail_on_extension_total_rss_mb < 0:
+        errors.append("--fail-on-extension-total-rss-mb must be greater than or equal to 0")
+
+    fail_on_extension_rss_raw = getattr(args, "fail_on_extension_rss", [])
+    if fail_on_extension_rss_raw is None:
+        fail_on_extension_rss_raw = []
+    if not isinstance(fail_on_extension_rss_raw, list):
+        errors.append("--fail-on-extension-rss values must be non-empty strings")
+    else:
+        for spec in fail_on_extension_rss_raw:
+            if not isinstance(spec, str) or not spec.strip():
+                errors.append("--fail-on-extension-rss values must be non-empty strings")
+                continue
+
     if integration_verify and not integration_require_signed:
         errors.append(
             "--integration-require-signed-report-inputs must be set when --integration-verify-report-input-signatures is enabled"

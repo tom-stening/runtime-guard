@@ -884,6 +884,44 @@ def _build_payload(
     run_id: str = "",
     pressure_detected_override: bool | None = None,
 ) -> dict[str, Any]:
+    if not isinstance(timeout_s, int) or isinstance(timeout_s, bool) or timeout_s <= 0:
+        raise ValueError("timeout_s must be a positive integer")
+    if not isinstance(include_wsl_diagnosis, bool):
+        raise ValueError("include_wsl_diagnosis must be boolean")
+    if not isinstance(fallback_on_pressure, bool):
+        raise ValueError("fallback_on_pressure must be boolean")
+    if not isinstance(fallback_report_dir, str):
+        raise ValueError("fallback_report_dir must be a string")
+    if (
+        not isinstance(max_fallback_report_age_hours, int)
+        or isinstance(max_fallback_report_age_hours, bool)
+        or max_fallback_report_age_hours < 0
+    ):
+        raise ValueError("max_fallback_report_age_hours must be a non-negative integer")
+    if not isinstance(require_signed_report_inputs, bool):
+        raise ValueError("require_signed_report_inputs must be boolean")
+    if not isinstance(verify_report_input_signatures, bool):
+        raise ValueError("verify_report_input_signatures must be boolean")
+    if not isinstance(report_signature_public_key, str):
+        raise ValueError("report_signature_public_key must be a string")
+    if (
+        not isinstance(max_report_signature_age_hours, int)
+        or isinstance(max_report_signature_age_hours, bool)
+        or max_report_signature_age_hours < 0
+    ):
+        raise ValueError("max_report_signature_age_hours must be a non-negative integer")
+    if report_allowed_key_ids is None:
+        report_allowed_key_ids = []
+    if not isinstance(report_allowed_key_ids, list):
+        raise ValueError("report_allowed_key_ids must be a list of strings")
+    normalized_report_allowed_key_ids: list[str] = []
+    for key_id in report_allowed_key_ids:
+        if not isinstance(key_id, str):
+            raise ValueError("report_allowed_key_ids entries must be strings")
+        key = key_id.strip()
+        if key:
+            normalized_report_allowed_key_ids.append(key)
+
     effective_run_id = _normalize_run_id(run_id)
     if not effective_run_id:
         effective_run_id = str(uuid.uuid4())
@@ -957,13 +995,13 @@ def _build_payload(
                 _component_from_report(
                     tool,
                     path,
-                    max_report_age_hours=int(max_fallback_report_age_hours or 0),
+                    max_report_age_hours=max_fallback_report_age_hours,
                     expected_run_id=effective_run_id,
-                    require_signed=bool(require_signed_report_inputs),
-                    verify_signatures=bool(verify_report_input_signatures),
-                    signature_public_key=str(report_signature_public_key),
-                    allowed_key_ids={k for k in list(report_allowed_key_ids or []) if str(k).strip()},
-                    max_signature_age_hours=int(max_report_signature_age_hours or 0),
+                    require_signed=require_signed_report_inputs,
+                    verify_signatures=verify_report_input_signatures,
+                    signature_public_key=report_signature_public_key,
+                    allowed_key_ids=set(normalized_report_allowed_key_ids),
+                    max_signature_age_hours=max_report_signature_age_hours,
                     now_utc=report_age_reference_utc,
                 )
             )
@@ -1004,10 +1042,10 @@ def _build_payload(
             else "live"
         ),
         "pressure_fallback": {
-            "enabled": bool(fallback_on_pressure),
-            "pressure_detected": bool(pressure_detected),
+            "enabled": fallback_on_pressure,
+            "pressure_detected": pressure_detected,
             "fallback_report_dir": str(fallback_dir),
-            "max_report_age_hours": int(max_fallback_report_age_hours or 0),
+            "max_report_age_hours": max_fallback_report_age_hours,
             "note": pressure_probe_note,
         },
         "warnings": fleet_warnings,
@@ -1023,13 +1061,13 @@ def _build_payload(
             "inputs": {
                 "source_artifact_hashes": source_hashes,
                 "validator_script_hashes": validator_script_hashes,
-                "fallback_on_pressure": bool(fallback_on_pressure),
+                "fallback_on_pressure": fallback_on_pressure,
                 "fallback_report_dir": str(fallback_dir),
-                "max_fallback_report_age_hours": int(max_fallback_report_age_hours or 0),
-                "require_signed_report_inputs": bool(require_signed_report_inputs),
-                "verify_report_input_signatures": bool(verify_report_input_signatures),
-                "report_allowed_key_ids": [k for k in list(report_allowed_key_ids or []) if str(k).strip()],
-                "max_report_signature_age_hours": int(max_report_signature_age_hours or 0),
+                "max_fallback_report_age_hours": max_fallback_report_age_hours,
+                "require_signed_report_inputs": require_signed_report_inputs,
+                "verify_report_input_signatures": verify_report_input_signatures,
+                "report_allowed_key_ids": normalized_report_allowed_key_ids,
+                "max_report_signature_age_hours": max_report_signature_age_hours,
             },
         },
     }
@@ -1069,19 +1107,19 @@ def main() -> int:
 
     payload = _build_payload(
         repo_root,
-        timeout_s=int(args.timeout_s),
-        include_wsl_diagnosis=bool(args.include_wsl_diagnosis),
+        timeout_s=args.timeout_s,
+        include_wsl_diagnosis=args.include_wsl_diagnosis,
         polars_report=args.polars_report,
         dask_report=args.dask_report,
         ray_report=args.ray_report,
-        fallback_on_pressure=bool(args.fallback_on_pressure),
-        fallback_report_dir=str(args.fallback_report_dir),
-        max_fallback_report_age_hours=int(args.max_fallback_report_age_hours),
-        require_signed_report_inputs=bool(args.require_signed_report_inputs),
-        verify_report_input_signatures=bool(args.verify_report_input_signatures),
-        report_signature_public_key=str(args.report_signature_public_key),
-        report_allowed_key_ids=list(args.report_allowed_key_id or []),
-        max_report_signature_age_hours=int(args.max_report_signature_age_hours),
+        fallback_on_pressure=args.fallback_on_pressure,
+        fallback_report_dir=args.fallback_report_dir,
+        max_fallback_report_age_hours=args.max_fallback_report_age_hours,
+        require_signed_report_inputs=args.require_signed_report_inputs,
+        verify_report_input_signatures=args.verify_report_input_signatures,
+        report_signature_public_key=args.report_signature_public_key,
+        report_allowed_key_ids=args.report_allowed_key_id,
+        max_report_signature_age_hours=args.max_report_signature_age_hours,
         run_id=_normalize_run_id(args.run_id),
     )
 

@@ -1013,6 +1013,27 @@ def test_build_payload_rejects_non_boolean_pressure_override(tmp_path: Path):
         raise AssertionError("expected ValueError for non-boolean pressure_detected_override")
 
 
+def test_build_payload_rejects_non_boolean_fallback_flag(tmp_path: Path):
+    module = _load_module()
+
+    try:
+        module._build_payload(
+            tmp_path,
+            timeout_s=1,
+            include_wsl_diagnosis=False,
+            polars_report=None,
+            dask_report=None,
+            ray_report=None,
+            fallback_on_pressure="true",
+            fallback_report_dir="reports",
+            max_fallback_report_age_hours=0,
+        )
+    except ValueError as exc:
+        assert "fallback_on_pressure" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for non-boolean fallback_on_pressure")
+
+
 def test_run_validator_timeout_returns_unhealthy_component(tmp_path: Path, monkeypatch):
     module = _load_module()
 

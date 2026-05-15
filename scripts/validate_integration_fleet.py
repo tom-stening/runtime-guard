@@ -784,7 +784,18 @@ def _component_from_report(
             warnings=[],
         )
 
-    report_payload = payload or {}
+    if not isinstance(payload, dict):
+        return _component_from_payload(
+            tool_name,
+            {},
+            source="report",
+            command=None,
+            exit_code=1,
+            hard_errors=[f"report payload must be a JSON object for {tool_name}"],
+            warnings=[],
+        )
+
+    report_payload = payload
     expected_tool = {
         "polars": "validate_polars_integration",
         "dask": "validate_dask_integration",

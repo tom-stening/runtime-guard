@@ -458,6 +458,22 @@ def test_component_from_report_invalid_file(tmp_path: Path):
     assert any("unable to read report" in err for err in comp["errors"])
 
 
+def test_component_from_report_rejects_non_object_payload_when_loader_contract_bypassed(
+    tmp_path: Path, monkeypatch
+):
+    module = _load_module()
+    report = tmp_path / "contract-bypassed.json"
+    report.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(module, "_load_report_payload", lambda _path: (None, None))
+
+    comp = module._component_from_report("polars", report)
+    assert comp["healthy"] is False
+    assert comp["source"] == "report"
+    assert comp["exit_code"] == 1
+    assert any("report payload must be a JSON object" in err for err in comp["errors"])
+
+
 def test_component_from_report_rejects_identity_mismatch(tmp_path: Path):
     module = _load_module()
     wrong = tmp_path / "wrong.json"

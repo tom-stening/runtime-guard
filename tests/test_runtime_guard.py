@@ -4775,6 +4775,68 @@ class TestCLI:
         assert code == 2
         assert "'reason' must be a string" in stderr
 
+    def test_cli_exits_2_on_non_boolean_policy_auto_reload_when_parser_bypassed(self, monkeypatch):
+        import argparse
+
+        monkeypatch.setattr(
+            argparse.ArgumentParser,
+            "parse_args",
+            lambda self: argparse.Namespace(
+                snapshot=False,
+                check=True,
+                verify_audit_log=None,
+                audit_policy_taxonomy=False,
+                report=False,
+                diagnose_wsl_crash=False,
+                generate_wslconfig=None,
+                write=None,
+                policy_file=None,
+                policy_auto_reload="true",
+                posture=None,
+                stage="",
+                version=False,
+                json=False,
+                fail_on_risk="none",
+                fail_on_extension_total_rss_mb=0,
+                fail_on_extension_rss=[],
+            ),
+        )
+
+        code, stderr = self._run_cli("--check")
+        assert code == 2
+        assert "--policy-auto-reload must be boolean" in stderr
+
+    def test_cli_exits_2_on_non_list_extension_specs_when_parser_bypassed(self, monkeypatch):
+        import argparse
+
+        monkeypatch.setattr(
+            argparse.ArgumentParser,
+            "parse_args",
+            lambda self: argparse.Namespace(
+                snapshot=False,
+                check=True,
+                verify_audit_log=None,
+                audit_policy_taxonomy=False,
+                report=False,
+                diagnose_wsl_crash=False,
+                generate_wslconfig=None,
+                write=None,
+                policy_file=None,
+                policy_auto_reload=False,
+                posture=None,
+                stage="",
+                version=False,
+                json=False,
+                fail_on_risk="none",
+                fail_on_extension_total_rss_mb=0,
+                fail_on_extension_rss="ms-python.vscode-pylance=500",
+            ),
+        )
+
+        code, stderr = self._run_cli("--check")
+        assert code == 2
+        assert "--fail-on-extension-rss must be a list when provided" in stderr
+
     def test_check_uses_policy_file_overrides(self, monkeypatch, tmp_path):
         policy = tmp_path / "policy.json"
         policy.write_text(

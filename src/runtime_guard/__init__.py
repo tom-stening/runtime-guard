@@ -6870,6 +6870,75 @@ def _cli() -> None:  # pragma: no cover
 
     args = parser.parse_args()
 
+    cli_errors: list[str] = []
+
+    def _require_bool(field: str, option: str) -> None:
+        value = getattr(args, field, None)
+        if not isinstance(value, bool):
+            cli_errors.append(f"{option} must be boolean")
+
+    def _require_optional_string(field: str, option: str) -> None:
+        value = getattr(args, field, None)
+        if value is None:
+            return
+        if not isinstance(value, str):
+            cli_errors.append(f"{option} must be a string when provided")
+
+    _require_bool("snapshot", "--snapshot")
+    _require_bool("check", "--check")
+    _require_bool("audit_policy_taxonomy", "--audit-policy-taxonomy")
+    _require_bool("report", "--report")
+    _require_bool("diagnose_wsl_crash", "--diagnose-wsl-crash")
+    _require_bool("policy_auto_reload", "--policy-auto-reload")
+    _require_bool("version", "--version")
+    _require_bool("json", "--json")
+
+    _require_optional_string("verify_audit_log", "--verify-audit-log")
+    _require_optional_string("write", "--write")
+    _require_optional_string("policy_file", "--policy-file")
+
+    posture_value = getattr(args, "posture", None)
+    if posture_value is not None and not isinstance(posture_value, str):
+        cli_errors.append("--posture must be a string when provided")
+
+    stage_value = getattr(args, "stage", "")
+    if not isinstance(stage_value, str):
+        cli_errors.append("--stage must be a string")
+
+    generate_wslconfig_value = getattr(args, "generate_wslconfig", None)
+    if generate_wslconfig_value is not None and (
+        not isinstance(generate_wslconfig_value, int)
+        or isinstance(generate_wslconfig_value, bool)
+    ):
+        cli_errors.append("--generate-wslconfig must be an integer when provided")
+
+    fail_on_risk_value = getattr(args, "fail_on_risk", "none")
+    if not isinstance(fail_on_risk_value, str) or fail_on_risk_value not in {
+        "none",
+        "high",
+        "critical",
+    }:
+        cli_errors.append("--fail-on-risk must be one of: none, high, critical")
+
+    extension_total_rss_value = getattr(args, "fail_on_extension_total_rss_mb", 0)
+    if (
+        not isinstance(extension_total_rss_value, int)
+        or isinstance(extension_total_rss_value, bool)
+        or extension_total_rss_value < 0
+    ):
+        cli_errors.append("--fail-on-extension-total-rss-mb must be a non-negative integer")
+
+    extension_specs = getattr(args, "fail_on_extension_rss", [])
+    if not isinstance(extension_specs, list):
+        cli_errors.append("--fail-on-extension-rss must be a list when provided")
+    elif not all(isinstance(spec, str) for spec in extension_specs):
+        cli_errors.append("--fail-on-extension-rss entries must be strings")
+
+    if cli_errors:
+        for row in sorted(set(cli_errors)):
+            print(f"[RuntimeGuard] Invalid CLI argument state: {row}", file=sys.stderr)
+        sys.exit(2)
+
     logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stderr)
 
     if args.version:

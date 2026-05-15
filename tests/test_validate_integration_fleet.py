@@ -183,6 +183,38 @@ def test_validate_cli_configuration_rejects_non_string_allowed_key_ids() -> None
     assert any("--report-allowed-key-id values must be strings" in row for row in errors)
 
 
+def test_validate_report_signature_rejects_non_typed_policy_inputs():
+    module = _load_module()
+
+    errors = module._validate_report_signature(
+        tool_name="polars",
+        provenance={
+            "artifact_sha256": "abc",
+            "generated_at_utc": "2026-05-12T00:00:00Z",
+            "signature": {
+                "mode": "unsigned",
+                "signed_field": "artifact_sha256",
+                "signed_value": "abc",
+                "algorithm": "",
+                "key_id": "",
+                "signature": "",
+            },
+        },
+        require_signed=False,
+        verify_signatures=True,
+        signature_public_key=123,  # type: ignore[arg-type]
+        allowed_key_ids={"trusted", 42},  # type: ignore[arg-type]
+        max_signature_age_hours="4",  # type: ignore[arg-type]
+    )
+
+    assert any(
+        "report max_signature_age_hours policy must be a non-negative integer" in row
+        for row in errors
+    )
+    assert any("report signature_public_key policy must be a string" in row for row in errors)
+    assert any("report allowed_key_ids policy entries must be strings" in row for row in errors)
+
+
 def test_summarize_validator_stderr_filters_pressure_event_json_lines():
     module = _load_module()
     stderr = (

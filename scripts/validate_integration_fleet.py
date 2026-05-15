@@ -554,6 +554,23 @@ def _validate_report_signature(
         return [f"report signature envelope missing for {tool_name}"]
 
     errors: list[str] = []
+    if not isinstance(max_signature_age_hours, int) or isinstance(max_signature_age_hours, bool):
+        errors.append("report max_signature_age_hours policy must be a non-negative integer")
+        max_signature_age_hours = 0
+    elif max_signature_age_hours < 0:
+        errors.append("report max_signature_age_hours policy must be a non-negative integer")
+        max_signature_age_hours = 0
+    if not isinstance(signature_public_key, str):
+        errors.append("report signature_public_key policy must be a string")
+        signature_public_key = ""
+    if not isinstance(allowed_key_ids, set):
+        errors.append("report allowed_key_ids policy must be a set of strings")
+        allowed_key_ids = set()
+    else:
+        if any(not isinstance(key, str) for key in allowed_key_ids):
+            errors.append("report allowed_key_ids policy entries must be strings")
+            allowed_key_ids = {key for key in allowed_key_ids if isinstance(key, str)}
+
     mode, mode_ok = _strict_string(signature.get("mode"))
     if not mode_ok:
         errors.append(f"report signature.mode must be a non-empty string for {tool_name}")
@@ -599,7 +616,7 @@ def _validate_report_signature(
         elif key_id not in allowed_key_ids:
             errors.append(f"report signature key_id '{key_id}' not allowed for {tool_name}")
 
-    if int(max_signature_age_hours or 0) > 0:
+    if max_signature_age_hours > 0:
         generated_at_text, generated_ok = _strict_string(provenance.get("generated_at_utc"))
         if not generated_ok:
             errors.append(f"report provenance.generated_at_utc must be a non-empty string for {tool_name}")
@@ -612,14 +629,14 @@ def _validate_report_signature(
             age_h = (dt.datetime.now(dt.timezone.utc) - issued).total_seconds() / 3600.0
             if age_h > float(max_signature_age_hours):
                 errors.append(
-                    f"report signature age {age_h:.2f}h exceeds max {int(max_signature_age_hours)}h for {tool_name}"
+                    f"report signature age {age_h:.2f}h exceeds max {max_signature_age_hours}h for {tool_name}"
                 )
 
     if verify_signatures:
         if mode != "detached":
             errors.append(f"report detached signature required for cryptographic verification of {tool_name}")
             return errors
-        key_path = str(signature_public_key or "").strip()
+        key_path = signature_public_key.strip()
         if not key_path:
             errors.append("--report-signature-public-key is required when --verify-report-input-signatures is set")
             return errors

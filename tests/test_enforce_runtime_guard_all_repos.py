@@ -191,6 +191,38 @@ def test_validate_cli_configuration_rejects_non_boolean_flags() -> None:
     assert any("--dry-run flag must be boolean" in row for row in errors)
 
 
+def test_main_rejects_non_boolean_flags_even_if_prevalidation_is_bypassed(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    repo = tmp_path / "py-repo"
+    repo.mkdir(parents=True)
+    (repo / ".git").mkdir()
+    (repo / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+
+    module = _load_module()
+
+    class _Args:
+        root = str(tmp_path)
+        report_path = str(tmp_path / "report.json")
+        stage = "repo-autostart"
+        interval_s = 30.0
+        cooldown_s = 30.0
+        env_prefix = "RUNTIME_GUARD"
+        posture = "wsl_dev"
+        enforce_all_repos = "true"  # type: ignore[assignment]
+        force_runtime_guard_sitecustomize = False
+        run_id = ""
+        dry_run = False
+
+    monkeypatch.setattr(module, "_parse_args", lambda: _Args())
+    monkeypatch.setattr(module, "_validate_cli_configuration", lambda _args: [])
+
+    result_code = module.main()
+    captured = capsys.readouterr()
+    assert result_code == 2
+    assert "--enforce-all-repos flag must be boolean" in captured.err
+
+
 def test_validate_cli_configuration_rejects_invalid_interval_and_cooldown_types() -> None:
     module = _load_module()
 

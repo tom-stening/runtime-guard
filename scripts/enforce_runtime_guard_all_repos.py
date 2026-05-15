@@ -317,6 +317,16 @@ def main() -> int:
             print(f"error: {row}", file=sys.stderr)
         return 2
 
+    if not isinstance(args.enforce_all_repos, bool):
+        print("error: --enforce-all-repos flag must be boolean", file=sys.stderr)
+        return 2
+    if not isinstance(args.force_runtime_guard_sitecustomize, bool):
+        print("error: --force-runtime-guard-sitecustomize flag must be boolean", file=sys.stderr)
+        return 2
+    if not isinstance(args.dry_run, bool):
+        print("error: --dry-run flag must be boolean", file=sys.stderr)
+        return 2
+
     root = Path(args.root).expanduser().resolve()
     if not root.is_dir():
         raise SystemExit(f"error: root path does not exist: {root}")
@@ -365,9 +375,9 @@ def main() -> int:
                         "cooldown_s": args.cooldown_s,
                         "env_prefix": args.env_prefix,
                         "posture": args.posture,
-                        "enforce_all_repos": bool(args.enforce_all_repos),
-                        "force_runtime_guard_sitecustomize": bool(args.force_runtime_guard_sitecustomize),
-                        "dry_run": bool(args.dry_run),
+                        "enforce_all_repos": args.enforce_all_repos,
+                        "force_runtime_guard_sitecustomize": args.force_runtime_guard_sitecustomize,
+                        "dry_run": args.dry_run,
                     },
                     sort_keys=True,
                 )
@@ -380,7 +390,7 @@ def main() -> int:
         "stage": args.stage,
         "env_prefix": args.env_prefix,
         "posture": args.posture,
-        "dry_run": bool(args.dry_run),
+        "dry_run": args.dry_run,
         "provenance": provenance,
         "summary": summary_payload,
         "repos": [asdict(s) for s in statuses],

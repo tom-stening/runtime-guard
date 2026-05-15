@@ -51,3 +51,47 @@ def test_validate_cli_configuration_accepts_valid_values() -> None:
         fail_on_gaps = True
 
     assert module._validate_cli_configuration(_Args()) == []
+
+
+def test_build_records_rejects_non_string_stage_and_evidence_fields() -> None:
+    module = _load_module()
+
+    records, invalid_stage_teams, invalid_evidence_teams = module._build_records(
+        [
+            {
+                "Team ID": "T01",
+                "Organization": "Org1",
+                "Stage": 123,
+                "Primary Use Case": "Use",
+                "Integration Mode": ["not", "string"],
+                "Outcome Metric": "Metric",
+            }
+        ]
+    )
+
+    assert records[0]["team"] == "T01"
+    assert records[0]["stage"] == "unknown"
+    assert invalid_stage_teams == ["T01"]
+    assert invalid_evidence_teams == ["T01"]
+
+
+def test_build_records_accepts_string_fields() -> None:
+    module = _load_module()
+
+    records, invalid_stage_teams, invalid_evidence_teams = module._build_records(
+        [
+            {
+                "Team ID": "T01",
+                "Organization": "Org1",
+                "Stage": "Pilot",
+                "Primary Use Case": "Use",
+                "Integration Mode": "CLI",
+                "Outcome Metric": "Metric",
+            }
+        ]
+    )
+
+    assert records[0]["team"] == "T01"
+    assert records[0]["stage"] == "pilot"
+    assert invalid_stage_teams == []
+    assert invalid_evidence_teams == []

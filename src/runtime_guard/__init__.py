@@ -4972,6 +4972,10 @@ def make_worker_report(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create a single worker report suitable for parent-process aggregation."""
+    if not isinstance(stage, str):
+        raise ValueError("stage must be a string")
+    if worker_id is not None and not isinstance(worker_id, str):
+        raise ValueError("worker_id must be a string when provided")
     if metadata is not None and not isinstance(metadata, dict):
         raise ValueError("metadata must be a dictionary when provided")
 
@@ -4981,10 +4985,14 @@ def make_worker_report(
     if report is not None:
         severity = "critical" if report.is_critical else "warning"
 
+    worker_id_value = worker_id.strip() if isinstance(worker_id, str) else ""
+    if not worker_id_value:
+        worker_id_value = str(os.getpid())
+
     out: dict[str, Any] = {
         "ts": int(time.time()),
         "pid": os.getpid(),
-        "worker_id": worker_id or str(os.getpid()),
+        "worker_id": worker_id_value,
         "stage": stage,
         "pressure": report is not None,
         "severity": severity,

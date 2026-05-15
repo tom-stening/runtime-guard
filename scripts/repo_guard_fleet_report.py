@@ -799,11 +799,10 @@ def main() -> int:
         "repo_guard_runtime_status": run_id,
     }
 
-    source_matches = [
-        value == run_id for value in [enforcement_run_id, integration_run_id] if value
-    ]
-    source_values_present = [bool(enforcement_run_id), bool(integration_run_id)]
-    run_id_consistent = bool(source_matches) and all(source_matches) and all(source_values_present)
+    source_values = [enforcement_run_id, integration_run_id]
+    source_values_present = all(isinstance(value, str) and bool(value) for value in source_values)
+    source_values_match_runtime = all(value == run_id for value in source_values)
+    run_id_consistent = source_values_present and source_values_match_runtime
 
     payload["run_id"] = run_id
     payload["source_run_ids"] = source_run_ids

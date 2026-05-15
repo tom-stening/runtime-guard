@@ -1107,6 +1107,46 @@ def test_non_string_source_run_ids_are_not_coerced(tmp_path: Path) -> None:
     assert source_ids.get("integration_fleet_status") == "101"
 
 
+def test_missing_source_run_id_fails_closed_for_consistency(tmp_path: Path) -> None:
+    payload = {
+        "run_id": "ci-sync-1",
+        "repos": [
+            {"repo_path": "/tmp/repo-a", "repo_name": "repo-a", "status": "already_enforced"},
+        ],
+    }
+    integration_path = tmp_path / "integration.json"
+    integration_path.write_text(
+        json.dumps(
+            {
+                "summary": {
+                    "overall_healthy": True,
+                    "components_total": 1,
+                    "components_healthy": 1,
+                    "risk_level": "low",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_script(
+        tmp_path,
+        payload,
+        "--no-proc-scan",
+        "--integration-report",
+        str(integration_path),
+        "--run-id",
+        "ci-sync-1",
+        "--fail-on-run-id-mismatch",
+    )
+    assert result.returncode == 1
+    runtime = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
+    assert runtime.get("run_id_consistent") is False
+    source_ids = runtime.get("source_run_ids", {})
+    assert source_ids.get("repo_guard_enforcement") == "ci-sync-1"
+    assert source_ids.get("integration_fleet_status") == ""
+
+
 def test_invalid_enforcement_report_exits_with_config_error(tmp_path: Path) -> None:
     enforcement_path = tmp_path / "enforcement.json"
     enforcement_path.write_text("{not json", encoding="utf-8")

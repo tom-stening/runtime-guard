@@ -5433,6 +5433,28 @@ class TestWorkerTransport:
         # Should load valid lines and skip the invalid one
         assert len(loaded) >= 2
 
+    def test_aggregate_worker_reports_jsonl_surfaces_parse_warning_stats(self, tmp_path):
+        """aggregate_worker_reports_jsonl reports malformed JSONL input quality."""
+        from runtime_guard import aggregate_worker_reports_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write('{"worker_id":"w1","pressure":false,"severity":"none"}\n')
+            f.write("\n")
+            f.write("not-json\n")
+            f.write('["array", "row"]\n')
+
+        out = aggregate_worker_reports_jsonl(path)
+
+        assert out["total_workers"] == 1
+        assert out["jsonl_total_lines"] == 4
+        assert out["jsonl_loaded_rows"] == 1
+        assert out["jsonl_empty_lines"] == 1
+        assert out["jsonl_invalid_json_lines"] == 1
+        assert out["jsonl_non_object_lines"] == 1
+        assert out["jsonl_parse_warning_count"] == 2
+        assert out["parse_warning_count"] == 2
+
     def test_aggregate_worker_reports_jsonl_single_file(self, tmp_path):
         """aggregate_worker_reports_jsonl aggregates single JSONL file."""
         from runtime_guard import append_worker_report_jsonl, aggregate_worker_reports_jsonl

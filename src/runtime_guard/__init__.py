@@ -5113,35 +5113,69 @@ def append_worker_report_jsonl(path: str, report: dict[str, Any]) -> dict[str, A
     return row
 
 
-def load_worker_reports_jsonl(path: str) -> list[dict[str, Any]]:
-    """Load worker reports from a JSONL transport file.
-
-    Invalid JSON lines are skipped so one bad producer write does not block
-    whole-pool aggregation.
-    """
+def _load_worker_reports_jsonl_with_stats(path: str) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Load worker reports from JSONL and return rows with parse statistics."""
     expanded = os.path.expanduser(path)
     if not os.path.exists(expanded):
-        return []
+        return [], {
+            "jsonl_total_lines": 0,
+            "jsonl_loaded_rows": 0,
+            "jsonl_empty_lines": 0,
+            "jsonl_invalid_json_lines": 0,
+            "jsonl_non_object_lines": 0,
+            "jsonl_parse_warning_count": 0,
+        }
 
     rows: list[dict[str, Any]] = []
+    stats = {
+        "jsonl_total_lines": 0,
+        "jsonl_loaded_rows": 0,
+        "jsonl_empty_lines": 0,
+        "jsonl_invalid_json_lines": 0,
+        "jsonl_non_object_lines": 0,
+        "jsonl_parse_warning_count": 0,
+    }
     with open(expanded, encoding="utf-8") as fh:
         for raw in fh:
+            stats["jsonl_total_lines"] += 1
             line = raw.strip()
             if line == "":
+                stats["jsonl_empty_lines"] += 1
                 continue
             try:
                 row = json.loads(line)
             except json.JSONDecodeError:
+                stats["jsonl_invalid_json_lines"] += 1
+                stats["jsonl_parse_warning_count"] += 1
                 continue
             if isinstance(row, dict):
                 rows.append(dict(row))
+                stats["jsonl_loaded_rows"] += 1
+            else:
+                stats["jsonl_non_object_lines"] += 1
+                stats["jsonl_parse_warning_count"] += 1
+    return rows, stats
+
+
+def load_worker_reports_jsonl(path: str) -> list[dict[str, Any]]:
+    """Load worker reports from a JSONL transport file.
+
+    Invalid JSON or non-object lines are skipped so one bad producer write
+    does not block whole-pool aggregation.
+    """
+    rows, _ = _load_worker_reports_jsonl_with_stats(path)
     return rows
 
 
 def aggregate_worker_reports_jsonl(path: str) -> dict[str, Any]:
     """Aggregate worker reports directly from a JSONL transport file."""
-    rows = load_worker_reports_jsonl(path)
-    return aggregate_worker_reports(rows)
+    rows, stats = _load_worker_reports_jsonl_with_stats(path)
+    out = aggregate_worker_reports(rows)
+    out.update(stats)
+    out["parse_warning_count"] = (
+        out.get("parse_warning_count", 0) + stats.get("jsonl_parse_warning_count", 0)
+    )
+    return out
 
 
 # ---------------------------------------------------------------------------

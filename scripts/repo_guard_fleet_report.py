@@ -800,7 +800,7 @@ def main() -> int:
     }
 
     source_values = [enforcement_run_id, integration_run_id]
-    source_values_present = all(isinstance(value, str) and bool(value) for value in source_values)
+    source_values_present = all(isinstance(value, str) and value != "" for value in source_values)
     source_values_match_runtime = all(value == run_id for value in source_values)
     run_id_consistent = source_values_present and source_values_match_runtime
 

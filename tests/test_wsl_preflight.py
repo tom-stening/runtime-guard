@@ -20,12 +20,48 @@ def test_parse_psi_memory_handles_valid_content(tmp_path):
         encoding="utf-8",
     )
 
-    out = wsl_preflight._parse_psi_memory(str(psi))
+    out, parse_error = wsl_preflight._parse_psi_memory(str(psi))
 
     assert out["some_avg10"] == 12.34
     assert out["some_avg60"] == 5.0
     assert out["full_avg10"] == 3.21
     assert out["full_avg60"] == 1.23
+    assert parse_error is False
+
+
+def test_parse_psi_memory_marks_parse_error_for_malformed_values(tmp_path):
+    psi = tmp_path / "memory"
+    psi.write_text(
+        "some avg10=avg avg60=5.00 avg300=1.0 total=100\n"
+        "full avg10=3.21 avg60=1.23 avg300=0.1 total=50\n",
+        encoding="utf-8",
+    )
+
+    out, parse_error = wsl_preflight._parse_psi_memory(str(psi))
+
+    assert out["some_avg10"] == 0.0
+    assert out["some_avg60"] == 0.0
+    assert out["full_avg10"] == 3.21
+    assert out["full_avg60"] == 1.23
+    assert parse_error is True
+
+
+def test_classify_wsl_risk_marks_parse_corruption_as_moderate_risk():
+    level, score, causes, actions = wsl_preflight._classify_wsl_risk(
+        {
+            "guest_mem_available_mb": 6000,
+            "guest_swap_used_pct": 20,
+            "psi_some_avg10": 0.5,
+            "psi_full_avg10": 0.0,
+            "host_vm_used_pct": 40,
+            "psi_parse_error": True,
+        }
+    )
+
+    assert level == "moderate"
+    assert score >= 2
+    assert any("cannot be trusted" in row for row in causes)
+    assert actions
 
 
 def test_classify_wsl_risk_marks_critical_for_combined_pressure():

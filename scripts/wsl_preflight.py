@@ -176,13 +176,23 @@ def _parse_meminfo(path: str = "/proc/meminfo") -> dict[str, int]:
     return out
 
 
-def _parse_psi_memory(path: str = "/proc/pressure/memory") -> dict[str, float]:
+def _parse_psi_memory(path: str = "/proc/pressure/memory") -> tuple[dict[str, float], bool]:
     data = {
         "some_avg10": 0.0,
         "some_avg60": 0.0,
         "full_avg10": 0.0,
         "full_avg60": 0.0,
     }
+    parse_error = False
+
+    def _parse_required_float(value: object) -> float:
+        if not isinstance(value, str):
+            raise ValueError("PSI token value must be a string")
+        text = value.strip()
+        if not text:
+            raise ValueError("PSI token value must be non-empty")
+        return float(text)
+
     try:
         with open(path, encoding="utf-8") as fh:
             for line in fh:
@@ -200,16 +210,20 @@ def _parse_psi_memory(path: str = "/proc/pressure/memory") -> dict[str, float]:
                     k, v = token.split("=", 1)
                     kv[k] = v
                 if scope == "some":
-                    data["some_avg10"] = float(kv.get("avg10", "0") or 0)
-                    data["some_avg60"] = float(kv.get("avg60", "0") or 0)
+                    try:
+                        data["some_avg10"] = _parse_required_float(kv.get("avg10"))
+                        data["some_avg60"] = _parse_required_float(kv.get("avg60"))
+                    except ValueError:
+                        parse_error = True
                 elif scope == "full":
-                    data["full_avg10"] = float(kv.get("avg10", "0") or 0)
-                    data["full_avg60"] = float(kv.get("avg60", "0") or 0)
+                    try:
+                        data["full_avg10"] = _parse_required_float(kv.get("avg10"))
+                        data["full_avg60"] = _parse_required_float(kv.get("avg60"))
+                    except ValueError:
+                        parse_error = True
     except OSError:
-        return data
-    except ValueError:
-        return data
-    return data
+        return data, False
+    return data, parse_error
 
 
 def _read_host_snapshot_from_wsl() -> dict[str, int]:
@@ -288,6 +302,12 @@ def _classify_wsl_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], li
             return float(raw)
         return default
 
+    def _metric_bool(name: str, default: bool = False) -> bool:
+        raw = metrics.get(name, default)
+        if isinstance(raw, bool):
+            return raw
+        return default
+
     score = 0
     causes: list[str] = []
     prevention: list[str] = []
@@ -296,6 +316,7 @@ def _classify_wsl_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], li
     guest_swap_used_pct = _metric_int("guest_swap_used_pct", 0)
     psi_some_avg10 = _metric_float("psi_some_avg10", 0.0)
     psi_full_avg10 = _metric_float("psi_full_avg10", 0.0)
+    psi_parse_error = _metric_bool("psi_parse_error", False)
     host_vm_used_pct = _metric_int("host_vm_used_pct", 0)
 
     if guest_mem_available_mb < 1024:
@@ -314,6 +335,12 @@ def _classify_wsl_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], li
         score += 1
         causes.append("guest some memory PSI avg10 indicates sustained contention")
         prevention.append("limit extension host count and long-running indexers during heavy jobs")
+    if psi_parse_error:
+        score += 2
+        causes.append("guest memory PSI metrics are malformed and cannot be trusted")
+        prevention.append(
+            "validate /proc/pressure/memory format and rerun diagnostics before heavy subprocess launches"
+        )
     if host_vm_used_pct >= 85:
         score += 1
         causes.append("host virtual memory usage is high")
@@ -336,7 +363,7 @@ def _classify_wsl_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], li
 
 def collect_wsl_crash_diagnostics() -> dict[str, Any]:
     meminfo = _parse_meminfo()
-    psi = _parse_psi_memory()
+    psi, psi_parse_error = _parse_psi_memory()
 
     guest_mem_total_mb = int(meminfo.get("MemTotal", 0) // 1024)
     guest_mem_available_mb = int(meminfo.get("MemAvailable", 0) // 1024)
@@ -360,6 +387,7 @@ def collect_wsl_crash_diagnostics() -> dict[str, Any]:
         "psi_some_avg60": psi["some_avg60"],
         "psi_full_avg10": psi["full_avg10"],
         "psi_full_avg60": psi["full_avg60"],
+        "psi_parse_error": psi_parse_error,
     }
     metrics.update(host)
 

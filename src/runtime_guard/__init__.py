@@ -7168,7 +7168,7 @@ def _cli() -> None:  # pragma: no cover
             try:
                 guard.load_policy_file(
                     args.policy_file,
-                    auto_reload=bool(args.policy_auto_reload),
+                    auto_reload=args.policy_auto_reload,
                 )
             except (OSError, ValueError) as exc:
                 print(f"[RuntimeGuard] Failed to load policy file: {exc}", file=sys.stderr)

@@ -588,10 +588,30 @@ class RuntimeGuard:
         hints: list[str] | None = None,
         show_top_procs: bool = True,
     ) -> None:
-        self._prefix = env_prefix.rstrip("_")
-        self._tag = log_tag
-        self._cooldown_s = cooldown_s
-        self._hints: list[str] = hints or []
+        if not isinstance(env_prefix, str) or not env_prefix.strip():
+            raise ValueError("env_prefix must be a non-empty string")
+        prefix = env_prefix.strip().rstrip("_")
+        if not prefix:
+            raise ValueError("env_prefix must include at least one non-underscore character")
+        if not isinstance(log_tag, str) or not log_tag.strip():
+            raise ValueError("log_tag must be a non-empty string")
+        if isinstance(cooldown_s, bool) or not isinstance(cooldown_s, (int, float)):
+            raise ValueError("cooldown_s must be a non-negative finite number")
+        cooldown_value = float(cooldown_s)
+        if math.isnan(cooldown_value) or math.isinf(cooldown_value) or cooldown_value < 0:
+            raise ValueError("cooldown_s must be a non-negative finite number")
+        if hints is not None:
+            if not isinstance(hints, list):
+                raise ValueError("hints must be a list of strings when provided")
+            if any(not isinstance(item, str) for item in hints):
+                raise ValueError("hints must contain only strings")
+        if not isinstance(show_top_procs, bool):
+            raise ValueError("show_top_procs must be a boolean")
+
+        self._prefix = prefix
+        self._tag = log_tag.strip()
+        self._cooldown_s = cooldown_value
+        self._hints: list[str] = list(hints) if hints is not None else []
         self._show_top_procs = show_top_procs
         # Cooldown tracking: keyed by "critical"|"warning"
         self._last_logged: dict[str, float] = {}

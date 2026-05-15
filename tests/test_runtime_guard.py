@@ -186,6 +186,32 @@ class TestMakePytestGuard:
             make_pytest_guard(repo_name="My Repo", posture="fast")
 
 
+class TestRuntimeGuardInitValidation:
+    def test_rejects_invalid_string_inputs(self):
+        with pytest.raises(ValueError, match="env_prefix must be a non-empty string"):
+            RuntimeGuard(env_prefix="")
+        with pytest.raises(ValueError, match="env_prefix must include at least one non-underscore"):
+            RuntimeGuard(env_prefix="___")
+        with pytest.raises(ValueError, match="log_tag must be a non-empty string"):
+            RuntimeGuard(log_tag=" ")
+
+    def test_rejects_invalid_cooldown_inputs(self):
+        with pytest.raises(ValueError, match="cooldown_s must be a non-negative finite number"):
+            RuntimeGuard(cooldown_s=True)
+        with pytest.raises(ValueError, match="cooldown_s must be a non-negative finite number"):
+            RuntimeGuard(cooldown_s=-1)
+        with pytest.raises(ValueError, match="cooldown_s must be a non-negative finite number"):
+            RuntimeGuard(cooldown_s=float("inf"))
+
+    def test_rejects_invalid_hints_and_show_top_procs(self):
+        with pytest.raises(ValueError, match="hints must be a list of strings"):
+            RuntimeGuard(hints="not-a-list")
+        with pytest.raises(ValueError, match="hints must contain only strings"):
+            RuntimeGuard(hints=["ok", 1])
+        with pytest.raises(ValueError, match="show_top_procs must be a boolean"):
+            RuntimeGuard(show_top_procs="yes")
+
+
 class TestConftestContent:
     def test_conftest_includes_posture_when_provided(self):
         text = make_conftest_content(repo_name="myrepo", posture="ci")

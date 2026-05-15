@@ -774,6 +774,20 @@ def _component_from_report(
     }.get(tool_name, "")
 
     identity_errors: list[str] = []
+    if not isinstance(max_report_age_hours, int) or isinstance(max_report_age_hours, bool):
+        identity_errors.append(
+            f"report max_report_age_hours policy must be a non-negative integer for {tool_name}"
+        )
+        max_report_age_hours = 0
+    elif max_report_age_hours < 0:
+        identity_errors.append(
+            f"report max_report_age_hours policy must be a non-negative integer for {tool_name}"
+        )
+        max_report_age_hours = 0
+    if now_utc is not None and not isinstance(now_utc, dt.datetime):
+        identity_errors.append(f"report now_utc policy must be datetime or null for {tool_name}")
+        now_utc = None
+
     tool_value, tool_ok = _strict_string(report_payload.get("tool"))
     if not tool_ok:
         identity_errors.append(f"report tool must be a non-empty string for {tool_name}")
@@ -806,11 +820,11 @@ def _component_from_report(
             _validate_report_signature(
                 tool_name=tool_name,
                 provenance=provenance,
-                require_signed=bool(require_signed),
-                verify_signatures=bool(verify_signatures),
-                signature_public_key=str(signature_public_key),
-                allowed_key_ids=set(allowed_key_ids or set()),
-                max_signature_age_hours=int(max_signature_age_hours or 0),
+                require_signed=require_signed,
+                verify_signatures=verify_signatures,
+                signature_public_key=signature_public_key,
+                allowed_key_ids=allowed_key_ids or set(),
+                max_signature_age_hours=max_signature_age_hours,
             )
         )
 
@@ -831,7 +845,7 @@ def _component_from_report(
                 f"report run_id mismatch for {tool_name}: expected {expected_run}"
             )
 
-    if int(max_report_age_hours or 0) > 0:
+    if max_report_age_hours > 0:
         generated_at_text = ""
         generated_at_ok = False
         if isinstance(provenance, dict):
@@ -852,7 +866,7 @@ def _component_from_report(
             age_h = (reference - issued).total_seconds() / 3600.0
             if age_h > float(max_report_age_hours):
                 identity_errors.append(
-                    f"report too old for {tool_name}: {age_h:.2f}h > {int(max_report_age_hours)}h"
+                    f"report too old for {tool_name}: {age_h:.2f}h > {max_report_age_hours}h"
                 )
 
     return _component_from_payload(

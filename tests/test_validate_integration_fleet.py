@@ -684,6 +684,47 @@ def test_component_from_report_rejects_non_string_artifact_sha(tmp_path: Path):
     assert comp["healthy"] is False
     assert any("report artifact_sha256 must be a non-empty string" in err for err in comp["errors"])
 
+    def test_component_from_report_rejects_non_typed_policy_inputs(tmp_path: Path):
+        module = _load_module()
+
+        report = tmp_path / "polars.json"
+        report.write_text(
+            json.dumps(
+                _stamp_report_payload(
+                    {
+                        "tool": "validate_polars_integration",
+                        "milestone": "M1-I01",
+                        "run_id": "ci-run-xyz",
+                        "ok": True,
+                        "api_importable": True,
+                        "scan_budget_api": {"available": True},
+                        "native_callback_api": {"available": True},
+                        "errors": [],
+                        "provenance": {"generated_at_utc": "2026-05-12T00:00:00Z"},
+                    }
+                )
+            ),
+            encoding="utf-8",
+        )
+
+        comp = module._component_from_report(
+            "polars",
+            report,
+            max_report_age_hours="4",  # type: ignore[arg-type]
+            require_signed="true",  # type: ignore[arg-type]
+            verify_signatures="false",  # type: ignore[arg-type]
+            signature_public_key=123,  # type: ignore[arg-type]
+            allowed_key_ids={"trusted", 7},  # type: ignore[arg-type]
+            max_signature_age_hours="2",  # type: ignore[arg-type]
+            now_utc="2026-05-12T01:00:00Z",  # type: ignore[arg-type]
+        )
+
+        errors = comp.get("errors", [])
+        assert any("report max_report_age_hours policy must be a non-negative integer" in err for err in errors)
+        assert any("report now_utc policy must be datetime or null" in err for err in errors)
+        assert any("report max_signature_age_hours policy must be a non-negative integer" in err for err in errors)
+        assert any("report signature_public_key policy must be a string" in err for err in errors)
+        assert any("report allowed_key_ids policy entries must be strings" in err for err in errors)
 
 def test_component_from_report_rejects_non_string_generated_at_for_staleness(tmp_path: Path):
     module = _load_module()

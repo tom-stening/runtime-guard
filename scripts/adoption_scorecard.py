@@ -39,7 +39,17 @@ def _normalize_records(
     for idx, row in enumerate(rows, start=1):
         out = dict(row)
 
-        team_name = str(out.get("team") or out.get("name") or "").strip()
+        team_raw = out.get("team") if out.get("team") is not None else out.get("name")
+        if team_raw is None:
+            team_name = ""
+        elif isinstance(team_raw, str):
+            team_name = team_raw.strip()
+        else:
+            msg = f"record[{idx}] team/name must be a string"
+            if strict:
+                raise ValueError(msg)
+            warnings.append(msg)
+            team_name = ""
         if team_name == "":
             msg = f"record[{idx}] missing team/name"
             if strict:
@@ -48,9 +58,17 @@ def _normalize_records(
             team_name = f"unknown-team-{idx}"
         out["team"] = team_name
 
-        stage = str(out.get("stage") or "discover").strip().lower()
-        if stage == "":
+        stage_raw = out.get("stage", "discover")
+        if stage_raw is None:
             stage = "discover"
+        elif isinstance(stage_raw, str):
+            stage = stage_raw.strip().lower() or "discover"
+        else:
+            msg = f"record[{idx}] stage must be a string"
+            if strict:
+                raise ValueError(msg)
+            warnings.append(msg)
+            stage = "unknown"
         stage = stage_aliases.get(stage, stage)
         out["stage"] = stage
 
@@ -62,7 +80,24 @@ def _normalize_records(
                 raise ValueError(f"record[{idx}] evidence must be a list when provided")
             warnings.append(f"record[{idx}] evidence was not a list; coerced to []")
             evidence_raw = []
-        out["evidence"] = [str(item).strip() for item in evidence_raw if str(item).strip() != ""]
+
+        evidence_items: list[str] = []
+        invalid_evidence_item = False
+        for item in evidence_raw:
+            if not isinstance(item, str):
+                invalid_evidence_item = True
+                continue
+            text = item.strip()
+            if text:
+                evidence_items.append(text)
+
+        if invalid_evidence_item:
+            msg = f"record[{idx}] evidence items must be strings"
+            if strict:
+                raise ValueError(msg)
+            warnings.append(msg)
+
+        out["evidence"] = evidence_items
 
         normalized.append(out)
 

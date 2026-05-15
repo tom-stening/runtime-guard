@@ -56,3 +56,27 @@ def test_cli_fails_in_strict_mode_on_missing_team(tmp_path: Path):
 
     assert proc.returncode == 2
     assert "missing team/name" in proc.stderr
+
+
+def test_cli_warns_and_sets_unknown_stage_for_non_string_stage(tmp_path: Path):
+    input_path = tmp_path / "records.json"
+    input_path.write_text(
+        json.dumps(
+            [
+                {"team": "alpha", "stage": 123, "evidence": ["ok"]},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [sys.executable, str(_script_path()), "--input", str(input_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0
+    assert "stage must be a string" in proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["stage_counts"]["unknown"] == 1

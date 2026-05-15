@@ -67,3 +67,38 @@ def test_validate_cli_configuration_accepts_valid_values() -> None:
         success_stage = "production"
 
     assert module._validate_cli_configuration(_Args()) == []
+
+
+def test_normalize_records_warns_on_non_string_stage_and_evidence_items() -> None:
+    module = _load_module()
+
+    records, warnings = module._normalize_records(
+        [
+            {
+                "team": "alpha",
+                "stage": 123,
+                "evidence": ["ok", 9],
+            }
+        ],
+        strict=False,
+    )
+
+    assert records[0]["team"] == "alpha"
+    assert records[0]["stage"] == "unknown"
+    assert records[0]["evidence"] == ["ok"]
+    assert any("stage must be a string" in row for row in warnings)
+    assert any("evidence items must be strings" in row for row in warnings)
+
+
+def test_normalize_records_strict_rejects_non_string_team() -> None:
+    module = _load_module()
+
+    try:
+        module._normalize_records(
+            [{"team": 42, "stage": "pilot", "evidence": ["ok"]}],
+            strict=True,
+        )
+    except ValueError as exc:
+        assert "team/name must be a string" in str(exc)
+    else:
+        assert False, "Expected ValueError for non-string team"

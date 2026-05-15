@@ -808,6 +808,67 @@ def _build_result(
         "repo_guard_runtime_status": str(runtime_path),
     }
 
+    policy_errors: list[str] = []
+
+    if not isinstance(strict, bool):
+        policy_errors.append("strict must be boolean")
+    if not isinstance(require_signed, bool):
+        policy_errors.append("require_signed must be boolean")
+    if not isinstance(verify_signatures, bool):
+        policy_errors.append("verify_signatures must be boolean")
+    if not isinstance(signature_public_key, str):
+        policy_errors.append("signature_public_key must be a string")
+
+    normalized_allowed_key_ids: list[str] = []
+    if not isinstance(allowed_key_ids, list):
+        policy_errors.append("allowed_key_ids must be a list of strings")
+    else:
+        for key in allowed_key_ids:
+            if not isinstance(key, str):
+                policy_errors.append("allowed_key_ids entries must be strings")
+                continue
+            normalized = key.strip()
+            if normalized:
+                normalized_allowed_key_ids.append(normalized)
+
+    if not isinstance(max_signature_age_hours, int) or isinstance(max_signature_age_hours, bool):
+        policy_errors.append("max_signature_age_hours must be a non-negative integer")
+        max_signature_age_hours = 0
+    elif max_signature_age_hours < 0:
+        policy_errors.append("max_signature_age_hours must be a non-negative integer")
+
+    if not isinstance(expected_require_signed_report_inputs, bool):
+        policy_errors.append("expected_require_signed_report_inputs must be boolean")
+    if not isinstance(expected_verify_report_input_signatures, bool):
+        policy_errors.append("expected_verify_report_input_signatures must be boolean")
+
+    normalized_expected_report_allowed_key_ids: list[str] = []
+    if not isinstance(expected_report_allowed_key_ids, list):
+        policy_errors.append("expected_report_allowed_key_ids must be a list of strings")
+    else:
+        for key in expected_report_allowed_key_ids:
+            if not isinstance(key, str):
+                policy_errors.append("expected_report_allowed_key_ids entries must be strings")
+                continue
+            normalized = key.strip()
+            if normalized:
+                normalized_expected_report_allowed_key_ids.append(normalized)
+
+    if not isinstance(expected_max_report_signature_age_hours, int) or isinstance(
+        expected_max_report_signature_age_hours, bool
+    ):
+        policy_errors.append(
+            "expected_max_report_signature_age_hours must be a non-negative integer"
+        )
+        expected_max_report_signature_age_hours = 0
+    elif expected_max_report_signature_age_hours < 0:
+        policy_errors.append(
+            "expected_max_report_signature_age_hours must be a non-negative integer"
+        )
+
+    if policy_errors:
+        return False, {"ok": False, "errors": policy_errors, "artifacts": artifacts}
+
     for path in [enforcement_path, integration_path, runtime_path]:
         if not path.exists():
             errors.append(f"missing artifact: {path}")
@@ -873,10 +934,10 @@ def _build_result(
     errors.extend(
         _validate_expected_integration_report_signature_policy(
             integration,
-            expected_require_signed_report_inputs=bool(expected_require_signed_report_inputs),
-            expected_verify_report_input_signatures=bool(expected_verify_report_input_signatures),
-            expected_report_allowed_key_ids=list(expected_report_allowed_key_ids or []),
-            expected_max_report_signature_age_hours=int(expected_max_report_signature_age_hours or 0),
+            expected_require_signed_report_inputs=expected_require_signed_report_inputs,
+            expected_verify_report_input_signatures=expected_verify_report_input_signatures,
+            expected_report_allowed_key_ids=normalized_expected_report_allowed_key_ids,
+            expected_max_report_signature_age_hours=expected_max_report_signature_age_hours,
         )
     )
     errors.extend(
@@ -886,8 +947,8 @@ def _build_result(
             require_signed=require_signed,
             verify_signatures=verify_signatures,
             signature_public_key=signature_public_key,
-            allowed_key_ids={k for k in allowed_key_ids if str(k).strip()},
-            max_signature_age_hours=int(max_signature_age_hours or 0),
+            allowed_key_ids=set(normalized_allowed_key_ids),
+            max_signature_age_hours=max_signature_age_hours,
         )
     )
     errors.extend(
@@ -897,8 +958,8 @@ def _build_result(
             require_signed=require_signed,
             verify_signatures=verify_signatures,
             signature_public_key=signature_public_key,
-            allowed_key_ids={k for k in allowed_key_ids if str(k).strip()},
-            max_signature_age_hours=int(max_signature_age_hours or 0),
+            allowed_key_ids=set(normalized_allowed_key_ids),
+            max_signature_age_hours=max_signature_age_hours,
         )
     )
     errors.extend(
@@ -908,8 +969,8 @@ def _build_result(
             require_signed=require_signed,
             verify_signatures=verify_signatures,
             signature_public_key=signature_public_key,
-            allowed_key_ids={k for k in allowed_key_ids if str(k).strip()},
-            max_signature_age_hours=int(max_signature_age_hours or 0),
+            allowed_key_ids=set(normalized_allowed_key_ids),
+            max_signature_age_hours=max_signature_age_hours,
         )
     )
 
@@ -993,16 +1054,16 @@ def main() -> int:
         enforcement_path,
         integration_path,
         runtime_path,
-        strict=bool(args.strict),
-        require_signed=bool(args.require_signed),
-        verify_signatures=bool(args.verify_signatures),
-        signature_public_key=str(args.signature_public_key),
-        allowed_key_ids=list(args.allowed_key_id or []),
-        max_signature_age_hours=int(args.max_signature_age_hours or 0),
-        expected_require_signed_report_inputs=bool(args.expected_require_signed_report_inputs),
-        expected_verify_report_input_signatures=bool(args.expected_verify_report_input_signatures),
-        expected_report_allowed_key_ids=list(args.expected_report_allowed_key_id or []),
-        expected_max_report_signature_age_hours=int(args.expected_max_report_signature_age_hours or 0),
+        strict=args.strict,
+        require_signed=args.require_signed,
+        verify_signatures=args.verify_signatures,
+        signature_public_key=args.signature_public_key,
+        allowed_key_ids=args.allowed_key_id,
+        max_signature_age_hours=args.max_signature_age_hours,
+        expected_require_signed_report_inputs=args.expected_require_signed_report_inputs,
+        expected_verify_report_input_signatures=args.expected_verify_report_input_signatures,
+        expected_report_allowed_key_ids=args.expected_report_allowed_key_id,
+        expected_max_report_signature_age_hours=args.expected_max_report_signature_age_hours,
     )
 
     if args.json:

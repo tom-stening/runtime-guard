@@ -519,6 +519,42 @@ def test_build_result_passes_for_consistent_artifacts(tmp_path: Path):
     assert result["run_id"] == "ci-1"
 
 
+def test_build_result_rejects_non_typed_policy_arguments(tmp_path: Path):
+    module = _load_module()
+
+    ok, result = module._build_result(
+        tmp_path / "repo_guard_enforcement.json",
+        tmp_path / "integration_fleet_status.json",
+        tmp_path / "repo_guard_runtime_status.json",
+        strict="true",  # type: ignore[arg-type]
+        require_signed=1,  # type: ignore[arg-type]
+        verify_signatures="false",  # type: ignore[arg-type]
+        signature_public_key=123,  # type: ignore[arg-type]
+        allowed_key_ids=["fleet-key", 42],  # type: ignore[list-item]
+        max_signature_age_hours="4",  # type: ignore[arg-type]
+        expected_require_signed_report_inputs="true",  # type: ignore[arg-type]
+        expected_verify_report_input_signatures=0,  # type: ignore[arg-type]
+        expected_report_allowed_key_ids=["report-key", object()],  # type: ignore[list-item]
+        expected_max_report_signature_age_hours=2.5,  # type: ignore[arg-type]
+    )
+
+    assert ok is False
+    errors = result.get("errors", [])
+    assert any("strict must be boolean" in row for row in errors)
+    assert any("require_signed must be boolean" in row for row in errors)
+    assert any("verify_signatures must be boolean" in row for row in errors)
+    assert any("signature_public_key must be a string" in row for row in errors)
+    assert any("allowed_key_ids entries must be strings" in row for row in errors)
+    assert any("max_signature_age_hours must be a non-negative integer" in row for row in errors)
+    assert any("expected_require_signed_report_inputs must be boolean" in row for row in errors)
+    assert any("expected_verify_report_input_signatures must be boolean" in row for row in errors)
+    assert any("expected_report_allowed_key_ids entries must be strings" in row for row in errors)
+    assert any(
+        "expected_max_report_signature_age_hours must be a non-negative integer" in row
+        for row in errors
+    )
+
+
 def test_build_result_fails_on_hash_or_run_id_mismatch(tmp_path: Path):
     module = _load_module()
 

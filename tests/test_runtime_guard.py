@@ -3103,6 +3103,14 @@ class TestConfigValidation:
         with pytest.raises(ValueError, match="must be an integer"):
             validate_runtime_guard_config({"min_mem_available_mb": "lots"}, use_pydantic=False)
 
+    def test_rejects_boolean_threshold(self):
+        with pytest.raises(ValueError, match="must be an integer"):
+            validate_runtime_guard_config({"min_mem_available_mb": True}, use_pydantic=False)
+
+    def test_rejects_non_string_posture(self):
+        with pytest.raises(ValueError, match="posture must be a string"):
+            validate_runtime_guard_config({"posture": ["ci"]}, use_pydantic=False)
+
     def test_rejects_out_of_range_percent(self):
         with pytest.raises(ValueError, match="must be <= 100"):
             validate_runtime_guard_config({"max_swap_used_pct": 101}, use_pydantic=False)
@@ -3116,6 +3124,11 @@ class TestDynamicPolicyReload:
         assert out["min_mem_available_mb"] == 1234
         guard.clear_policy_overrides()
         assert guard._policy_overrides == {}
+
+    def test_set_policy_overrides_rejects_coercive_values(self):
+        guard = RuntimeGuard()
+        with pytest.raises(ValueError, match="Invalid RuntimeGuard config|must be an integer"):
+            guard.set_policy_overrides({"min_mem_available_mb": True})
 
     def test_load_policy_file_applies_thresholds(self, tmp_path):
         guard = RuntimeGuard()

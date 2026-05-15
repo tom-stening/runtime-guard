@@ -3828,10 +3828,12 @@ def validate_runtime_guard_config(
 
     if use_pydantic:
         try:
-            from pydantic import BaseModel, ConfigDict, Field
-
+            from pydantic import BaseModel, ConfigDict, Field, ValidationError
+        except ImportError:
+            pass
+        else:
             class _ConfigModel(BaseModel):
-                model_config = ConfigDict(extra="forbid")
+                model_config = ConfigDict(extra="forbid", strict=True)
 
                 posture: str | None = None
                 min_mem_available_mb: int | None = Field(default=None, ge=0)
@@ -3840,20 +3842,23 @@ def validate_runtime_guard_config(
                 critical_swap_pct: int | None = Field(default=None, ge=0, le=100)
                 self_inflicted_pct: int | None = Field(default=None, ge=0, le=100)
 
-            model = _ConfigModel(**config)
+            try:
+                model = _ConfigModel(**config)
+            except ValidationError as exc:
+                raise ValueError(f"Invalid RuntimeGuard config: {exc}") from exc
             out = model.model_dump(exclude_none=True)
             posture = out.get("posture")
             if posture is not None and posture not in _PRESETS:
                 raise ValueError(f"Invalid posture {posture!r}; expected one of {sorted(_PRESETS)}")
             return out
-        except ImportError:
-            pass
 
     out: dict[str, Any] = {}
 
     posture = config.get("posture")
     if posture is not None:
-        posture_norm = str(posture).strip().lower()
+        if not isinstance(posture, str):
+            raise ValueError("posture must be a string")
+        posture_norm = posture.strip().lower()
         if posture_norm not in _PRESETS:
             raise ValueError(f"Invalid posture {posture!r}; expected one of {sorted(_PRESETS)}")
         out["posture"] = posture_norm
@@ -3862,10 +3867,9 @@ def validate_runtime_guard_config(
         if name not in config:
             return
         value = config[name]
-        try:
-            ivalue = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{name} must be an integer") from exc
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError(f"{name} must be an integer")
+        ivalue = value
         if ivalue < minimum:
             raise ValueError(f"{name} must be >= {minimum}")
         if maximum is not None and ivalue > maximum:

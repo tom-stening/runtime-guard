@@ -421,6 +421,31 @@ def test_component_from_payload_rejects_non_integer_exit_code():
     assert any("validator exit_code must be an integer" in err for err in comp["errors"])
 
 
+def test_component_from_payload_rejects_non_typed_error_warning_inputs():
+    module = _load_module()
+    comp = module._component_from_payload(
+        "ray",
+        {
+            "ok": True,
+            "api_importable": True,
+            "actor_monitoring_api": {
+                "available": True,
+                "hotspot_fields_present": True,
+            },
+        },
+        source="report",
+        command=None,
+        exit_code=0,
+        hard_errors="identity mismatch",  # type: ignore[arg-type]
+        warnings=["ok", 101],  # type: ignore[list-item]
+    )
+
+    assert comp["healthy"] is False
+    assert any("hard_errors must be a list of strings" in err for err in comp["errors"])
+    assert any("warnings entries must be strings" in err for err in comp["errors"])
+    assert "ok" in comp["warnings"]
+
+
 def test_component_from_report_invalid_file(tmp_path: Path):
     module = _load_module()
     bad = tmp_path / "bad.json"

@@ -293,8 +293,31 @@ def _component_from_payload(
     hard_errors: list[str] | None = None,
     warnings: list[str] | None = None,
 ) -> dict[str, Any]:
-    errors = list(hard_errors or [])
-    warning_rows = list(warnings or [])
+    errors: list[str] = []
+    if hard_errors is None:
+        pass
+    elif not isinstance(hard_errors, list):
+        errors.append("hard_errors must be a list of strings")
+    else:
+        invalid_hard_error_types = [row for row in hard_errors if not isinstance(row, str)]
+        if invalid_hard_error_types:
+            errors.append("hard_errors entries must be strings")
+        for row in hard_errors:
+            if isinstance(row, str) and row.strip():
+                errors.append(row)
+
+    warning_rows: list[str] = []
+    if warnings is None:
+        pass
+    elif not isinstance(warnings, list):
+        errors.append("warnings must be a list of strings")
+    else:
+        invalid_warning_types = [row for row in warnings if not isinstance(row, str)]
+        if invalid_warning_types:
+            errors.append("warnings entries must be strings")
+        for row in warnings:
+            if isinstance(row, str) and row.strip():
+                warning_rows.append(row)
 
     raw_validator_ok = payload.get("ok", False)
     raw_api_importable = payload.get("api_importable", False)

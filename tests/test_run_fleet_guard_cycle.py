@@ -789,3 +789,35 @@ def test_build_lineage_verify_command_includes_key_policy_flags(tmp_path: Path):
     assert "report-key-b" in cmd
     assert "--expected-max-report-signature-age-hours" in cmd
     assert "12" in cmd
+
+
+def test_build_lineage_verify_command_rejects_non_typed_policy_inputs(tmp_path: Path):
+    module = _load_module()
+
+    try:
+        module._build_lineage_verify_command(
+            Path("/repo"),
+            tmp_path / "repo_guard_enforcement.json",
+            tmp_path / "integration_fleet_status.json",
+            tmp_path / "repo_guard_runtime_status.json",
+            require_signed="true",  # type: ignore[arg-type]
+            verify_signatures=False,
+            signature_public_key=123,  # type: ignore[arg-type]
+            allowed_key_ids=["fleet-key", 7],  # type: ignore[list-item]
+            max_signature_age_hours="4",  # type: ignore[arg-type]
+            expected_require_signed_report_inputs=False,
+            expected_verify_report_input_signatures="false",  # type: ignore[arg-type]
+            expected_report_allowed_key_ids=["report-key", object()],  # type: ignore[list-item]
+            expected_max_report_signature_age_hours=0,
+        )
+    except ValueError as exc:
+        text = str(exc)
+        assert (
+            "require_signed" in text
+            or "signature_public_key" in text
+            or "max_signature_age_hours" in text
+            or "expected_verify_report_input_signatures" in text
+            or "expected_report_allowed_key_ids" in text
+        )
+    else:
+        raise AssertionError("expected ValueError for non-typed lineage policy input")

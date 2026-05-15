@@ -370,29 +370,29 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
     ]
     if args.integration_fallback_on_pressure:
         integration_cmd.extend(["--fallback-on-pressure", "--fallback-report-dir", str(args.integration_fallback_report_dir)])
-    if int(args.integration_max_fallback_report_age_hours or 0) > 0:
+    if args.integration_max_fallback_report_age_hours > 0:
         integration_cmd.extend(
             [
                 "--max-fallback-report-age-hours",
-                str(int(args.integration_max_fallback_report_age_hours)),
+                str(args.integration_max_fallback_report_age_hours),
             ]
         )
     if args.integration_require_signed_report_inputs:
         integration_cmd.append("--require-signed-report-inputs")
     if args.integration_verify_report_input_signatures:
         integration_cmd.append("--verify-report-input-signatures")
-        key_path = str(args.integration_report_signature_public_key or "").strip()
+        key_path = args.integration_report_signature_public_key.strip()
         if key_path:
             integration_cmd.extend(["--report-signature-public-key", key_path])
-    for key_id in list(args.integration_report_allowed_key_id or []):
-        key = str(key_id or "").strip()
+    for key_id in args.integration_report_allowed_key_id:
+        key = key_id.strip()
         if key:
             integration_cmd.extend(["--report-allowed-key-id", key])
-    if int(args.integration_max_report_signature_age_hours or 0) > 0:
+    if args.integration_max_report_signature_age_hours > 0:
         integration_cmd.extend(
             [
                 "--max-report-signature-age-hours",
-                str(int(args.integration_max_report_signature_age_hours)),
+                str(args.integration_max_report_signature_age_hours),
             ]
         )
     if run_id:
@@ -417,12 +417,12 @@ def _build_step_commands(args: argparse.Namespace, repo_root: Path) -> tuple[lis
         runtime_cmd.append("--fail-on-integration-unhealthy")
     if args.fail_on_wsl_risk:
         runtime_cmd.extend(["--fail-on-wsl-risk", str(args.fail_on_wsl_risk)])
-    if int(args.fail_on_extension_total_rss_mb or 0) > 0:
+    if args.fail_on_extension_total_rss_mb > 0:
         runtime_cmd.extend(
-            ["--fail-on-extension-total-rss-mb", str(int(args.fail_on_extension_total_rss_mb))]
+            ["--fail-on-extension-total-rss-mb", str(args.fail_on_extension_total_rss_mb)]
         )
-    for spec in list(args.fail_on_extension_rss or []):
-        runtime_cmd.extend(["--fail-on-extension-rss", str(spec)])
+    for spec in args.fail_on_extension_rss:
+        runtime_cmd.extend(["--fail-on-extension-rss", spec])
     if run_id:
         runtime_cmd.extend(["--run-id", run_id])
 
@@ -450,6 +450,48 @@ def _build_lineage_verify_command(
     expected_report_allowed_key_ids: list[str],
     expected_max_report_signature_age_hours: int,
 ) -> list[str]:
+    if not isinstance(require_signed, bool):
+        raise ValueError("require_signed must be boolean")
+    if not isinstance(verify_signatures, bool):
+        raise ValueError("verify_signatures must be boolean")
+    if not isinstance(signature_public_key, str):
+        raise ValueError("signature_public_key must be a string")
+    if not isinstance(max_signature_age_hours, int) or isinstance(max_signature_age_hours, bool):
+        raise ValueError("max_signature_age_hours must be a non-negative integer")
+    if max_signature_age_hours < 0:
+        raise ValueError("max_signature_age_hours must be a non-negative integer")
+    if not isinstance(expected_require_signed_report_inputs, bool):
+        raise ValueError("expected_require_signed_report_inputs must be boolean")
+    if not isinstance(expected_verify_report_input_signatures, bool):
+        raise ValueError("expected_verify_report_input_signatures must be boolean")
+    if (
+        not isinstance(expected_max_report_signature_age_hours, int)
+        or isinstance(expected_max_report_signature_age_hours, bool)
+    ):
+        raise ValueError("expected_max_report_signature_age_hours must be a non-negative integer")
+    if expected_max_report_signature_age_hours < 0:
+        raise ValueError("expected_max_report_signature_age_hours must be a non-negative integer")
+    if not isinstance(allowed_key_ids, list):
+        raise ValueError("allowed_key_ids must be a list of strings")
+    if not isinstance(expected_report_allowed_key_ids, list):
+        raise ValueError("expected_report_allowed_key_ids must be a list of strings")
+
+    normalized_allowed_key_ids: list[str] = []
+    for key_id in allowed_key_ids:
+        if not isinstance(key_id, str):
+            raise ValueError("allowed_key_ids entries must be strings")
+        key = key_id.strip()
+        if key:
+            normalized_allowed_key_ids.append(key)
+
+    normalized_expected_report_allowed_key_ids: list[str] = []
+    for key_id in expected_report_allowed_key_ids:
+        if not isinstance(key_id, str):
+            raise ValueError("expected_report_allowed_key_ids entries must be strings")
+        key = key_id.strip()
+        if key:
+            normalized_expected_report_allowed_key_ids.append(key)
+
     cmd = [
         sys.executable,
         str(repo_root / "scripts" / "verify_fleet_artifact_lineage.py"),
@@ -466,28 +508,26 @@ def _build_lineage_verify_command(
         cmd.append("--require-signed")
     if verify_signatures:
         cmd.append("--verify-signatures")
-        key_path = str(signature_public_key or "").strip()
+        key_path = signature_public_key.strip()
         if key_path:
             cmd.extend(["--signature-public-key", key_path])
-    for key_id in list(allowed_key_ids or []):
-        key = str(key_id or "").strip()
+    for key in normalized_allowed_key_ids:
         if key:
             cmd.extend(["--allowed-key-id", key])
-    if int(max_signature_age_hours or 0) > 0:
-        cmd.extend(["--max-signature-age-hours", str(int(max_signature_age_hours))])
+    if max_signature_age_hours > 0:
+        cmd.extend(["--max-signature-age-hours", str(max_signature_age_hours)])
     if expected_require_signed_report_inputs:
         cmd.append("--expected-require-signed-report-inputs")
     if expected_verify_report_input_signatures:
         cmd.append("--expected-verify-report-input-signatures")
-    for key_id in list(expected_report_allowed_key_ids or []):
-        key = str(key_id or "").strip()
+    for key in normalized_expected_report_allowed_key_ids:
         if key:
             cmd.extend(["--expected-report-allowed-key-id", key])
-    if int(expected_max_report_signature_age_hours or 0) > 0:
+    if expected_max_report_signature_age_hours > 0:
         cmd.extend(
             [
                 "--expected-max-report-signature-age-hours",
-                str(int(expected_max_report_signature_age_hours)),
+                str(expected_max_report_signature_age_hours),
             ]
         )
     return cmd
@@ -622,13 +662,13 @@ def main() -> int:
         runtime_report,
         require_signed=args.require_signed_artifacts,
         verify_signatures=args.verify_signed_artifacts,
-        signature_public_key=str(args.signature_public_key),
-        allowed_key_ids=list(args.allowed_key_id or []),
-        max_signature_age_hours=int(args.max_signature_age_hours or 0),
+        signature_public_key=args.signature_public_key,
+        allowed_key_ids=args.allowed_key_id,
+        max_signature_age_hours=args.max_signature_age_hours,
         expected_require_signed_report_inputs=args.integration_require_signed_report_inputs,
         expected_verify_report_input_signatures=args.integration_verify_report_input_signatures,
-        expected_report_allowed_key_ids=list(args.integration_report_allowed_key_id or []),
-        expected_max_report_signature_age_hours=int(args.integration_max_report_signature_age_hours or 0),
+        expected_report_allowed_key_ids=args.integration_report_allowed_key_id,
+        expected_max_report_signature_age_hours=args.integration_max_report_signature_age_hours,
     )
 
     if args.dry_run:

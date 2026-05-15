@@ -6227,6 +6227,8 @@ def _summarize_vscode_extension_rss(rows_raw: Any, limit: int = 5) -> list[dict[
     """Summarize VS Code extension RSS from guest top-process rows."""
     if not isinstance(rows_raw, list):
         return []
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+        limit = 5
 
     extension_map: dict[str, dict[str, Any]] = {}
 
@@ -6244,7 +6246,8 @@ def _summarize_vscode_extension_rss(rows_raw: Any, limit: int = 5) -> list[dict[
         ext_name: str | None = None
         match = re.search(r"/\.vscode-server/extensions/([^/\s]+)", cmd)
         if match:
-            ext_name = str(match.group(1) or "").strip()
+            matched_name = match.group(1)
+            ext_name = matched_name.strip() if isinstance(matched_name, str) else ""
             if ext_name:
                 ext_name = re.sub(r"-(\d+(?:\.\d+){1,})$", "", ext_name)
         if not ext_name:
@@ -6285,7 +6288,7 @@ def _summarize_vscode_extension_rss(rows_raw: Any, limit: int = 5) -> list[dict[
 
     rows = list(extension_map.values())
     rows.sort(key=lambda r: r["rss_mb"] if isinstance(r.get("rss_mb"), int) else 0, reverse=True)
-    return rows[: max(1, int(limit))]
+    return rows[:limit]
 
 
 def _classify_wsl_crash_risk(metrics: dict[str, Any]) -> tuple[str, int, list[str], list[str]]:

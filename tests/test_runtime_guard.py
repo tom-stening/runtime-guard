@@ -679,6 +679,30 @@ class TestWslRuntimeContext:
         assert summary[0]["process_count"] == 1
         assert summary[0]["pids"] == [10]
 
+    def test_summarize_vscode_extension_rss_fails_closed_on_invalid_limit_type(self):
+        from runtime_guard import _summarize_vscode_extension_rss
+
+        rows = [
+            {
+                "pid": 10,
+                "rss_mb": 700,
+                "command": "/home/u/.vscode-server/extensions/ms-python.vscode-pylance-2026.2.1/dist/server.bundle.js",
+            },
+            {
+                "pid": 11,
+                "rss_mb": 500,
+                "command": "/home/u/.vscode-server/extensions/tamasfe.even-better-toml-0.21.2/dist/server.js",
+            },
+        ]
+
+        summary_bool = _summarize_vscode_extension_rss(rows, limit=True)
+        summary_zero = _summarize_vscode_extension_rss(rows, limit=0)
+        summary_float = _summarize_vscode_extension_rss(rows, limit=1.5)
+
+        assert len(summary_bool) == 2
+        assert len(summary_zero) == 2
+        assert len(summary_float) == 2
+
     def test_derive_vscode_extension_pressure_hints_ignores_non_typed_rss(self):
         from runtime_guard import _derive_vscode_extension_pressure_hints
 

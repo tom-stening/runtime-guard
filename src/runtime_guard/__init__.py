@@ -2397,8 +2397,9 @@ def install_dask_scheduler_callbacks(
         report = guard.check_and_log(stage=stage)
 
         if enable_worker_reports:
-            if worker_label not in worker_snapshots:
-                worker_snapshots[worker_label] = {
+            worker_row = worker_snapshots.get(worker_label)
+            if not isinstance(worker_row, dict):
+                worker_row = {
                     "worker_id": worker_label,
                     "task_count": 0,
                     "completed_tasks": 0,
@@ -2406,10 +2407,27 @@ def install_dask_scheduler_callbacks(
                     "healthy_events": 0,
                     "snapshots": [],
                 }
-            worker_snapshots[worker_label]["task_count"] += 1
+                worker_snapshots[worker_label] = worker_row
+
+            task_count = worker_row.get("task_count", 0)
+            if not isinstance(task_count, int) or isinstance(task_count, bool) or task_count < 0:
+                task_count = 0
+            worker_row["task_count"] = task_count + 1
             if report is not None:
-                worker_snapshots[worker_label]["pressure_events"] += 1
-                worker_snapshots[worker_label]["snapshots"].append(
+                pressure_events = worker_row.get("pressure_events", 0)
+                if (
+                    not isinstance(pressure_events, int)
+                    or isinstance(pressure_events, bool)
+                    or pressure_events < 0
+                ):
+                    pressure_events = 0
+                worker_row["pressure_events"] = pressure_events + 1
+
+                snapshots = worker_row.get("snapshots")
+                if not isinstance(snapshots, list):
+                    snapshots = []
+                    worker_row["snapshots"] = snapshots
+                snapshots.append(
                     {
                         "key": str(key),
                         "timestamp": int(time.time()),
@@ -2419,7 +2437,14 @@ def install_dask_scheduler_callbacks(
                     }
                 )
             else:
-                worker_snapshots[worker_label]["healthy_events"] += 1
+                healthy_events = worker_row.get("healthy_events", 0)
+                if (
+                    not isinstance(healthy_events, int)
+                    or isinstance(healthy_events, bool)
+                    or healthy_events < 0
+                ):
+                    healthy_events = 0
+                worker_row["healthy_events"] = healthy_events + 1
 
     def _callback_finish(
         key: str,
@@ -2433,8 +2458,9 @@ def install_dask_scheduler_callbacks(
             return
 
         worker_label = worker_id or "unknown-worker"
-        if worker_label not in worker_snapshots:
-            worker_snapshots[worker_label] = {
+        worker_row = worker_snapshots.get(worker_label)
+        if not isinstance(worker_row, dict):
+            worker_row = {
                 "worker_id": worker_label,
                 "task_count": 0,
                 "completed_tasks": 0,
@@ -2442,7 +2468,16 @@ def install_dask_scheduler_callbacks(
                 "healthy_events": 0,
                 "snapshots": [],
             }
-        worker_snapshots[worker_label]["completed_tasks"] += 1
+            worker_snapshots[worker_label] = worker_row
+
+        completed_tasks = worker_row.get("completed_tasks", 0)
+        if (
+            not isinstance(completed_tasks, int)
+            or isinstance(completed_tasks, bool)
+            or completed_tasks < 0
+        ):
+            completed_tasks = 0
+        worker_row["completed_tasks"] = completed_tasks + 1
 
     def _get_worker_report(worker_id: str | None = None) -> dict[str, Any]:
         """Retrieve memory report for a specific worker."""

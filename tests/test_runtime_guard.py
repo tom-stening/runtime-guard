@@ -1629,6 +1629,43 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_chains_multiple_callback_kwargs(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    multiplier: int = 1,
+                    pre_callback: Any | None = None,
+                    post_callback: Any | None = None,
+                ) -> int:
+                    if callable(pre_callback):
+                        pre_callback("pre-plan")
+                    if callable(post_callback):
+                        post_callback("post-plan")
+                    return 21 * multiplier
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                multiplier=2,
+                pre_callback=lambda plan: user_calls.append(f"pre:{plan}"),
+                post_callback=lambda plan: user_calls.append(f"post:{plan}"),
+            )
+            assert result == 42
+            assert calls == [
+                "polars-native",
+                "polars-native-native-callback",
+                "polars-native-native-callback",
+            ]
+            assert user_calls == ["pre:pre-plan", "post:post-plan"]
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask integration hook

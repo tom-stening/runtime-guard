@@ -5139,6 +5139,15 @@ def append_worker_report_jsonl(path: str, report: dict[str, Any]) -> dict[str, A
 
 def _load_worker_reports_jsonl_with_stats(path: str) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Load worker reports from JSONL and return rows with parse statistics."""
+    def _contains_non_finite_number(value: Any) -> bool:
+        if isinstance(value, float):
+            return math.isnan(value) or math.isinf(value)
+        if isinstance(value, dict):
+            return any(_contains_non_finite_number(v) for v in value.values())
+        if isinstance(value, list):
+            return any(_contains_non_finite_number(v) for v in value)
+        return False
+
     expanded = os.path.expanduser(path)
     if not os.path.exists(expanded):
         return [], {
@@ -5147,6 +5156,7 @@ def _load_worker_reports_jsonl_with_stats(path: str) -> tuple[list[dict[str, Any
             "jsonl_empty_lines": 0,
             "jsonl_invalid_json_lines": 0,
             "jsonl_non_object_lines": 0,
+            "jsonl_non_finite_rows": 0,
             "jsonl_parse_warning_count": 0,
         }
 
@@ -5157,6 +5167,7 @@ def _load_worker_reports_jsonl_with_stats(path: str) -> tuple[list[dict[str, Any
         "jsonl_empty_lines": 0,
         "jsonl_invalid_json_lines": 0,
         "jsonl_non_object_lines": 0,
+        "jsonl_non_finite_rows": 0,
         "jsonl_parse_warning_count": 0,
     }
     with open(expanded, encoding="utf-8") as fh:
@@ -5173,6 +5184,10 @@ def _load_worker_reports_jsonl_with_stats(path: str) -> tuple[list[dict[str, Any
                 stats["jsonl_parse_warning_count"] += 1
                 continue
             if isinstance(row, dict):
+                if _contains_non_finite_number(row):
+                    stats["jsonl_non_finite_rows"] += 1
+                    stats["jsonl_parse_warning_count"] += 1
+                    continue
                 rows.append(dict(row))
                 stats["jsonl_loaded_rows"] += 1
             else:

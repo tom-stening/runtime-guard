@@ -5538,6 +5538,23 @@ class TestWorkerTransport:
         assert out["jsonl_parse_warning_count"] == 2
         assert out["parse_warning_count"] == 2
 
+    def test_aggregate_worker_reports_jsonl_rejects_non_finite_rows(self, tmp_path):
+        """aggregate_worker_reports_jsonl skips rows containing NaN/Inf values."""
+        from runtime_guard import aggregate_worker_reports_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write('{"worker_id":"w1","pressure":false,"severity":"none"}\n')
+            f.write('{"worker_id":"w2","pressure":false,"rss_mb":NaN}\n')
+
+        out = aggregate_worker_reports_jsonl(path)
+
+        assert out["total_workers"] == 1
+        assert out["jsonl_loaded_rows"] == 1
+        assert out["jsonl_non_finite_rows"] == 1
+        assert out["jsonl_parse_warning_count"] == 1
+        assert out["parse_warning_count"] == 1
+
     def test_aggregate_worker_reports_jsonl_single_file(self, tmp_path):
         """aggregate_worker_reports_jsonl aggregates single JSONL file."""
         from runtime_guard import append_worker_report_jsonl, aggregate_worker_reports_jsonl

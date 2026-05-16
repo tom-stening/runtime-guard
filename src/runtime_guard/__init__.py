@@ -2037,6 +2037,38 @@ def attach_polars_guard(
 
             return _wrapped_callback
 
+        def _wrap_callback_value(value: Any) -> tuple[Any, bool]:
+            if value is None or callable(value):
+                return _chain_native_callback(value), True
+
+            if isinstance(value, list):
+                wrapped_items = []
+                wrapped_any = False
+                for item in value:
+                    if item is None or callable(item):
+                        wrapped_items.append(_chain_native_callback(item))
+                        wrapped_any = True
+                    else:
+                        wrapped_items.append(item)
+                if wrapped_any:
+                    return wrapped_items, True
+                return value, False
+
+            if isinstance(value, tuple):
+                wrapped_items = []
+                wrapped_any = False
+                for item in value:
+                    if item is None or callable(item):
+                        wrapped_items.append(_chain_native_callback(item))
+                        wrapped_any = True
+                    else:
+                        wrapped_items.append(item)
+                if wrapped_any:
+                    return tuple(wrapped_items), True
+                return value, False
+
+            return value, False
+
         def _guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
             callback_like_kwargs = tuple(
@@ -2055,8 +2087,9 @@ def attach_polars_guard(
                             if kw_name in bound.arguments:
                                 saw_callback_arg = True
                                 user_callback = bound.arguments.get(kw_name)
-                                if user_callback is None or callable(user_callback):
-                                    bound.arguments[kw_name] = _chain_native_callback(user_callback)
+                                wrapped_callback, wrapped_value = _wrap_callback_value(user_callback)
+                                if wrapped_value:
+                                    bound.arguments[kw_name] = wrapped_callback
                                     wrapped_any = True
 
                         bound_kwargs = dict(bound.kwargs)
@@ -2066,8 +2099,9 @@ def attach_polars_guard(
                             if kw_name in bound_kwargs:
                                 saw_callback_arg = True
                                 user_callback = bound_kwargs.get(kw_name)
-                                if user_callback is None or callable(user_callback):
-                                    bound_kwargs[kw_name] = _chain_native_callback(user_callback)
+                                wrapped_callback, wrapped_value = _wrap_callback_value(user_callback)
+                                if wrapped_value:
+                                    bound_kwargs[kw_name] = wrapped_callback
                                     wrapped_any = True
 
                         if not wrapped_any and not saw_callback_arg:
@@ -2085,8 +2119,9 @@ def attach_polars_guard(
                     if kw_name in kwargs:
                         saw_callback_arg = True
                         user_callback = kwargs.get(kw_name)
-                        if user_callback is None or callable(user_callback):
-                            kwargs[kw_name] = _chain_native_callback(user_callback)
+                        wrapped_callback, wrapped_value = _wrap_callback_value(user_callback)
+                        if wrapped_value:
+                            kwargs[kw_name] = wrapped_callback
                             wrapped_any = True
 
                 if not wrapped_any and not saw_callback_arg and callback_candidates:

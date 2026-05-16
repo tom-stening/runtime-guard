@@ -1811,6 +1811,76 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_chains_callback_sequence_for_explicit_callback_kwarg(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, optimization_callback: Any | None = None) -> int:
+                    if isinstance(optimization_callback, (list, tuple)):
+                        for cb in optimization_callback:
+                            if callable(cb):
+                                cb("logical-plan")
+                    elif callable(optimization_callback):
+                        optimization_callback("logical-plan")
+                    return 42
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                optimization_callback=[
+                    lambda plan: user_calls.append(f"a:{plan}"),
+                    "not-callable",
+                    lambda plan: user_calls.append(f"b:{plan}"),
+                ]
+            )
+            assert result == 42
+            assert calls == [
+                "polars-native",
+                "polars-native-native-callback",
+                "polars-native-native-callback",
+            ]
+            assert user_calls == ["a:logical-plan", "b:logical-plan"]
+        finally:
+            restore()
+
+    def test_attach_chains_callback_sequence_for_callback_like_kwargs(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, **kwargs: Any) -> int:
+                    callbacks = kwargs.get("optimization_callback")
+                    if isinstance(callbacks, tuple):
+                        for cb in callbacks:
+                            if callable(cb):
+                                cb("logical-plan")
+                    return 42
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                optimization_callback=(
+                    lambda plan: user_calls.append(f"x:{plan}"),
+                    None,
+                )
+            )
+            assert result == 42
+            assert calls == [
+                "polars-native",
+                "polars-native-native-callback",
+                "polars-native-native-callback",
+            ]
+            assert user_calls == ["x:logical-plan"]
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask integration hook

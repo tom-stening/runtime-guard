@@ -2985,14 +2985,20 @@ def enable_ray_actor_memory_monitoring(
 
     def _get_actor_report(*, node_id: str | None = None, actor_id: str | None = None) -> dict[str, Any]:
         if node_id is None and actor_id is None:
+            total_events = 0
+            for row in actor_event_state.values():
+                if not isinstance(row, dict):
+                    _warn_parse()
+                    continue
+                events, ok = _strict_non_negative_counter(row.get("events", 0))
+                if not ok and row.get("events", 0) not in (0,):
+                    _warn_parse()
+                total_events += events
             return {
                 "ok": True,
                 "nodes": actor_event_state,
                 "nodes_monitored": len(actor_event_state),
-                "total_events": sum(
-                    _strict_non_negative_counter(v.get("events", 0))[0]
-                    for v in actor_event_state.values()
-                ),
+                "total_events": total_events,
                 "parse_warning_count": parse_warning_count,
             }
 
@@ -3007,11 +3013,34 @@ def enable_ray_actor_memory_monitoring(
                     "actors": {},
                     "parse_warning_count": parse_warning_count,
                 }
+            if not isinstance(node_row, dict):
+                _warn_parse()
+                return {
+                    "ok": True,
+                    "node_id": node_key,
+                    "events": 0,
+                    "actors": {},
+                    "parse_warning_count": parse_warning_count,
+                }
             if actor_id is None:
                 return {"ok": True, **node_row, "parse_warning_count": parse_warning_count}
             actor_key = _normalize_key(actor_id, fallback="unknown-actor")
-            actor_row = node_row.get("actors", {}).get(actor_key)
+            actors = node_row.get("actors")
+            if not isinstance(actors, dict):
+                _warn_parse()
+                actors = {}
+            actor_row = actors.get(actor_key)
             if actor_row is None:
+                return {
+                    "ok": True,
+                    "node_id": node_key,
+                    "actor_id": actor_key,
+                    "events": 0,
+                    "methods": {},
+                    "parse_warning_count": parse_warning_count,
+                }
+            if not isinstance(actor_row, dict):
+                _warn_parse()
                 return {
                     "ok": True,
                     "node_id": node_key,
@@ -3024,8 +3053,18 @@ def enable_ray_actor_memory_monitoring(
 
         actor_key = _normalize_key(actor_id, fallback="unknown-actor")
         for node_key, node_row in actor_event_state.items():
-            actor_row = node_row.get("actors", {}).get(actor_key)
+            if not isinstance(node_row, dict):
+                _warn_parse()
+                continue
+            actors = node_row.get("actors")
+            if not isinstance(actors, dict):
+                _warn_parse()
+                continue
+            actor_row = actors.get(actor_key)
             if actor_row is not None:
+                if not isinstance(actor_row, dict):
+                    _warn_parse()
+                    continue
                 return {"ok": True, "node_id": node_key, **actor_row, "parse_warning_count": parse_warning_count}
 
         return {
@@ -3046,22 +3085,35 @@ def enable_ray_actor_memory_monitoring(
         actor_event_state.clear()
 
     def _get_all_node_reports() -> dict[str, Any]:
+        total_events = 0
+        total_pressure_events = 0
+        total_healthy_events = 0
+        for row in actor_event_state.values():
+            if not isinstance(row, dict):
+                _warn_parse()
+                continue
+            events, events_ok = _strict_non_negative_counter(row.get("events", 0))
+            if not events_ok and row.get("events", 0) not in (0,):
+                _warn_parse()
+            total_events += events
+
+            pressure_events, pressure_ok = _strict_non_negative_counter(row.get("pressure_events", 0))
+            if not pressure_ok and row.get("pressure_events", 0) not in (0,):
+                _warn_parse()
+            total_pressure_events += pressure_events
+
+            healthy_events, healthy_ok = _strict_non_negative_counter(row.get("healthy_events", 0))
+            if not healthy_ok and row.get("healthy_events", 0) not in (0,):
+                _warn_parse()
+            total_healthy_events += healthy_events
+
         return {
             "ok": True,
             "nodes": actor_event_state,
             "nodes_monitored": len(actor_event_state),
-            "total_events": sum(
-                _strict_non_negative_counter(v.get("events", 0))[0]
-                for v in actor_event_state.values()
-            ),
-            "total_pressure_events": sum(
-                _strict_non_negative_counter(v.get("pressure_events", 0))[0]
-                for v in actor_event_state.values()
-            ),
-            "total_healthy_events": sum(
-                _strict_non_negative_counter(v.get("healthy_events", 0))[0]
-                for v in actor_event_state.values()
-            ),
+            "total_events": total_events,
+            "total_pressure_events": total_pressure_events,
+            "total_healthy_events": total_healthy_events,
             "parse_warning_count": parse_warning_count,
         }
 

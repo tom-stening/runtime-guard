@@ -3730,9 +3730,15 @@ def enable_ray_actor_memory_monitoring(
             for pname, param in fn_signature.parameters.items():
                 if param.kind is inspect.Parameter.VAR_KEYWORD:
                     accepts_var_kwargs = True
-                if pname == "node_id":
+                if pname == "node_id" and param.kind in (
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    inspect.Parameter.KEYWORD_ONLY,
+                ):
                     accepts_node_id_kwarg = True
-                if pname == "actor_id":
+                if pname == "actor_id" and param.kind in (
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    inspect.Parameter.KEYWORD_ONLY,
+                ):
                     accepts_actor_id_kwarg = True
 
         preserve_node_id = accepts_var_kwargs or accepts_node_id_kwarg

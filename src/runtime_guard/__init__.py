@@ -2060,9 +2060,21 @@ def attach_polars_guard(
                                 if user_callback is None or callable(user_callback):
                                     bound.arguments[kw_name] = _chain_native_callback(user_callback)
                                     wrapped_any = True
+
+                        bound_kwargs = dict(bound.kwargs)
+                        for kw_name in callback_like_kwargs:
+                            if kw_name in explicit_callback_kw_names:
+                                continue
+                            if kw_name in bound_kwargs:
+                                saw_callback_arg = True
+                                user_callback = bound_kwargs.get(kw_name)
+                                if user_callback is None or callable(user_callback):
+                                    bound_kwargs[kw_name] = _chain_native_callback(user_callback)
+                                    wrapped_any = True
+
                         if not wrapped_any and not saw_callback_arg:
                             bound.arguments[explicit_callback_kw_names[0]] = _chain_native_callback()
-                        return fn(*bound.args, **bound.kwargs)
+                        return fn(*bound.args, **bound_kwargs)
 
                 callback_candidates = list(callback_like_kwargs)
                 for kw_name in callback_kw_names:

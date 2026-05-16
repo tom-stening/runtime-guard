@@ -1666,6 +1666,42 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_chains_explicit_and_kwargs_callback_together(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    optimization_callback: Any | None = None,
+                    **kwargs: Any,
+                ) -> int:
+                    if callable(optimization_callback):
+                        optimization_callback("opt-plan")
+                    extra_callback = kwargs.get("post_callback")
+                    if callable(extra_callback):
+                        extra_callback("post-plan")
+                    return 42
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                optimization_callback=lambda plan: user_calls.append(f"opt:{plan}"),
+                post_callback=lambda plan: user_calls.append(f"post:{plan}"),
+            )
+            assert result == 42
+            assert calls == [
+                "polars-native",
+                "polars-native-native-callback",
+                "polars-native-native-callback",
+            ]
+            assert user_calls == ["opt:opt-plan", "post:post-plan"]
+        finally:
+            restore()
+
     def test_attach_preserves_non_callable_explicit_callback_value(self, monkeypatch):
         class CallbackPolars:
             class LazyFrame:

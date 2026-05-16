@@ -161,9 +161,7 @@ def _infer_polars_callback_kwargs(fn: Any) -> tuple[str, ...]:
         lowered = name.lower()
         if "callback" not in lowered:
             continue
-        # Polars callback kwargs are typically optional and default to None.
-        if param.default is None or param.default is inspect._empty:
-            callback_params.append(name)
+        callback_params.append(name)
 
     if not callback_params:
         return ()

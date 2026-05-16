@@ -4532,6 +4532,37 @@ class TestMultiProcessOrchestration:
         assert summary["malformed_worker_rows"] == ["unknown-worker-1", "unknown-worker-3"]
         assert len(summary["workers"]) == 1
 
+    def test_aggregate_worker_reports_fail_closed_on_dict_subclass_rows(self):
+        class _Report(dict):
+            pass
+
+        summary = aggregate_worker_reports(
+            [
+                _Report(worker_id="a", pressure=True, severity="critical"),
+                {"worker_id": "b", "pressure": False, "severity": "none"},
+            ]
+        )
+
+        assert summary["total_workers"] == 2
+        assert summary["typed_workers"] == 1
+        assert summary["pressured_workers"] == 0
+        assert summary["critical_workers"] == 0
+        assert summary["parse_warning_count"] == 1
+        assert summary["malformed_worker_rows"] == ["unknown-worker-1"]
+
+    def test_aggregate_worker_reports_worker_identity_preserves_original_row_positions(self):
+        summary = aggregate_worker_reports(
+            [
+                "not-a-dict",
+                {"worker_id": "  ", "pressure": False, "severity": "none"},
+                123,
+                {"worker_id": 1, "pressure": False, "severity": "none"},
+            ]
+        )
+
+        assert summary["invalid_worker_id_workers"] == ["unknown-worker-2", "unknown-worker-4"]
+        assert summary["malformed_worker_rows"] == ["unknown-worker-1", "unknown-worker-3"]
+
     def test_aggregate_worker_reports_rejects_non_list(self):
         with pytest.raises(ValueError, match="reports must be a list"):
             aggregate_worker_reports({"worker_id": "a"})  # type: ignore[arg-type]

@@ -5056,16 +5056,18 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
     parse_warning_count = 0
 
     typed_rows: list[dict[str, Any]] = []
+    typed_rows_with_index: list[tuple[int, dict[str, Any]]] = []
     for index, row in enumerate(reports):
-        if isinstance(row, dict):
+        if type(row) is dict:
             typed_rows.append(row)
+            typed_rows_with_index.append((index, row))
             continue
         malformed_worker_rows.append(f"unknown-worker-{index + 1}")
         parse_warning_count += 1
 
     worker_context: list[tuple[dict[str, Any], str]] = []
-    for index, row in enumerate(typed_rows):
-        worker_name, worker_id_ok = _worker_identity(row, index)
+    for report_index, row in typed_rows_with_index:
+        worker_name, worker_id_ok = _worker_identity(row, report_index)
         worker_context.append((row, worker_name))
         if not worker_id_ok:
             invalid_worker_id_workers.append(worker_name)

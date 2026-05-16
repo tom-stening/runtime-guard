@@ -2963,6 +2963,34 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["task_count"] == 1
         assert worker_report["completed_tasks"] == 1
 
+    def test_scheduler_callback_write_path_handles_malformed_pressure_report_fields(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _WeirdReport:
+            is_critical = "yes"
+            cause = {"unexpected": "shape"}
+            missing_mem_mb = "a lot"
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": _WeirdReport())
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", worker_id="worker-a")
+
+        worker_report = reporter("worker-a")
+        assert worker_report["ok"] is True
+        assert worker_report["pressure_events"] == 1
+        assert worker_report["healthy_events"] == 0
+        assert len(worker_report["snapshots"]) == 1
+        snapshot = worker_report["snapshots"][0]
+        assert snapshot["severity"] == "warning"
+        assert snapshot["cause"] == "unknown"
+        assert snapshot["missing_mem_mb"] == 0
+
 
 # ---------------------------------------------------------------------------
 # M1-C03 — Ray integration hook

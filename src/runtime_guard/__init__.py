@@ -2435,6 +2435,22 @@ def install_dask_scheduler_callbacks(
                     pressure_events = 0
                 worker_row["pressure_events"] = pressure_events + 1
 
+                is_critical = getattr(report, "is_critical", False)
+                if not isinstance(is_critical, bool):
+                    is_critical = False
+
+                cause = getattr(report, "cause", "unknown")
+                if not isinstance(cause, str):
+                    cause = "unknown"
+
+                missing_mem_mb = getattr(report, "missing_mem_mb", 0)
+                if (
+                    not isinstance(missing_mem_mb, (int, float))
+                    or isinstance(missing_mem_mb, bool)
+                    or missing_mem_mb < 0
+                ):
+                    missing_mem_mb = 0
+
                 snapshots = worker_row.get("snapshots")
                 if not isinstance(snapshots, list):
                     snapshots = []
@@ -2443,9 +2459,9 @@ def install_dask_scheduler_callbacks(
                     {
                         "key": str(key),
                         "timestamp": int(time.time()),
-                        "severity": "critical" if report.is_critical else "warning",
-                        "cause": report.cause,
-                        "missing_mem_mb": report.missing_mem_mb,
+                        "severity": "critical" if is_critical else "warning",
+                        "cause": cause,
+                        "missing_mem_mb": missing_mem_mb,
                     }
                 )
             else:

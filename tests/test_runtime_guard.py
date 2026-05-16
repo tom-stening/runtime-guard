@@ -1666,6 +1666,46 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_preserves_non_callable_explicit_callback_value(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, optimization_callback: Any | None = None) -> Any:
+                    # Return callback argument to verify wrapper does not overwrite
+                    # non-callable values supplied by callers.
+                    return optimization_callback
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            sentinel = object()
+            result = CallbackPolars.LazyFrame().collect(optimization_callback=sentinel)
+            assert result is sentinel
+            assert calls == ["polars-native"]
+        finally:
+            restore()
+
+    def test_attach_preserves_non_callable_callback_like_kwarg_value(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, **kwargs: Any) -> Any:
+                    return kwargs.get("optimization_callback")
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            sentinel = object()
+            result = CallbackPolars.LazyFrame().collect(optimization_callback=sentinel)
+            assert result is sentinel
+            assert calls == ["polars-native"]
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask integration hook

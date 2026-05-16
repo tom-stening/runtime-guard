@@ -3055,6 +3055,25 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callback_static_start_accepts_sequence_worker_alias_payloads(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", [{"worker": "worker-a"}])
+        callback_cls.finish("task-1", "ok", ({"worker_address": "worker-a"},))
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
     def test_scheduler_callback_static_start_handles_malformed_worker_id(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

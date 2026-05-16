@@ -3011,10 +3011,37 @@ def enable_ray_actor_memory_monitoring(
     def _remote_wrapper(fn: Any) -> Any:
         """Wrapper for remote functions to add memory monitoring."""
 
+        fn_signature: inspect.Signature | None = None
+        accepts_var_kwargs = False
+        accepts_node_id_kwarg = False
+        accepts_actor_id_kwarg = False
+        try:
+            fn_signature = inspect.signature(fn)
+        except Exception:
+            fn_signature = None
+        if fn_signature is not None:
+            for pname, param in fn_signature.parameters.items():
+                if param.kind is inspect.Parameter.VAR_KEYWORD:
+                    accepts_var_kwargs = True
+                if pname == "node_id":
+                    accepts_node_id_kwarg = True
+                if pname == "actor_id":
+                    accepts_actor_id_kwarg = True
+
+        preserve_node_id = accepts_var_kwargs or accepts_node_id_kwarg
+        preserve_actor_id = accepts_var_kwargs or accepts_actor_id_kwarg
+
         def _wrapper(*args: Any, **kwargs: Any) -> Any:
             stage = f"{stage_prefix}::{fn.__name__}"
-            node_id = _normalize_key(kwargs.pop("node_id", "remote-node"), fallback="remote-node")
-            actor_id = _normalize_key(kwargs.pop("actor_id", f"remote::{fn.__name__}"), fallback="remote-actor")
+            node_id = _normalize_key(kwargs.get("node_id", "remote-node"), fallback="remote-node")
+            actor_id = _normalize_key(kwargs.get("actor_id", f"remote::{fn.__name__}"), fallback="remote-actor")
+            if not preserve_node_id and "node_id" in kwargs:
+                kwargs = dict(kwargs)
+                kwargs.pop("node_id", None)
+            if not preserve_actor_id and "actor_id" in kwargs:
+                if "node_id" not in kwargs:
+                    kwargs = dict(kwargs)
+                kwargs.pop("actor_id", None)
             if check_on_entry:
                 guard.check_and_log(stage=f"{stage}:entry")
                 _record_actor_event(

@@ -2896,6 +2896,26 @@ class TestRayActorMemoryMonitoring:
         assert len(calls) == 1
         assert "compute:entry" in calls[0]
 
+    def test_remote_wrapper_preserves_node_and_actor_kwargs_when_function_accepts_them(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int, *, node_id: str, actor_id: str) -> tuple[int, str, str]:
+            return x + 1, node_id, actor_id
+
+        wrapped = config["remote_wrapper"](compute)
+        result = wrapped(10, node_id="node-z", actor_id="actor-z")
+
+        assert result == (11, "node-z", "actor-z")
+
+        report = config["get_actor_report"](node_id="node-z", actor_id="actor-z")
+        assert report["ok"] is True
+        assert report["events"] == 1
+        assert report["entry_checks"] == 1
+
     def test_actor_monitoring_respects_stage_prefix(self):
         """Actor monitoring uses configured stage prefix."""
         from runtime_guard import enable_ray_actor_memory_monitoring

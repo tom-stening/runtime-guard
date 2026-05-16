@@ -4440,6 +4440,18 @@ class TestMultiProcessOrchestration:
         assert summary["critical_workers"] == 1
         assert summary["invalid_severity_workers"] == ["a"]
 
+    def test_aggregate_worker_reports_fail_closed_on_unknown_string_severity(self):
+        summary = aggregate_worker_reports(
+            [
+                {"worker_id": "a", "pressure": True, "severity": "major"},
+                {"worker_id": "b", "pressure": True, "severity": "critical"},
+            ]
+        )
+
+        assert summary["pressured_workers"] == 2
+        assert summary["critical_workers"] == 1
+        assert summary["invalid_severity_workers"] == ["a"]
+
     def test_aggregate_worker_reports_fail_closed_on_non_integer_max_fields(self):
         summary = aggregate_worker_reports(
             [

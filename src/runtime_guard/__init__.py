@@ -5073,6 +5073,9 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
         severity_raw = row.get("severity", "")
         if isinstance(severity_raw, str):
             severity = severity_raw.strip().lower()
+            if severity not in {"none", "warning", "critical"}:
+                invalid_severity_workers.append(worker_name)
+                severity = ""
         else:
             severity = ""
             invalid_severity_workers.append(worker_name)

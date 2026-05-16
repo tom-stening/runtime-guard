@@ -192,6 +192,62 @@ def test_returns_2_for_non_object_summary_payload(monkeypatch, tmp_path, capsys)
     assert "aggregated summary payload must be a JSON object" in captured.err
 
 
+def test_returns_2_for_non_finite_summary_values(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "dummy.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "total_workers": 0,
+            "nan_field": float("nan"),
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["aggregate_worker_reports.py", "--input", str(input_path)],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: aggregated summary is not strict-JSON renderable" in captured.err
+
+
+def test_returns_2_for_non_serializable_summary_values(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "dummy.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "total_workers": 0,
+            "bad": {"x"},
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["aggregate_worker_reports.py", "--input", str(input_path)],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: aggregated summary is not strict-JSON renderable" in captured.err
+
+
 def test_returns_2_when_input_file_missing(monkeypatch, capsys) -> None:
     module = _load_module()
     monkeypatch.setattr(

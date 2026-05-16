@@ -175,7 +175,16 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     indent = 2 if args.pretty else None
-    output_text = json.dumps(summary, indent=indent, separators=(None if indent else (",", ":")))
+    try:
+        output_text = json.dumps(
+            summary,
+            indent=indent,
+            separators=(None if indent else (",", ":")),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError) as exc:
+        print(f"error: aggregated summary is not strict-JSON renderable: {exc}", file=sys.stderr)
+        return 2
 
     if args.output:
         out_path = os.path.expanduser(args.output)

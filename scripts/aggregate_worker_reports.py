@@ -121,7 +121,11 @@ def main() -> int:
     if not isinstance(summary, dict):
         print("error: aggregated summary payload must be a JSON object", file=sys.stderr)
         return 2
-    rendered = json.dumps(summary, indent=2, sort_keys=True)
+    try:
+        rendered = json.dumps(summary, indent=2, sort_keys=True, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        print(f"error: aggregated summary is not strict-JSON renderable: {exc}", file=sys.stderr)
+        return 2
 
     if args.output:
         output_path = Path(args.output).expanduser()

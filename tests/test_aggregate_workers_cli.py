@@ -109,6 +109,54 @@ def test_main_returns_2_for_non_integer_critical_workers(monkeypatch, tmp_path, 
     assert "summary.critical_workers must be a non-negative integer" in captured.err
 
 
+def test_main_returns_2_for_non_finite_summary_values(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "workers.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "total_workers": 0,
+            "nan_field": float("nan"),
+        },
+    )
+
+    code = module.main(["--input", str(input_path)])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: aggregated summary is not strict-JSON renderable" in captured.err
+
+
+def test_main_returns_2_for_non_serializable_summary_values(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "workers.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "total_workers": 0,
+            "bad": {"x"},
+        },
+    )
+
+    code = module.main(["--input", str(input_path)])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: aggregated summary is not strict-JSON renderable" in captured.err
+
+
 def test_main_returns_2_for_inconsistent_pressure_summary(monkeypatch, tmp_path, capsys) -> None:
     module = _load_module()
     input_path = tmp_path / "workers.jsonl"

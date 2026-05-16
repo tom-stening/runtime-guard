@@ -1706,6 +1706,49 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_chains_positional_only_collect_callback(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, optimization_callback: Any | None = None, /) -> int:
+                    if callable(optimization_callback):
+                        optimization_callback("logical-plan")
+                    return 42
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_callback_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                lambda plan: user_callback_calls.append(plan)
+            )
+            assert result == 42
+            assert calls == ["polars-native", "polars-native-native-callback"]
+            assert user_callback_calls == ["logical-plan"]
+        finally:
+            restore()
+
+    def test_attach_preserves_non_callable_positional_only_callback_value(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, optimization_callback: Any | None = None, /) -> Any:
+                    return optimization_callback
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            sentinel = object()
+            result = CallbackPolars.LazyFrame().collect(sentinel)
+            assert result is sentinel
+            assert calls == ["polars-native"]
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask integration hook

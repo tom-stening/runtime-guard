@@ -149,7 +149,11 @@ def _infer_polars_callback_kwargs(fn: Any) -> tuple[str, ...]:
 
     callback_params: list[str] = []
     for name, param in signature.parameters.items():
-        if param.kind not in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):
+        if param.kind not in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ):
             continue
         if name in _POLARS_NATIVE_CALLBACK_KWARGS:
             callback_params.append(name)
@@ -2018,6 +2022,7 @@ def attach_polars_guard(
                 for pname, param in signature.parameters.items()
                 if pname in callback_kw_names
                 and param.kind in (
+                    inspect.Parameter.POSITIONAL_ONLY,
                     inspect.Parameter.POSITIONAL_OR_KEYWORD,
                     inspect.Parameter.KEYWORD_ONLY,
                 )

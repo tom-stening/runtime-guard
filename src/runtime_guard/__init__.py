@@ -2362,6 +2362,7 @@ def install_dask_scheduler_callbacks(
                 worker_snapshots[worker_label] = {
                     "worker_id": worker_label,
                     "task_count": 0,
+                    "completed_tasks": 0,
                     "pressure_events": 0,
                     "healthy_events": 0,
                     "snapshots": [],
@@ -2383,8 +2384,20 @@ def install_dask_scheduler_callbacks(
 
     def _callback_finish(key: str, value: Any, *_: Any, worker_id: str | None = None) -> None:
         """Called after task execution (requires dask.callbacks.Callback.finish)."""
-        # Optional: Could track completion metrics here
-        pass
+        if not enable_worker_reports:
+            return
+
+        worker_label = worker_id or "unknown-worker"
+        if worker_label not in worker_snapshots:
+            worker_snapshots[worker_label] = {
+                "worker_id": worker_label,
+                "task_count": 0,
+                "completed_tasks": 0,
+                "pressure_events": 0,
+                "healthy_events": 0,
+                "snapshots": [],
+            }
+        worker_snapshots[worker_label]["completed_tasks"] += 1
 
     def _get_worker_report(worker_id: str | None = None) -> dict[str, Any]:
         """Retrieve memory report for a specific worker."""
@@ -2392,12 +2405,14 @@ def install_dask_scheduler_callbacks(
             # Return aggregated view
             total_events = sum(w.get("pressure_events", 0) for w in worker_snapshots.values())
             total_tasks = sum(w.get("task_count", 0) for w in worker_snapshots.values())
+            total_completed_tasks = sum(w.get("completed_tasks", 0) for w in worker_snapshots.values())
             total_healthy_events = sum(w.get("healthy_events", 0) for w in worker_snapshots.values())
             return {
                 "ok": True,
                 "workers_monitored": len(worker_snapshots),
                 "total_pressure_events": total_events,
                 "total_tasks": total_tasks,
+                "total_completed_tasks": total_completed_tasks,
                 "total_healthy_events": total_healthy_events,
                 "worker_details": worker_snapshots,
             }
@@ -2409,6 +2424,7 @@ def install_dask_scheduler_callbacks(
                 "worker_id": worker_id,
                 "pressure_events": 0,
                 "task_count": 0,
+                "completed_tasks": 0,
                 "healthy_events": 0,
             }
 
@@ -2416,6 +2432,7 @@ def install_dask_scheduler_callbacks(
             "ok": True,
             "worker_id": worker_id,
             "task_count": worker_data.get("task_count", 0),
+            "completed_tasks": worker_data.get("completed_tasks", 0),
             "pressure_events": worker_data.get("pressure_events", 0),
             "healthy_events": worker_data.get("healthy_events", 0),
             "snapshots": worker_data.get("snapshots", []),
@@ -2533,6 +2550,7 @@ def validate_dask_integration(
             callback_summary = callback_reporter()
             required_counter_fields = {
                 "total_tasks",
+                "total_completed_tasks",
                 "total_healthy_events",
                 "total_pressure_events",
             }

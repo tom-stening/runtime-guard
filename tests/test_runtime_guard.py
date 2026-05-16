@@ -2562,15 +2562,19 @@ class TestDaskSchedulerCallbacks:
         ctx = reporter.create_callback_context()
         ctx._pretask("task-1", worker_id="worker-a")
         ctx._pretask("task-2", worker_id="worker-a")
+        ctx._posttask("task-1", "ok", worker_id="worker-a")
+        ctx._posttask("task-2", "ok", worker_id="worker-a")
 
         worker_report = reporter("worker-a")
         assert worker_report["task_count"] == 2
+        assert worker_report["completed_tasks"] == 2
         assert worker_report["pressure_events"] == 0
         assert worker_report["healthy_events"] == 2
 
         agg = reporter()
         assert agg["workers_monitored"] == 1
         assert agg["total_tasks"] == 2
+        assert agg["total_completed_tasks"] == 2
         assert agg["total_pressure_events"] == 0
         assert agg["total_healthy_events"] == 2
 
@@ -2625,9 +2629,11 @@ class TestDaskSchedulerCallbacks:
 
         # Validate compatibility with callback adapters that forward worker_id in kwargs.
         callback_cls.start("task-1", worker_id="worker-a")
+        callback_cls.finish("task-1", "ok", worker_id="worker-a")
 
         worker_report = reporter("worker-a")
         assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
 

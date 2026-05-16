@@ -3736,6 +3736,30 @@ class TestRayActorMemoryMonitoring:
         assert report["actors"]["actor-1"]["methods"]["compute"] == 0
         assert report["parse_warning_count"] >= 8
 
+    def test_get_actor_report_global_view_sanitizes_malformed_nodes(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-a", actor_id="actor-1") == 2
+
+        all_nodes = config["get_all_node_reports"]()
+        nodes = all_nodes["nodes"]
+        nodes["node-a"] = "corrupt"
+
+        report = config["get_actor_report"]()
+        assert report["ok"] is True
+        assert report["nodes_monitored"] == 1
+        assert report["total_events"] == 0
+        assert report["nodes"] == {}
+        assert report["parse_warning_count"] >= 1
+
     def test_actor_monitoring_tracks_key_parse_warnings(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

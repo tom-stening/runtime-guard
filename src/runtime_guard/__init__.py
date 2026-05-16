@@ -3184,18 +3184,18 @@ def enable_ray_actor_memory_monitoring(
 
     def _get_actor_report(*, node_id: str | None = None, actor_id: str | None = None) -> dict[str, Any]:
         if node_id is None and actor_id is None:
+            safe_nodes: dict[str, dict[str, Any]] = {}
             total_events = 0
-            for row in actor_event_state.values():
+            for node_key, row in actor_event_state.items():
                 if not isinstance(row, dict):
                     _warn_parse()
                     continue
-                events, ok = _strict_non_negative_counter(row.get("events", 0))
-                if not ok and row.get("events", 0) not in (0,):
-                    _warn_parse()
-                total_events += events
+                safe_row = _sanitize_node_row_for_report(row, node_key)
+                safe_nodes[node_key] = safe_row
+                total_events += safe_row.get("events", 0)
             return {
                 "ok": True,
-                "nodes": actor_event_state,
+                "nodes": safe_nodes,
                 "nodes_monitored": len(actor_event_state),
                 "total_events": total_events,
                 "parse_warning_count": parse_warning_count,

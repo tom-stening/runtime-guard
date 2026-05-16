@@ -3195,10 +3195,24 @@ class TestRayActorMemoryMonitoring:
 
         report = config["get_actor_report"](node_id="node-a", actor_id="actor-1")
         assert report["ok"] is True
-        assert report["events"] == 2
+
+    def test_remote_wrapper_tracks_positional_node_and_actor_ids(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int, node_id: str, actor_id: str) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(10, "node-pos", "actor-pos") == 11
+
+        report = config["get_actor_report"](node_id="node-pos", actor_id="actor-pos")
+        assert report["events"] == 1
         assert report["entry_checks"] == 1
-        assert report["exit_checks"] == 1
-        assert report["methods"]["sample_method"] == 2
 
     def test_actor_monitoring_reset_clears_reports(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring

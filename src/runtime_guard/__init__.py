@@ -3132,8 +3132,19 @@ def enable_ray_actor_memory_monitoring(
 
         def _wrapper(*args: Any, **kwargs: Any) -> Any:
             stage = f"{stage_prefix}::{fn.__name__}"
-            node_id = _normalize_key(kwargs.get("node_id", "remote-node"), fallback="remote-node")
-            actor_id = _normalize_key(kwargs.get("actor_id", f"remote::{fn.__name__}"), fallback="remote-actor")
+            raw_node_id = kwargs.get("node_id", "remote-node")
+            raw_actor_id = kwargs.get("actor_id", f"remote::{fn.__name__}")
+            if fn_signature is not None:
+                try:
+                    bound = fn_signature.bind_partial(*args, **kwargs)
+                except TypeError:
+                    bound = None
+                if bound is not None:
+                    raw_node_id = bound.arguments.get("node_id", raw_node_id)
+                    raw_actor_id = bound.arguments.get("actor_id", raw_actor_id)
+
+            node_id = _normalize_key(raw_node_id, fallback="remote-node")
+            actor_id = _normalize_key(raw_actor_id, fallback="remote-actor")
             if not preserve_node_id and "node_id" in kwargs:
                 kwargs = dict(kwargs)
                 kwargs.pop("node_id", None)

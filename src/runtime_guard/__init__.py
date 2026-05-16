@@ -6144,10 +6144,9 @@ def install_otel_memory_exporter(
         except ImportError:
             pass  # OTEL not installed; spans will be no-ops
 
-    def _otel_check_and_log(stage: str = "") -> None:
+    def _otel_check_and_log(stage: str = "") -> Any:
         if not _otel_available or _tracer is None:
-            original_check_and_log(stage=stage)
-            return
+            return original_check_and_log(stage=stage)
 
         span_name = f"{span_name_prefix}.check"
         try:
@@ -6166,10 +6165,10 @@ def install_otel_memory_exporter(
                             span.set_attribute("rg.rss_mb", snap.rss_mb)
                     except Exception:
                         pass
-                original_check_and_log(stage=stage)
+                return original_check_and_log(stage=stage)
         except Exception:
             # If OTEL span creation fails, always fall back to original check.
-            original_check_and_log(stage=stage)
+            return original_check_and_log(stage=stage)
 
     if getattr(original_check_and_log, _OTEL_ATTR, False):
         # Already wrapped — return a no-op restore.

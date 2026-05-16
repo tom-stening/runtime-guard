@@ -2388,6 +2388,50 @@ class TestOtelMemoryExporter:
         finally:
             restore()
 
+    def test_wrapper_returns_original_result(self, monkeypatch):
+        guard = RuntimeGuard()
+
+        class _MockSpan:
+            def set_attribute(self, key: str, val: object) -> None:
+                pass
+
+            def __enter__(self) -> "_MockSpan":
+                return self
+
+            def __exit__(self, *_: object) -> None:
+                pass
+
+        class _MockTracer:
+            def start_as_current_span(self, name: str) -> _MockSpan:
+                return _MockSpan()
+
+        expected = {"ok": True, "source": "original"}
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": expected)
+
+        restore = install_otel_memory_exporter(guard, tracer=_MockTracer())
+        try:
+            result = guard.check_and_log(stage="otel-return")
+            assert result == expected
+        finally:
+            restore()
+
+    def test_wrapper_returns_original_result_on_span_failure(self, monkeypatch):
+        guard = RuntimeGuard()
+
+        class _BrokenTracer:
+            def start_as_current_span(self, name: str) -> object:
+                raise RuntimeError("span creation failed")
+
+        expected = {"ok": True, "source": "fallback"}
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": expected)
+
+        restore = install_otel_memory_exporter(guard, tracer=_BrokenTracer())
+        try:
+            result = guard.check_and_log(stage="otel-return-fallback")
+            assert result == expected
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask scheduler callbacks (deeper integration)

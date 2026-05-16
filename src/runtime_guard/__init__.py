@@ -4972,6 +4972,8 @@ def make_worker_report(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create a single worker report suitable for parent-process aggregation."""
+    metadata_value: dict[str, Any] | None = None
+
     if not isinstance(stage, str):
         raise ValueError("stage must be a string")
     stage_value = stage.strip()
@@ -4981,12 +4983,15 @@ def make_worker_report(
         raise ValueError("worker_id must be a string when provided")
     if metadata is not None and not isinstance(metadata, dict):
         raise ValueError("metadata must be a dictionary when provided")
+    if metadata is not None and type(metadata) is not dict:
+        raise ValueError("metadata must be a plain dictionary when provided")
     if metadata is not None:
-        for metadata_key in metadata:
+        metadata_value = dict(metadata)
+        for metadata_key in metadata_value:
             if not isinstance(metadata_key, str) or not metadata_key.strip():
                 raise ValueError("metadata keys must be non-empty strings")
         try:
-            json.dumps(metadata, separators=(",", ":"), allow_nan=False)
+            json.dumps(metadata_value, separators=(",", ":"), allow_nan=False)
         except (TypeError, ValueError) as exc:
             raise ValueError(
                 "metadata must be JSON-serializable with finite numbers"
@@ -5018,8 +5023,8 @@ def make_worker_report(
         "swap_used_pct": snap.swap_used_pct,
         "rss_mb": snap.rss_mb,
     }
-    if metadata is not None:
-        out["metadata"] = metadata
+    if metadata_value is not None:
+        out["metadata"] = metadata_value
     return out
 
 

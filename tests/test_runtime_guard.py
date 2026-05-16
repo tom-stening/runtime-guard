@@ -4320,6 +4320,32 @@ class TestMultiProcessOrchestration:
         with pytest.raises(ValueError, match="metadata must be a dictionary"):
             make_worker_report(guard, stage="worker-a", metadata=["bad"])
 
+    def test_make_worker_report_rejects_non_plain_dict_metadata(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+
+        class _Metadata(dict):
+            pass
+
+        with pytest.raises(ValueError, match="metadata must be a plain dictionary"):
+            make_worker_report(guard, stage="worker-a", metadata=_Metadata(run_id="abc"))
+
+    def test_make_worker_report_copies_metadata(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        monkeypatch.setattr(
+            "runtime_guard._read_snapshot",
+            lambda: MemSnapshot(
+                mem_available_mb=7000, mem_total_mb=8000, swap_used_pct=1, rss_mb=100
+            ),
+        )
+
+        metadata = {"run_id": "abc"}
+        report = make_worker_report(guard, stage="worker-a", metadata=metadata)
+        metadata["run_id"] = "mutated"
+
+        assert report["metadata"]["run_id"] == "abc"
+
     def test_make_worker_report_rejects_non_string_metadata_keys(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check", lambda stage="": None)

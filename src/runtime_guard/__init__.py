@@ -2389,6 +2389,27 @@ def install_dask_scheduler_callbacks(
     worker_snapshots: dict[str, dict[str, Any]] = {}
     callback_count: int = 0
 
+    def _extract_worker_id(
+        *,
+        explicit_worker_id: Any = None,
+        args: tuple[Any, ...] = (),
+        kwargs: dict[str, Any] | None = None,
+    ) -> Any:
+        if explicit_worker_id is not None:
+            return explicit_worker_id
+
+        source = kwargs if isinstance(kwargs, dict) else {}
+        for key in ("worker_id", "worker", "worker_addr", "worker_address"):
+            if key in source:
+                return source.get(key)
+
+        for arg in args:
+            if isinstance(arg, dict):
+                for key in ("worker_id", "worker", "worker_addr", "worker_address"):
+                    if key in arg:
+                        return arg.get(key)
+        return None
+
     def _normalize_worker_label(raw_worker_id: Any) -> str:
         if isinstance(raw_worker_id, str):
             normalized = raw_worker_id.strip()
@@ -2748,13 +2769,13 @@ def install_dask_scheduler_callbacks(
 
         @staticmethod
         def start(key: str, *args: Any, **kwargs: Any) -> None:
-            worker_id = kwargs.pop("worker_id", None)
-            _callback_start(key, *args, worker_id=worker_id, **kwargs)
+            worker_id = _extract_worker_id(args=args, kwargs=kwargs)
+            _callback_start(key, *args, worker_id=worker_id)
 
         @staticmethod
         def finish(key: str, value: Any, *args: Any, **kwargs: Any) -> None:
-            worker_id = kwargs.pop("worker_id", None)
-            _callback_finish(key, value, *args, worker_id=worker_id, **kwargs)
+            worker_id = _extract_worker_id(args=args, kwargs=kwargs)
+            _callback_finish(key, value, *args, worker_id=worker_id)
 
     _SchedulerCallback.get_worker_report = staticmethod(_get_worker_report)  # type: ignore
 
@@ -2769,10 +2790,12 @@ def install_dask_scheduler_callbacks(
 
         class _RuntimeGuardDaskCallback(callback_base):
             def _pretask(self, key: str, *_args: Any, **kwargs: Any) -> None:
-                _callback_start(key, worker_id=kwargs.get("worker_id"))
+                worker_id = _extract_worker_id(args=_args, kwargs=kwargs)
+                _callback_start(key, worker_id=worker_id)
 
             def _posttask(self, key: str, value: Any, *_args: Any, **kwargs: Any) -> None:
-                _callback_finish(key, value, worker_id=kwargs.get("worker_id"))
+                worker_id = _extract_worker_id(args=_args, kwargs=kwargs)
+                _callback_finish(key, value, worker_id=worker_id)
 
         callback_context_cls = _RuntimeGuardDaskCallback
 

@@ -4320,6 +4320,14 @@ class TestMultiProcessOrchestration:
         with pytest.raises(ValueError, match="metadata must be a dictionary"):
             make_worker_report(guard, stage="worker-a", metadata=["bad"])
 
+    def test_make_worker_report_rejects_non_string_metadata_keys(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        with pytest.raises(ValueError, match="metadata keys must be non-empty strings"):
+            make_worker_report(guard, stage="worker-a", metadata={1: "bad"})
+        with pytest.raises(ValueError, match="metadata keys must be non-empty strings"):
+            make_worker_report(guard, stage="worker-a", metadata={"   ": "bad"})
+
     def test_make_worker_report_rejects_non_string_stage_and_worker_id(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check", lambda stage="": None)

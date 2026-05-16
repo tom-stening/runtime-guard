@@ -4981,6 +4981,10 @@ def make_worker_report(
         raise ValueError("worker_id must be a string when provided")
     if metadata is not None and not isinstance(metadata, dict):
         raise ValueError("metadata must be a dictionary when provided")
+    if metadata is not None:
+        for metadata_key in metadata:
+            if not isinstance(metadata_key, str) or not metadata_key.strip():
+                raise ValueError("metadata keys must be non-empty strings")
 
     report = guard.check(stage=stage_value)
     snap = report.snapshot if report is not None else _read_snapshot()

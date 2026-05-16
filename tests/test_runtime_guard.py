@@ -3563,6 +3563,33 @@ class TestRayActorMemoryMonitoring:
         fallback_report = config["get_actor_report"](node_id=123, actor_id={"id": "bad"})
         assert fallback_report["parse_warning_count"] >= 2
 
+    def test_cluster_summary_tracks_parse_warnings_for_malformed_counters(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-a", actor_id="actor-1") == 2
+
+        all_nodes = config["get_all_node_reports"]()
+        nodes = all_nodes["nodes"]
+        nodes["node-a"]["events"] = "bad"
+        nodes["node-a"]["pressure_events"] = "bad"
+        nodes["node-a"]["healthy_events"] = "bad"
+        nodes["node-a"]["actors"]["actor-1"]["events"] = "bad"
+
+        summary = config["cluster_summary"]()
+        assert summary["ok"] is True
+        assert summary["total_events"] == 0
+        assert summary["total_pressure_events"] == 0
+        assert summary["total_healthy_events"] == 0
+        assert summary["parse_warning_count"] >= 4
+
     def test_actor_monitoring_tracks_pressure_and_healthy_event_split(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

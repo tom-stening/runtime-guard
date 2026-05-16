@@ -3222,11 +3222,20 @@ def enable_ray_actor_memory_monitoring(
             if not isinstance(row, dict):
                 _warn_parse()
                 continue
-            events, _ = _strict_non_negative_counter(row.get("events", 0))
+            raw_events = row.get("events", 0)
+            events, events_ok = _strict_non_negative_counter(raw_events)
+            if not events_ok and raw_events not in (0,):
+                _warn_parse()
             total_events += events
-            pressure_events, _ = _strict_non_negative_counter(row.get("pressure_events", 0))
+            raw_pressure_events = row.get("pressure_events", 0)
+            pressure_events, pressure_ok = _strict_non_negative_counter(raw_pressure_events)
+            if not pressure_ok and raw_pressure_events not in (0,):
+                _warn_parse()
             total_pressure_events += pressure_events
-            healthy_events, _ = _strict_non_negative_counter(row.get("healthy_events", 0))
+            raw_healthy_events = row.get("healthy_events", 0)
+            healthy_events, healthy_ok = _strict_non_negative_counter(raw_healthy_events)
+            if not healthy_ok and raw_healthy_events not in (0,):
+                _warn_parse()
             total_healthy_events += healthy_events
             if events > busiest_events:
                 busiest_events = events
@@ -3240,7 +3249,10 @@ def enable_ray_actor_memory_monitoring(
                 if not isinstance(actor_row, dict):
                     _warn_parse()
                     continue
-                actor_events, _ = _strict_non_negative_counter(actor_row.get("events", 0))
+                raw_actor_events = actor_row.get("events", 0)
+                actor_events, actor_events_ok = _strict_non_negative_counter(raw_actor_events)
+                if not actor_events_ok and raw_actor_events not in (0,):
+                    _warn_parse()
                 if actor_events > busiest_actor_events:
                     busiest_actor_events = actor_events
                     busiest_actor = actor_id

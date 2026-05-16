@@ -4328,6 +4328,24 @@ class TestMultiProcessOrchestration:
         with pytest.raises(ValueError, match="metadata keys must be non-empty strings"):
             make_worker_report(guard, stage="worker-a", metadata={"   ": "bad"})
 
+    def test_make_worker_report_rejects_non_serializable_metadata_values(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        with pytest.raises(
+            ValueError,
+            match="metadata must be JSON-serializable with finite numbers",
+        ):
+            make_worker_report(guard, stage="worker-a", metadata={"bad": {1, 2}})
+
+    def test_make_worker_report_rejects_non_finite_metadata_values(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        with pytest.raises(
+            ValueError,
+            match="metadata must be JSON-serializable with finite numbers",
+        ):
+            make_worker_report(guard, stage="worker-a", metadata={"rss_mb": float("inf")})
+
     def test_make_worker_report_rejects_non_string_stage_and_worker_id(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check", lambda stage="": None)

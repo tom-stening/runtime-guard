@@ -4985,6 +4985,12 @@ def make_worker_report(
         for metadata_key in metadata:
             if not isinstance(metadata_key, str) or not metadata_key.strip():
                 raise ValueError("metadata keys must be non-empty strings")
+        try:
+            json.dumps(metadata, separators=(",", ":"), allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "metadata must be JSON-serializable with finite numbers"
+            ) from exc
 
     report = guard.check(stage=stage_value)
     snap = report.snapshot if report is not None else _read_snapshot()

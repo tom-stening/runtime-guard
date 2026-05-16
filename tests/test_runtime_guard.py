@@ -1701,6 +1701,44 @@ class TestDaskIntegration:
             assert calls == ["dask-future", "dask-future"]
         finally:
             restore()
+
+    def test_attach_idempotent_future_methods_restore_cleanly(self, monkeypatch):
+        class FutureDask:
+            @staticmethod
+            def compute(x):
+                return x * 2
+
+            @staticmethod
+            def submit(x):
+                return x + 100
+
+            class base:
+                @staticmethod
+                def compute(x):
+                    return x * 2
+
+                @staticmethod
+                def persist(x):
+                    return f"base-persist:{x}"
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        original_submit = FutureDask.submit
+        restore_a = attach_dask_guard(guard, stage="dask-future-idem", module=FutureDask)
+        restore_b = attach_dask_guard(guard, stage="dask-future-idem-2", module=FutureDask)
+        try:
+            result = FutureDask.submit(7)
+            assert result == 107
+            # Idempotent re-attach should not duplicate stage checks on future methods.
+            assert calls == ["dask-future-idem"]
+        finally:
+            restore_b()
+            restore_a()
+
+        assert FutureDask.submit is original_submit
+
     class _DummyDask:
         @staticmethod
         def compute(value: int, add: int = 0) -> int:

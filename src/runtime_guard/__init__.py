@@ -2147,22 +2147,6 @@ def attach_dask_guard(
     base_mod = getattr(module, "base", None)
     base_compute_fn = getattr(base_mod, "compute", None) if base_mod is not None else None
     base_persist_fn = getattr(base_mod, "persist", None) if base_mod is not None else None
-    # Guard extra compute-like methods
-    original_extra_methods = {name: getattr(module, name) for name in extra_methods}
-    guarded_extra_methods = {}
-    for name in extra_methods:
-        fn = getattr(module, name)
-        def _make_guarded(fn, stage=stage):
-            def _guarded(*args, **kwargs):
-                guard.check_and_log(stage=stage)
-                return _with_scheduler_context(fn, *args, **kwargs)
-            setattr(_guarded, "_runtime_guard_wrapped", True)
-            setattr(_guarded, "_runtime_guard_original", fn)
-            return _guarded
-        guarded = _make_guarded(fn)
-        setattr(module, name, guarded)
-        guarded_extra_methods[name] = guarded
-
     # Idempotent attach to avoid nested wrappers and duplicated checks.
     if getattr(compute_fn, "_runtime_guard_wrapped", False):
         original_compute = getattr(compute_fn, "_runtime_guard_original", compute_fn)
@@ -2183,6 +2167,14 @@ def attach_dask_guard(
                 base_persist_fn, "_runtime_guard_original", base_persist_fn
             )
 
+        original_extra_methods = {}
+        for name in extra_methods:
+            method = getattr(module, name, None)
+            if callable(method) and getattr(method, "_runtime_guard_wrapped", False):
+                method = getattr(method, "_runtime_guard_original", method)
+            if callable(method):
+                original_extra_methods[name] = method
+
         def _restore() -> None:
             setattr(module, "compute", original_compute)
             if callable(original_persist):
@@ -2191,6 +2183,8 @@ def attach_dask_guard(
                 setattr(base_mod, "compute", original_base_compute)
             if base_mod is not None and callable(original_base_persist):
                 setattr(base_mod, "persist", original_base_persist)
+            for name, fn in original_extra_methods.items():
+                setattr(module, name, fn)
 
         return _restore
 
@@ -2273,6 +2267,23 @@ def attach_dask_guard(
         setattr(_guarded_base_persist, "_runtime_guard_scheduler_callbacks_enabled", enable_scheduler_callbacks)
         setattr(_guarded_base_persist, "_runtime_guard_scheduler_callback_api_available", callback_api_available)
         setattr(base_mod, "persist", _guarded_base_persist)
+
+    # Guard extra compute-like methods
+    original_extra_methods = {name: getattr(module, name) for name in extra_methods}
+    for name in extra_methods:
+        fn = getattr(module, name)
+
+        def _make_guarded(method: Callable[..., Any], wrapped_stage: str = stage) -> Callable[..., Any]:
+            def _guarded(*args: Any, **kwargs: Any) -> Any:
+                guard.check_and_log(stage=wrapped_stage)
+                return _with_scheduler_context(method, *args, **kwargs)
+
+            setattr(_guarded, "_runtime_guard_wrapped", True)
+            setattr(_guarded, "_runtime_guard_original", method)
+            return _guarded
+
+        guarded = _make_guarded(fn)
+        setattr(module, name, guarded)
 
     def _restore() -> None:
         setattr(module, "compute", original_compute)

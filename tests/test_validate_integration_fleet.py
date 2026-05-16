@@ -1148,6 +1148,81 @@ def test_build_payload_rejects_non_boolean_fallback_flag(tmp_path: Path):
         raise AssertionError("expected ValueError for non-boolean fallback_on_pressure")
 
 
+def test_build_payload_rejects_empty_fallback_report_dir(tmp_path: Path):
+    module = _load_module()
+
+    try:
+        module._build_payload(
+            tmp_path,
+            timeout_s=1,
+            include_wsl_diagnosis=False,
+            polars_report=None,
+            dask_report=None,
+            ray_report=None,
+            fallback_on_pressure=False,
+            fallback_report_dir="   ",
+            max_fallback_report_age_hours=0,
+        )
+    except ValueError as exc:
+        assert "fallback_report_dir" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for empty fallback_report_dir")
+
+
+def test_build_payload_rejects_non_string_component_report_paths(tmp_path: Path):
+    module = _load_module()
+
+    for report_name in ("polars_report", "dask_report", "ray_report"):
+        kwargs = {
+            "polars_report": None,
+            "dask_report": None,
+            "ray_report": None,
+        }
+        kwargs[report_name] = 123  # type: ignore[assignment]
+
+        try:
+            module._build_payload(
+                tmp_path,
+                timeout_s=1,
+                include_wsl_diagnosis=False,
+                fallback_on_pressure=False,
+                fallback_report_dir="reports",
+                max_fallback_report_age_hours=0,
+                **kwargs,
+            )
+        except ValueError as exc:
+            assert report_name in str(exc)
+        else:
+            raise AssertionError(f"expected ValueError for invalid {report_name} type")
+
+
+def test_build_payload_rejects_empty_component_report_path_strings(tmp_path: Path):
+    module = _load_module()
+
+    for report_name in ("polars_report", "dask_report", "ray_report"):
+        kwargs = {
+            "polars_report": None,
+            "dask_report": None,
+            "ray_report": None,
+        }
+        kwargs[report_name] = "   "
+
+        try:
+            module._build_payload(
+                tmp_path,
+                timeout_s=1,
+                include_wsl_diagnosis=False,
+                fallback_on_pressure=False,
+                fallback_report_dir="reports",
+                max_fallback_report_age_hours=0,
+                **kwargs,
+            )
+        except ValueError as exc:
+            assert report_name in str(exc)
+        else:
+            raise AssertionError(f"expected ValueError for empty {report_name} path")
+
+
 def test_run_validator_timeout_returns_unhealthy_component(tmp_path: Path, monkeypatch):
     module = _load_module()
 

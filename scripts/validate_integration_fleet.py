@@ -957,6 +957,18 @@ def _build_payload(
         raise ValueError("fallback_on_pressure must be boolean")
     if not isinstance(fallback_report_dir, str):
         raise ValueError("fallback_report_dir must be a string")
+    if not fallback_report_dir.strip():
+        raise ValueError("fallback_report_dir must be a non-empty string")
+
+    for report_name, report_value in (
+        ("polars_report", polars_report),
+        ("dask_report", dask_report),
+        ("ray_report", ray_report),
+    ):
+        if report_value is not None and not isinstance(report_value, str):
+            raise ValueError(f"{report_name} must be a string path or None")
+        if isinstance(report_value, str) and not report_value.strip():
+            raise ValueError(f"{report_name} must be a non-empty string path when provided")
     if (
         not isinstance(max_fallback_report_age_hours, int)
         or isinstance(max_fallback_report_age_hours, bool)

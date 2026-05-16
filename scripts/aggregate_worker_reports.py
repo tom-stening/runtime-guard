@@ -124,7 +124,15 @@ def main() -> int:
     rendered = json.dumps(summary, indent=2, sort_keys=True)
 
     if args.output:
-        Path(args.output).write_text(rendered + "\n", encoding="utf-8")
+        output_path = Path(args.output).expanduser()
+        parent = output_path.parent
+        if parent and not parent.exists():
+            parent.mkdir(parents=True, exist_ok=True)
+        try:
+            output_path.write_text(rendered + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"error: could not write {output_path}: {exc}", file=sys.stderr)
+            return 2
     else:
         print(rendered)
 

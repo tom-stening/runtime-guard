@@ -269,3 +269,74 @@ def test_validate_cli_configuration_rejects_empty_output_path() -> None:
 
     errors = module._validate_cli_configuration(_Args())
     assert any("--output must be a non-empty string path" in row for row in errors)
+
+
+def test_writes_output_when_parent_directory_missing(monkeypatch, tmp_path) -> None:
+    module = _load_module()
+    input_path = tmp_path / "dummy.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+    output_path = tmp_path / "nested" / "summary.json"
+
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "total_workers": 0,
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "aggregate_worker_reports.py",
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert module.main() == 0
+    assert output_path.exists()
+
+
+def test_returns_2_when_output_write_fails(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "dummy.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "total_workers": 0,
+        },
+    )
+    monkeypatch.setattr(
+        Path,
+        "write_text",
+        lambda self, data, encoding=None: (_ for _ in ()).throw(OSError("disk full")),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "aggregate_worker_reports.py",
+            "--input",
+            str(input_path),
+            "--output",
+            str(tmp_path / "summary.json"),
+        ],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: could not write" in captured.err

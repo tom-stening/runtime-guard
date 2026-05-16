@@ -5151,6 +5151,8 @@ def append_worker_report_jsonl(path: str, report: dict[str, Any]) -> dict[str, A
         raise ValueError("path must be a non-empty string")
     if not isinstance(report, dict):
         raise ValueError("report must be a dictionary")
+    if type(report) is not dict:
+        raise ValueError("report must be a plain dictionary")
 
     expanded = os.path.expanduser(path)
     parent = os.path.dirname(expanded)

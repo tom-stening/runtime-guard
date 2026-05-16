@@ -5535,6 +5535,17 @@ class TestWorkerTransport:
         with pytest.raises(ValueError, match="report must be a dictionary"):
             append_worker_report_jsonl(path, [("worker_id", "w1")])  # type: ignore[arg-type]
 
+    def test_append_worker_report_jsonl_rejects_non_plain_dict_report(self, tmp_path):
+        """append_worker_report_jsonl rejects dict subclasses to avoid coercive payloads."""
+        from runtime_guard import append_worker_report_jsonl
+
+        class _Report(dict):
+            pass
+
+        path = str(tmp_path / "reports.jsonl")
+        with pytest.raises(ValueError, match="report must be a plain dictionary"):
+            append_worker_report_jsonl(path, _Report(worker_id="w1"))
+
     def test_append_worker_report_jsonl_rejects_non_finite_numbers(self, tmp_path):
         """append_worker_report_jsonl rejects NaN/Inf to keep strict JSONL."""
         from runtime_guard import append_worker_report_jsonl

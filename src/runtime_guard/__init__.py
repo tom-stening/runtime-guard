@@ -2853,6 +2853,7 @@ def enable_ray_actor_memory_monitoring(
         actor_id: str,
         method_name: str,
         event_type: str,
+        pressure_detected: bool,
     ) -> None:
         node_key = _normalize_key(node_id, fallback="unknown-node")
         actor_key = _normalize_key(actor_id, fallback="unknown-actor")
@@ -2865,6 +2866,8 @@ def enable_ray_actor_memory_monitoring(
                 "events": 0,
                 "entry_checks": 0,
                 "exit_checks": 0,
+                "pressure_events": 0,
+                "healthy_events": 0,
                 "actors": {},
             },
         )
@@ -2876,6 +2879,12 @@ def enable_ray_actor_memory_monitoring(
         elif event_type == "exit":
             node_exit_checks, _ = _strict_non_negative_counter(node_row.get("exit_checks", 0))
             node_row["exit_checks"] = node_exit_checks + 1
+        if pressure_detected:
+            node_pressure_events, _ = _strict_non_negative_counter(node_row.get("pressure_events", 0))
+            node_row["pressure_events"] = node_pressure_events + 1
+        else:
+            node_healthy_events, _ = _strict_non_negative_counter(node_row.get("healthy_events", 0))
+            node_row["healthy_events"] = node_healthy_events + 1
 
         actors = node_row["actors"]
         actor_row = actors.setdefault(
@@ -2885,6 +2894,8 @@ def enable_ray_actor_memory_monitoring(
                 "events": 0,
                 "entry_checks": 0,
                 "exit_checks": 0,
+                "pressure_events": 0,
+                "healthy_events": 0,
                 "methods": {},
             },
         )
@@ -2896,6 +2907,12 @@ def enable_ray_actor_memory_monitoring(
         elif event_type == "exit":
             actor_exit_checks, _ = _strict_non_negative_counter(actor_row.get("exit_checks", 0))
             actor_row["exit_checks"] = actor_exit_checks + 1
+        if pressure_detected:
+            actor_pressure_events, _ = _strict_non_negative_counter(actor_row.get("pressure_events", 0))
+            actor_row["pressure_events"] = actor_pressure_events + 1
+        else:
+            actor_healthy_events, _ = _strict_non_negative_counter(actor_row.get("healthy_events", 0))
+            actor_row["healthy_events"] = actor_healthy_events + 1
 
         methods = actor_row["methods"]
         method_count, _ = _strict_non_negative_counter(methods.get(method_key, 0))
@@ -2972,6 +2989,14 @@ def enable_ray_actor_memory_monitoring(
                 _strict_non_negative_counter(v.get("events", 0))[0]
                 for v in actor_event_state.values()
             ),
+            "total_pressure_events": sum(
+                _strict_non_negative_counter(v.get("pressure_events", 0))[0]
+                for v in actor_event_state.values()
+            ),
+            "total_healthy_events": sum(
+                _strict_non_negative_counter(v.get("healthy_events", 0))[0]
+                for v in actor_event_state.values()
+            ),
             "parse_warning_count": parse_warning_count,
         }
 
@@ -2979,6 +3004,12 @@ def enable_ray_actor_memory_monitoring(
         node_rows = actor_event_state.values()
         total_events = sum(_strict_non_negative_counter(v.get("events", 0))[0] for v in node_rows)
         total_actors = sum(len(v.get("actors", {})) for v in node_rows)
+        total_pressure_events = sum(
+            _strict_non_negative_counter(v.get("pressure_events", 0))[0] for v in node_rows
+        )
+        total_healthy_events = sum(
+            _strict_non_negative_counter(v.get("healthy_events", 0))[0] for v in node_rows
+        )
         busiest_node = None
         busiest_events = -1
         busiest_actor = None
@@ -2998,6 +3029,8 @@ def enable_ray_actor_memory_monitoring(
             "nodes_monitored": len(actor_event_state),
             "actors_monitored": total_actors,
             "total_events": total_events,
+            "total_pressure_events": total_pressure_events,
+            "total_healthy_events": total_healthy_events,
             "busiest_node": busiest_node,
             "busiest_node_events": max(busiest_events, 0),
             "busiest_actor": busiest_actor,
@@ -3019,23 +3052,25 @@ def enable_ray_actor_memory_monitoring(
                 fallback="unknown-actor",
             )
             if check_on_entry:
-                guard.check_and_log(stage=f"{stage}:entry")
+                report = guard.check_and_log(stage=f"{stage}:entry")
                 _record_actor_event(
                     node_id=node_id,
                     actor_id=actor_id,
                     method_name=method.__name__,
                     event_type="entry",
+                    pressure_detected=report is not None,
                 )
             try:
                 result = method(self, *args, **kwargs)
             finally:
                 if check_on_exit:
-                    guard.check_and_log(stage=f"{stage}:exit")
+                    report = guard.check_and_log(stage=f"{stage}:exit")
                     _record_actor_event(
                         node_id=node_id,
                         actor_id=actor_id,
                         method_name=method.__name__,
                         event_type="exit",
+                        pressure_detected=report is not None,
                     )
             return result
 
@@ -3076,23 +3111,25 @@ def enable_ray_actor_memory_monitoring(
                     kwargs = dict(kwargs)
                 kwargs.pop("actor_id", None)
             if check_on_entry:
-                guard.check_and_log(stage=f"{stage}:entry")
+                report = guard.check_and_log(stage=f"{stage}:entry")
                 _record_actor_event(
                     node_id=node_id,
                     actor_id=actor_id,
                     method_name=fn.__name__,
                     event_type="entry",
+                    pressure_detected=report is not None,
                 )
             try:
                 result = fn(*args, **kwargs)
             finally:
                 if check_on_exit:
-                    guard.check_and_log(stage=f"{stage}:exit")
+                    report = guard.check_and_log(stage=f"{stage}:exit")
                     _record_actor_event(
                         node_id=node_id,
                         actor_id=actor_id,
                         method_name=fn.__name__,
                         event_type="exit",
+                        pressure_detected=report is not None,
                     )
             return result
 
@@ -3135,6 +3172,7 @@ def validate_ray_integration(
     actor_node_telemetry_api_available = False
     actor_cluster_summary_api_available = False
     actor_cluster_hotspot_fields_present = False
+    actor_cluster_health_split_fields_present = False
 
     try:
         ray_mod = module
@@ -3193,11 +3231,19 @@ def validate_ray_integration(
                     "busiest_actor",
                     "busiest_actor_events",
                 }
+                required_health_split_fields = {
+                    "total_pressure_events",
+                    "total_healthy_events",
+                }
                 actor_cluster_hotspot_fields_present = required_hotspot_fields.issubset(
+                    set(summary.keys()) if isinstance(summary, dict) else set()
+                )
+                actor_cluster_health_split_fields_present = required_health_split_fields.issubset(
                     set(summary.keys()) if isinstance(summary, dict) else set()
                 )
             except Exception:
                 actor_cluster_hotspot_fields_present = False
+                actor_cluster_health_split_fields_present = False
 
         return {
             "ok": True,
@@ -3208,6 +3254,7 @@ def validate_ray_integration(
             "actor_node_telemetry_api_available": actor_node_telemetry_api_available,
             "actor_cluster_summary_api_available": actor_cluster_summary_api_available,
             "actor_cluster_hotspot_fields_present": actor_cluster_hotspot_fields_present,
+            "actor_cluster_health_split_fields_present": actor_cluster_health_split_fields_present,
             "get_present": get_fn is not None,
             "wait_present": wait_fn is not None,
             "put_present": put_fn is not None,
@@ -3224,6 +3271,7 @@ def validate_ray_integration(
             "actor_node_telemetry_api_available": actor_node_telemetry_api_available,
             "actor_cluster_summary_api_available": actor_cluster_summary_api_available,
             "actor_cluster_hotspot_fields_present": actor_cluster_hotspot_fields_present,
+            "actor_cluster_health_split_fields_present": actor_cluster_health_split_fields_present,
             "errors": errors,
         }
 
@@ -3273,6 +3321,9 @@ def collect_ray_integration_evidence(
 
     if validation.get("actor_cluster_hotspot_fields_present"):
         evidence_items.append("ray_actor_cluster_hotspot_fields_present")
+
+    if validation.get("actor_cluster_health_split_fields_present"):
+        evidence_items.append("ray_actor_cluster_health_split_fields_present")
 
     runtime_guard_version = "0.3.0"
     try:

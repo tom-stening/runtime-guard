@@ -2783,6 +2783,7 @@ class TestRayIntegration:
             assert result["actor_node_telemetry_api_available"] is True
             assert result["actor_cluster_summary_api_available"] is True
             assert result["actor_cluster_hotspot_fields_present"] is True
+            assert result["actor_cluster_health_split_fields_present"] is True
         finally:
             restore()
 
@@ -2809,6 +2810,7 @@ class TestRayIntegration:
             assert "ray_actor_node_telemetry_api_available" in evidence["evidence_items"]
             assert "ray_actor_cluster_summary_api_available" in evidence["evidence_items"]
             assert "ray_actor_cluster_hotspot_fields_present" in evidence["evidence_items"]
+            assert "ray_actor_cluster_health_split_fields_present" in evidence["evidence_items"]
             assert evidence["ray_version"] == "unknown"
         finally:
             restore()
@@ -3115,6 +3117,8 @@ class TestRayActorMemoryMonitoring:
         assert summary["nodes_monitored"] == 2
         assert summary["actors_monitored"] == 2
         assert summary["total_events"] == 3
+        assert summary["total_pressure_events"] == 0
+        assert summary["total_healthy_events"] == 3
         assert summary["busiest_node"] == "node-a"
         assert summary["busiest_node_events"] == 2
         assert summary["busiest_actor"] == "actor-1"
@@ -3141,12 +3145,18 @@ class TestRayActorMemoryMonitoring:
         all_nodes = config["get_all_node_reports"]()
         nodes = all_nodes["nodes"]
         nodes["node-a"]["events"] = "bad"
+        nodes["node-a"]["healthy_events"] = "bad"
+        nodes["node-a"]["pressure_events"] = "bad"
         nodes["node-a"]["actors"]["actor-1"]["events"] = "bad"
+        nodes["node-a"]["actors"]["actor-1"]["healthy_events"] = "bad"
+        nodes["node-a"]["actors"]["actor-1"]["pressure_events"] = "bad"
         nodes["node-a"]["actors"]["actor-1"]["methods"]["compute"] = "bad"
 
         summary = config["cluster_summary"]()
         assert summary["ok"] is True
         assert summary["total_events"] == 0
+        assert summary["total_pressure_events"] == 0
+        assert summary["total_healthy_events"] == 0
         assert summary["busiest_node_events"] == 0
         assert summary["busiest_actor_events"] == 0
 
@@ -3177,6 +3187,47 @@ class TestRayActorMemoryMonitoring:
 
         fallback_report = config["get_actor_report"](node_id=123, actor_id={"id": "bad"})
         assert fallback_report["parse_warning_count"] >= 2
+
+    def test_actor_monitoring_tracks_pressure_and_healthy_event_split(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        class _FakeReport:
+            is_critical = False
+            cause = "low-memory"
+            missing_mem_mb = 64
+
+        guard = RuntimeGuard()
+        calls = {"n": 0}
+
+        def _fake_check(stage: str = ""):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return _FakeReport()
+            return None
+
+        monkeypatch.setattr(guard, "check_and_log", _fake_check)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=True)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-p", actor_id="actor-p") == 2
+
+        actor_report = config["get_actor_report"](node_id="node-p", actor_id="actor-p")
+        assert actor_report["events"] == 2
+        assert actor_report["pressure_events"] == 1
+        assert actor_report["healthy_events"] == 1
+
+        all_nodes = config["get_all_node_reports"]()
+        assert all_nodes["total_events"] == 2
+        assert all_nodes["total_pressure_events"] == 1
+        assert all_nodes["total_healthy_events"] == 1
+
+        summary = config["cluster_summary"]()
+        assert summary["total_events"] == 2
+        assert summary["total_pressure_events"] == 1
+        assert summary["total_healthy_events"] == 1
 
 
 # ---------------------------------------------------------------------------

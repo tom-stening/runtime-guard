@@ -4626,58 +4626,61 @@ def verify_audit_log_chain(path: str) -> dict[str, Any]:
     if not os.path.exists(expanded):
         return {"ok": False, "reason": "missing", "line": 0}
 
-    with open(expanded, encoding="utf-8") as fh:
-        for raw in fh:
-            line_no += 1
-            line = raw.strip()
-            if not line:
-                continue
-            try:
-                row = json.loads(line)
-            except Exception:
-                return {"ok": False, "reason": "invalid-json", "line": line_no}
+    try:
+        with open(expanded, encoding="utf-8") as fh:
+            for raw in fh:
+                line_no += 1
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    return {"ok": False, "reason": "invalid-json", "line": line_no}
 
-            if not isinstance(row, dict):
-                return {"ok": False, "reason": "invalid-row-type", "line": line_no}
+                if not isinstance(row, dict):
+                    return {"ok": False, "reason": "invalid-row-type", "line": line_no}
 
-            algo_raw = row.get("hash_algo", "sha256")
-            if not isinstance(algo_raw, str):
-                return {"ok": False, "reason": "invalid-hash-algo-type", "line": line_no}
-            algo = algo_raw.strip().lower()
-            if algo not in _FIPS_HASH_ALGOS:
-                return {"ok": False, "reason": "unsupported-algo", "line": line_no}
+                algo_raw = row.get("hash_algo", "sha256")
+                if not isinstance(algo_raw, str):
+                    return {"ok": False, "reason": "invalid-hash-algo-type", "line": line_no}
+                algo = algo_raw.strip().lower()
+                if algo not in _FIPS_HASH_ALGOS:
+                    return {"ok": False, "reason": "unsupported-algo", "line": line_no}
 
-            row_prev_raw = row.get("prev_hash", "")
-            if not isinstance(row_prev_raw, str):
-                return {"ok": False, "reason": "invalid-prev-hash-type", "line": line_no}
-            row_prev = row_prev_raw
-            if row_prev != prev_hash:
-                return {"ok": False, "reason": "prev-hash-mismatch", "line": line_no}
+                row_prev_raw = row.get("prev_hash", "")
+                if not isinstance(row_prev_raw, str):
+                    return {"ok": False, "reason": "invalid-prev-hash-type", "line": line_no}
+                row_prev = row_prev_raw
+                if row_prev != prev_hash:
+                    return {"ok": False, "reason": "prev-hash-mismatch", "line": line_no}
 
-            ts_raw = row.get("ts", 0)
-            if not isinstance(ts_raw, int) or isinstance(ts_raw, bool):
-                return {"ok": False, "reason": "invalid-ts-type", "line": line_no}
-            ts = ts_raw
-            event = row.get("event", {})
-            event_payload = json.dumps(event, sort_keys=True, separators=(",", ":"))
+                ts_raw = row.get("ts", 0)
+                if not isinstance(ts_raw, int) or isinstance(ts_raw, bool):
+                    return {"ok": False, "reason": "invalid-ts-type", "line": line_no}
+                ts = ts_raw
+                event = row.get("event", {})
+                event_payload = json.dumps(event, sort_keys=True, separators=(",", ":"))
 
-            expected_event_hash = fips_event_hash(event_payload, hash_algo=algo)
-            event_hash_raw = row.get("event_hash", "")
-            if not isinstance(event_hash_raw, str):
-                return {"ok": False, "reason": "invalid-event-hash-type", "line": line_no}
-            if event_hash_raw != expected_event_hash:
-                return {"ok": False, "reason": "event-hash-mismatch", "line": line_no}
+                expected_event_hash = fips_event_hash(event_payload, hash_algo=algo)
+                event_hash_raw = row.get("event_hash", "")
+                if not isinstance(event_hash_raw, str):
+                    return {"ok": False, "reason": "invalid-event-hash-type", "line": line_no}
+                if event_hash_raw != expected_event_hash:
+                    return {"ok": False, "reason": "event-hash-mismatch", "line": line_no}
 
-            expected_chain = hashlib.new(
-                algo, f"{prev_hash}\n{ts}\n{event_payload}".encode("utf-8")
-            ).hexdigest()
-            chain_hash_raw = row.get("hash", "")
-            if not isinstance(chain_hash_raw, str):
-                return {"ok": False, "reason": "invalid-hash-type", "line": line_no}
-            if chain_hash_raw != expected_chain:
-                return {"ok": False, "reason": "chain-hash-mismatch", "line": line_no}
+                expected_chain = hashlib.new(
+                    algo, f"{prev_hash}\n{ts}\n{event_payload}".encode("utf-8")
+                ).hexdigest()
+                chain_hash_raw = row.get("hash", "")
+                if not isinstance(chain_hash_raw, str):
+                    return {"ok": False, "reason": "invalid-hash-type", "line": line_no}
+                if chain_hash_raw != expected_chain:
+                    return {"ok": False, "reason": "chain-hash-mismatch", "line": line_no}
 
-            prev_hash = expected_chain
+                prev_hash = expected_chain
+    except OSError:
+        return {"ok": False, "reason": "read-error", "line": 0}
 
     return {"ok": True, "line": line_no, "records": line_no, "last_hash": prev_hash}
 

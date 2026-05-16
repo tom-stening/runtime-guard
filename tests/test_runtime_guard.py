@@ -4237,6 +4237,15 @@ class TestAuditLog:
         assert out["ok"] is False
         assert out["reason"] == "invalid-row-type"
 
+    def test_verify_audit_log_chain_returns_read_error_on_open_failure(self, tmp_path):
+        path = tmp_path / "audit-dir"
+        path.mkdir()
+
+        out = verify_audit_log_chain(str(path))
+        assert out["ok"] is False
+        assert out["reason"] == "read-error"
+        assert out["line"] == 0
+
     def test_verify_audit_log_chain_rejects_malformed_field_types(self, tmp_path):
         path = tmp_path / "audit.log"
         append_audit_log(str(path), {"n": 1})
@@ -5330,6 +5339,15 @@ class TestCLI:
         )
         code, _ = self._run_cli("--verify-audit-log", "audit.log")
         assert code == 1
+
+    def test_verify_audit_log_exits_1_on_read_error_result(self, monkeypatch):
+        monkeypatch.setattr(
+            "runtime_guard.verify_audit_log_chain",
+            lambda path: {"ok": False, "reason": "read-error", "line": 0},
+        )
+        code, stderr = self._run_cli("--verify-audit-log", "audit.log")
+        assert code == 1
+        assert "read-error" in stderr
 
     def test_verify_audit_log_exits_2_on_non_boolean_ok_result(self, monkeypatch):
         monkeypatch.setattr(

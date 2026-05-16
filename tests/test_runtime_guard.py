@@ -4463,6 +4463,10 @@ class TestMultiProcessOrchestration:
         assert summary["malformed_worker_rows"] == ["unknown-worker-1", "unknown-worker-3"]
         assert len(summary["workers"]) == 1
 
+    def test_aggregate_worker_reports_rejects_non_list(self):
+        with pytest.raises(ValueError, match="reports must be a list"):
+            aggregate_worker_reports({"worker_id": "a"})  # type: ignore[arg-type]
+
     def test_runtime_guard_worker_wrappers(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check", lambda stage="": None)
@@ -5482,6 +5486,13 @@ class TestWorkerTransport:
 
         assert reports == []
 
+    def test_load_worker_reports_jsonl_rejects_empty_path(self):
+        """load_worker_reports_jsonl rejects empty path values."""
+        from runtime_guard import load_worker_reports_jsonl
+
+        with pytest.raises(ValueError, match="path must be a non-empty string"):
+            load_worker_reports_jsonl("  ")
+
     def test_load_worker_reports_jsonl_reads_all_lines(self, tmp_path):
         """load_worker_reports_jsonl reads all lines from JSONL file."""
         from runtime_guard import append_worker_report_jsonl, load_worker_reports_jsonl
@@ -5585,6 +5596,13 @@ class TestWorkerTransport:
 
         assert result["total_workers"] == 0
         assert result["pressured_workers"] == 0
+
+    def test_aggregate_worker_reports_jsonl_rejects_empty_path(self):
+        """aggregate_worker_reports_jsonl rejects empty path values."""
+        from runtime_guard import aggregate_worker_reports_jsonl
+
+        with pytest.raises(ValueError, match="path must be a non-empty string"):
+            aggregate_worker_reports_jsonl("\t")
 
     def test_jsonl_transport_with_make_worker_report(self, tmp_path):
         """Integration test: append JSONL worker reports and aggregate."""

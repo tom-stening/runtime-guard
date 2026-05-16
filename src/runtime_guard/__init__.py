@@ -5016,6 +5016,9 @@ def make_worker_report(
 def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate worker reports from a process pool or job queue."""
 
+    if not isinstance(reports, list):
+        raise ValueError("reports must be a list")
+
     def _worker_name(row: dict[str, Any], index: int) -> str:
         worker_id = row.get("worker_id")
         if isinstance(worker_id, str):
@@ -5139,6 +5142,9 @@ def append_worker_report_jsonl(path: str, report: dict[str, Any]) -> dict[str, A
 
 def _load_worker_reports_jsonl_with_stats(path: str) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Load worker reports from JSONL and return rows with parse statistics."""
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("path must be a non-empty string")
+
     def _contains_non_finite_number(value: Any) -> bool:
         if isinstance(value, float):
             return math.isnan(value) or math.isinf(value)

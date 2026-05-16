@@ -2890,9 +2890,11 @@ def enable_ray_actor_memory_monitoring(
         actor_key = _normalize_key(actor_id, fallback="unknown-actor")
         method_key = _normalize_key(method_name, fallback="unknown-method")
 
-        node_row = actor_event_state.setdefault(
-            node_key,
-            {
+        node_row = actor_event_state.get(node_key)
+        if not isinstance(node_row, dict):
+            if node_row is not None:
+                _warn_parse()
+            node_row = {
                 "node_id": node_key,
                 "events": 0,
                 "entry_checks": 0,
@@ -2900,8 +2902,8 @@ def enable_ray_actor_memory_monitoring(
                 "pressure_events": 0,
                 "healthy_events": 0,
                 "actors": {},
-            },
-        )
+            }
+            actor_event_state[node_key] = node_row
         node_events, _ = _strict_non_negative_counter(node_row.get("events", 0))
         node_row["events"] = node_events + 1
         if event_type == "entry":
@@ -2917,10 +2919,17 @@ def enable_ray_actor_memory_monitoring(
             node_healthy_events, _ = _strict_non_negative_counter(node_row.get("healthy_events", 0))
             node_row["healthy_events"] = node_healthy_events + 1
 
-        actors = node_row["actors"]
-        actor_row = actors.setdefault(
-            actor_key,
-            {
+        actors = node_row.get("actors")
+        if not isinstance(actors, dict):
+            _warn_parse()
+            actors = {}
+            node_row["actors"] = actors
+
+        actor_row = actors.get(actor_key)
+        if not isinstance(actor_row, dict):
+            if actor_row is not None:
+                _warn_parse()
+            actor_row = {
                 "actor_id": actor_key,
                 "events": 0,
                 "entry_checks": 0,
@@ -2928,8 +2937,8 @@ def enable_ray_actor_memory_monitoring(
                 "pressure_events": 0,
                 "healthy_events": 0,
                 "methods": {},
-            },
-        )
+            }
+            actors[actor_key] = actor_row
         actor_events, _ = _strict_non_negative_counter(actor_row.get("events", 0))
         actor_row["events"] = actor_events + 1
         if event_type == "entry":
@@ -2945,7 +2954,11 @@ def enable_ray_actor_memory_monitoring(
             actor_healthy_events, _ = _strict_non_negative_counter(actor_row.get("healthy_events", 0))
             actor_row["healthy_events"] = actor_healthy_events + 1
 
-        methods = actor_row["methods"]
+        methods = actor_row.get("methods")
+        if not isinstance(methods, dict):
+            _warn_parse()
+            methods = {}
+            actor_row["methods"] = methods
         method_count, _ = _strict_non_negative_counter(methods.get(method_key, 0))
         methods[method_key] = method_count + 1
 
@@ -3032,25 +3045,36 @@ def enable_ray_actor_memory_monitoring(
         }
 
     def _cluster_summary() -> dict[str, Any]:
-        node_rows = actor_event_state.values()
-        total_events = sum(_strict_non_negative_counter(v.get("events", 0))[0] for v in node_rows)
-        total_actors = sum(len(v.get("actors", {})) for v in node_rows)
-        total_pressure_events = sum(
-            _strict_non_negative_counter(v.get("pressure_events", 0))[0] for v in node_rows
-        )
-        total_healthy_events = sum(
-            _strict_non_negative_counter(v.get("healthy_events", 0))[0] for v in node_rows
-        )
+        total_events = 0
+        total_actors = 0
+        total_pressure_events = 0
+        total_healthy_events = 0
         busiest_node = None
         busiest_events = -1
         busiest_actor = None
         busiest_actor_events = -1
         for node_id, row in actor_event_state.items():
+            if not isinstance(row, dict):
+                _warn_parse()
+                continue
             events, _ = _strict_non_negative_counter(row.get("events", 0))
+            total_events += events
+            pressure_events, _ = _strict_non_negative_counter(row.get("pressure_events", 0))
+            total_pressure_events += pressure_events
+            healthy_events, _ = _strict_non_negative_counter(row.get("healthy_events", 0))
+            total_healthy_events += healthy_events
             if events > busiest_events:
                 busiest_events = events
                 busiest_node = node_id
-            for actor_id, actor_row in row.get("actors", {}).items():
+            actors = row.get("actors")
+            if not isinstance(actors, dict):
+                _warn_parse()
+                actors = {}
+            total_actors += len(actors)
+            for actor_id, actor_row in actors.items():
+                if not isinstance(actor_row, dict):
+                    _warn_parse()
+                    continue
                 actor_events, _ = _strict_non_negative_counter(actor_row.get("events", 0))
                 if actor_events > busiest_actor_events:
                     busiest_actor_events = actor_events

@@ -3306,6 +3306,32 @@ class TestRayActorMemoryMonitoring:
         assert wrapped(1, node_id="node-a", actor_id="actor-1") == 2
 
         all_nodes = config["get_all_node_reports"]()
+
+    def test_actor_monitoring_recovers_from_malformed_actor_container(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-a", actor_id="actor-1") == 2
+
+        all_nodes = config["get_all_node_reports"]()
+        nodes = all_nodes["nodes"]
+        nodes["node-a"]["actors"] = None
+
+        summary = config["cluster_summary"]()
+        assert summary["ok"] is True
+        assert summary["parse_warning_count"] >= 1
+
+        assert wrapped(2, node_id="node-a", actor_id="actor-1") == 3
+        report = config["get_actor_report"](node_id="node-a", actor_id="actor-1")
+        assert report["events"] == 1
+        assert report["entry_checks"] == 1
         nodes = all_nodes["nodes"]
         nodes["node-a"]["events"] = "bad"
         nodes["node-a"]["healthy_events"] = "bad"

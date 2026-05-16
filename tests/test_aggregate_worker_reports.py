@@ -292,6 +292,28 @@ def test_returns_2_for_non_finite_summary_values(monkeypatch, tmp_path, capsys) 
     assert "error: aggregated summary is not strict-JSON renderable" in captured.err
 
 
+def test_returns_2_when_aggregate_read_raises_value_error(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "dummy.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: (_ for _ in ()).throw(ValueError("could not read report jsonl")),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["aggregate_worker_reports.py", "--input", str(input_path)],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: could not read" in captured.err
+
+
 def test_returns_2_for_invalid_summary_fields_without_fail_flags(
     monkeypatch, tmp_path, capsys
 ) -> None:

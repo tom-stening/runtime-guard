@@ -138,7 +138,7 @@ def main() -> int:
 
     try:
         summary = aggregate_worker_reports_jsonl(str(input_path))
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         print(f"error: could not read {input_path}: {exc}", file=sys.stderr)
         return 2
     if not isinstance(summary, dict):

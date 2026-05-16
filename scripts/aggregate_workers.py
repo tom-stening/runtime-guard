@@ -189,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         summary = aggregate_worker_reports_jsonl(path)
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         print(f"error: could not read {path}: {exc}", file=sys.stderr)
         return 2
 

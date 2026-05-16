@@ -3507,7 +3507,9 @@ def enable_ray_actor_memory_monitoring(
         total_events = 0
         total_pressure_events = 0
         total_healthy_events = 0
-        for row in actor_event_state.values():
+        for node_id, row in actor_event_state.items():
+            if not isinstance(node_id, str) or not node_id.strip():
+                _warn_parse()
             if not isinstance(row, dict):
                 _warn_parse()
                 continue
@@ -3545,7 +3547,16 @@ def enable_ray_actor_memory_monitoring(
         busiest_events = -1
         busiest_actor = None
         busiest_actor_events = -1
-        for node_id, row in actor_event_state.items():
+        for raw_node_id, row in actor_event_state.items():
+            if isinstance(raw_node_id, str):
+                node_id = raw_node_id.strip()
+                if not node_id:
+                    _warn_parse()
+                    node_id = "unknown-node"
+            else:
+                _warn_parse()
+                node_id = "unknown-node"
+
             if not isinstance(row, dict):
                 _warn_parse()
                 continue
@@ -3571,8 +3582,18 @@ def enable_ray_actor_memory_monitoring(
             if not isinstance(actors, dict):
                 _warn_parse()
                 actors = {}
-            total_actors += len(actors)
-            for actor_id, actor_row in actors.items():
+
+            for raw_actor_id, actor_row in actors.items():
+                if isinstance(raw_actor_id, str):
+                    actor_id = raw_actor_id.strip()
+                    if not actor_id:
+                        _warn_parse()
+                        continue
+                else:
+                    _warn_parse()
+                    continue
+
+                total_actors += 1
                 if not isinstance(actor_row, dict):
                     _warn_parse()
                     continue

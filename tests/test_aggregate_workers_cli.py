@@ -92,3 +92,49 @@ def test_main_returns_2_for_non_integer_critical_workers(monkeypatch, tmp_path, 
 
     assert code == 2
     assert "summary.critical_workers must be a non-negative integer" in captured.err
+
+
+def test_main_returns_2_for_inconsistent_pressure_summary(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "workers.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": True,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "total_workers": 1,
+        },
+    )
+
+    code = module.main(["--input", str(input_path), "--fail-on-pressure"])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "summary.any_pressure=true requires pressured_workers > 0" in captured.err
+
+
+def test_main_returns_2_when_critical_exceeds_pressured(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "workers.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": True,
+            "pressured_workers": 1,
+            "critical_workers": 2,
+            "total_workers": 2,
+        },
+    )
+
+    code = module.main(["--input", str(input_path), "--fail-on-critical"])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "summary.critical_workers cannot exceed pressured_workers" in captured.err

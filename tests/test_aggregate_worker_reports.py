@@ -65,7 +65,12 @@ def test_fail_on_pressure_returns_1_for_true_boolean(monkeypatch) -> None:
     monkeypatch.setattr(
         module,
         "aggregate_worker_reports_jsonl",
-        lambda _path: {"critical_workers": 0, "any_pressure": True},
+        lambda _path: {
+            "critical_workers": 0,
+            "any_pressure": True,
+            "pressured_workers": 1,
+            "total_workers": 1,
+        },
     )
     monkeypatch.setattr(
         sys,
@@ -74,6 +79,56 @@ def test_fail_on_pressure_returns_1_for_true_boolean(monkeypatch) -> None:
     )
 
     assert module.main() == 1
+
+
+def test_fail_on_pressure_returns_2_for_inconsistent_summary(monkeypatch, capsys) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "critical_workers": 0,
+            "any_pressure": True,
+            "pressured_workers": 0,
+            "total_workers": 1,
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["aggregate_worker_reports.py", "--input", "dummy.jsonl", "--fail-on-pressure"],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "summary.any_pressure=true requires pressured_workers > 0" in captured.err
+
+
+def test_fail_on_critical_returns_2_when_critical_exceeds_pressured(monkeypatch, capsys) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "critical_workers": 2,
+            "any_pressure": True,
+            "pressured_workers": 1,
+            "total_workers": 2,
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["aggregate_worker_reports.py", "--input", "dummy.jsonl", "--fail-on-critical"],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "summary.critical_workers cannot exceed pressured_workers" in captured.err
 
 
 def test_returns_2_for_non_object_summary_payload(monkeypatch, capsys) -> None:

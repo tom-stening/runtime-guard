@@ -54,6 +54,45 @@ def _strict_non_negative_int(value: object) -> tuple[int, bool]:
     return 0, False
 
 
+def _validate_summary_gate_fields(summary: dict[str, object]) -> list[str]:
+    errors: list[str] = []
+
+    any_pressure, pressure_ok = _strict_bool(summary.get("any_pressure", False))
+    if not pressure_ok:
+        errors.append("summary.any_pressure must be boolean")
+
+    pressured_workers, pressured_ok = _strict_non_negative_int(
+        summary.get("pressured_workers", 0)
+    )
+    if not pressured_ok:
+        errors.append("summary.pressured_workers must be a non-negative integer")
+
+    critical_workers, critical_ok = _strict_non_negative_int(summary.get("critical_workers", 0))
+    if not critical_ok:
+        errors.append("summary.critical_workers must be a non-negative integer")
+
+    total_workers, total_ok = _strict_non_negative_int(summary.get("total_workers", 0))
+    if not total_ok:
+        errors.append("summary.total_workers must be a non-negative integer")
+
+    if pressure_ok and pressured_ok:
+        if any_pressure and pressured_workers == 0:
+            errors.append("summary.any_pressure=true requires pressured_workers > 0")
+        if (not any_pressure) and pressured_workers > 0:
+            errors.append("summary.any_pressure=false requires pressured_workers == 0")
+
+    if pressured_ok and total_ok and pressured_workers > total_workers:
+        errors.append("summary.pressured_workers cannot exceed total_workers")
+
+    if critical_ok and total_ok and critical_workers > total_workers:
+        errors.append("summary.critical_workers cannot exceed total_workers")
+
+    if critical_ok and pressured_ok and critical_workers > pressured_workers:
+        errors.append("summary.critical_workers cannot exceed pressured_workers")
+
+    return errors
+
+
 def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     errors: list[str] = []
 
@@ -149,22 +188,17 @@ def main(argv: list[str] | None = None) -> int:
         print(output_text)
 
     # Gating logic
-    if args.fail_on_pressure:
-        any_pressure, pressure_ok = _strict_bool(summary.get("any_pressure", False))
-        if not pressure_ok:
-            print("error: summary.any_pressure must be boolean", file=sys.stderr)
+    if args.fail_on_pressure or args.fail_on_critical:
+        summary_errors = _validate_summary_gate_fields(summary)
+        if summary_errors:
+            for row in summary_errors:
+                print(f"error: {row}", file=sys.stderr)
             return 2
 
-        pressured_workers, pressured_ok = _strict_non_negative_int(
-            summary.get("pressured_workers", 0)
-        )
-        total_workers, total_ok = _strict_non_negative_int(summary.get("total_workers", 0))
-        if not pressured_ok:
-            print("error: summary.pressured_workers must be a non-negative integer", file=sys.stderr)
-            return 2
-        if not total_ok:
-            print("error: summary.total_workers must be a non-negative integer", file=sys.stderr)
-            return 2
+    if args.fail_on_pressure:
+        any_pressure, _ = _strict_bool(summary.get("any_pressure", False))
+        pressured_workers, _ = _strict_non_negative_int(summary.get("pressured_workers", 0))
+        total_workers, _ = _strict_non_negative_int(summary.get("total_workers", 0))
 
         if any_pressure:
             print(
@@ -175,16 +209,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     if args.fail_on_critical:
-        critical_workers, critical_ok = _strict_non_negative_int(
-            summary.get("critical_workers", 0)
-        )
-        total_workers, total_ok = _strict_non_negative_int(summary.get("total_workers", 0))
-        if not critical_ok:
-            print("error: summary.critical_workers must be a non-negative integer", file=sys.stderr)
-            return 2
-        if not total_ok:
-            print("error: summary.total_workers must be a non-negative integer", file=sys.stderr)
-            return 2
+        critical_workers, _ = _strict_non_negative_int(summary.get("critical_workers", 0))
+        total_workers, _ = _strict_non_negative_int(summary.get("total_workers", 0))
 
         if critical_workers > 0:
             print(

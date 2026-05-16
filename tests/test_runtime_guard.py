@@ -1242,6 +1242,29 @@ class TestPerStageCooldown:
 
 
 class TestPolarsIntegration:
+    def test_attach_guards_future_sink_methods(self, monkeypatch):
+        class FuturePolars:
+            class LazyFrame:
+                def collect(self):
+                    return "collected"
+                def sink_arrow(self, path):
+                    return f"arrow:{path}"
+                def sink_custom(self, path, post_opt_callback=None):
+                    return f"custom:{path}"
+
+        guard = RuntimeGuard()
+        calls = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+        restore = attach_polars_guard(guard, module=FuturePolars)
+        try:
+            result1 = FuturePolars.LazyFrame().sink_arrow("out.arrow")
+            result2 = FuturePolars.LazyFrame().sink_custom("out.custom")
+            assert result1 == "arrow:out.arrow"
+            assert result2 == "custom:out.custom"
+            # Both should trigger guard
+            assert calls == ["polars-collect", "polars-collect"]
+        finally:
+            restore()
     class _DummyPolars:
         class LazyFrame:
             def collect(self, multiplier: int = 1) -> int:

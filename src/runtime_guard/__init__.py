@@ -1935,15 +1935,33 @@ def attach_polars_guard(
     if original_collect is None or not callable(original_collect):
         raise RuntimeError("polars.LazyFrame.collect is missing or not callable.")
 
-    candidate_methods = (
-        "collect",
-        "fetch",
-        "collect_async",
-        "sink_parquet",
-        "sink_csv",
-        "sink_ipc",
-        "sink_ndjson",
-    )
+
+    # Dynamically discover all LazyFrame methods that look like execution or sink entry points.
+    known_methods = {
+        "collect", "fetch", "collect_async",
+        "sink_parquet", "sink_csv", "sink_ipc", "sink_ndjson"
+    }
+    # Also match any method with 'sink' or 'collect' in the name, or with callback-like kwargs.
+    dynamic_methods = set()
+    for attr in dir(lazyframe_cls):
+        if attr.startswith("__"):
+            continue
+        fn = getattr(lazyframe_cls, attr, None)
+        if not callable(fn):
+            continue
+        if attr in known_methods or "sink" in attr or "collect" in attr:
+            dynamic_methods.add(attr)
+            continue
+        # Check for callback-like kwargs
+        try:
+            sig = inspect.signature(fn)
+            for pname, param in sig.parameters.items():
+                if "callback" in pname.lower():
+                    dynamic_methods.add(attr)
+                    break
+        except Exception:
+            continue
+    candidate_methods = sorted(dynamic_methods)
     original_methods: dict[str, Any] = {
         name: getattr(lazyframe_cls, name, None) for name in candidate_methods
     }

@@ -1610,6 +1610,34 @@ class TestPolarsIntegration:
 
 
 class TestDaskIntegration:
+    def test_attach_guards_future_compute_methods(self, monkeypatch):
+        class FutureDask:
+            @staticmethod
+            def compute(x):
+                return x * 2
+            @staticmethod
+            def submit(x):
+                return x + 100
+            class base:
+                @staticmethod
+                def compute(x):
+                    return x * 2
+                @staticmethod
+                def persist(x):
+                    return f"base-persist:{x}"
+
+        guard = RuntimeGuard()
+        calls = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+        restore = attach_dask_guard(guard, stage="dask-future", module=FutureDask)
+        try:
+            result1 = FutureDask.compute(5)
+            result2 = FutureDask.submit(7)
+            assert result1 == 10
+            assert result2 == 107
+            assert calls == ["dask-future", "dask-future"]
+        finally:
+            restore()
     class _DummyDask:
         @staticmethod
         def compute(value: int, add: int = 0) -> int:

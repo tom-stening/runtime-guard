@@ -2101,9 +2101,33 @@ def attach_dask_guard(
     if compute_fn is None or not callable(compute_fn):
         raise RuntimeError("The provided module does not expose callable dask.compute.")
 
+    # Optionally guard new compute-like methods (e.g., submit) in future Dask versions
+    extra_methods = []
+    for attr in dir(module):
+        if attr.startswith("__") or attr in ("compute", "persist"):
+            continue
+        fn = getattr(module, attr, None)
+        if callable(fn) and ("compute" in attr or "submit" in attr):
+            extra_methods.append(attr)
+
     base_mod = getattr(module, "base", None)
     base_compute_fn = getattr(base_mod, "compute", None) if base_mod is not None else None
     base_persist_fn = getattr(base_mod, "persist", None) if base_mod is not None else None
+    # Guard extra compute-like methods
+    original_extra_methods = {name: getattr(module, name) for name in extra_methods}
+    guarded_extra_methods = {}
+    for name in extra_methods:
+        fn = getattr(module, name)
+        def _make_guarded(fn, stage=stage):
+            def _guarded(*args, **kwargs):
+                guard.check_and_log(stage=stage)
+                return _with_scheduler_context(fn, *args, **kwargs)
+            setattr(_guarded, "_runtime_guard_wrapped", True)
+            setattr(_guarded, "_runtime_guard_original", fn)
+            return _guarded
+        guarded = _make_guarded(fn)
+        setattr(module, name, guarded)
+        guarded_extra_methods[name] = guarded
 
     # Idempotent attach to avoid nested wrappers and duplicated checks.
     if getattr(compute_fn, "_runtime_guard_wrapped", False):
@@ -2224,6 +2248,8 @@ def attach_dask_guard(
             setattr(base_mod, "compute", original_base_compute)
         if base_mod is not None and callable(original_base_persist):
             setattr(base_mod, "persist", original_base_persist)
+        for name, fn in original_extra_methods.items():
+            setattr(module, name, fn)
 
     return _restore
 

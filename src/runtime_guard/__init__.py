@@ -2448,10 +2448,28 @@ def install_dask_scheduler_callbacks(
         """Retrieve memory report for a specific worker."""
         if worker_id is None:
             # Return aggregated view
-            total_events = sum(w.get("pressure_events", 0) for w in worker_snapshots.values())
-            total_tasks = sum(w.get("task_count", 0) for w in worker_snapshots.values())
-            total_completed_tasks = sum(w.get("completed_tasks", 0) for w in worker_snapshots.values())
-            total_healthy_events = sum(w.get("healthy_events", 0) for w in worker_snapshots.values())
+            total_events = 0
+            total_tasks = 0
+            total_completed_tasks = 0
+            total_healthy_events = 0
+            parse_warning_count = 0
+            for worker_row in worker_snapshots.values():
+                if not isinstance(worker_row, dict):
+                    parse_warning_count += 1
+                    continue
+
+                def _safe_counter(name: str) -> int:
+                    nonlocal parse_warning_count
+                    value = worker_row.get(name, 0)
+                    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                        return value
+                    parse_warning_count += 1
+                    return 0
+
+                total_events += _safe_counter("pressure_events")
+                total_tasks += _safe_counter("task_count")
+                total_completed_tasks += _safe_counter("completed_tasks")
+                total_healthy_events += _safe_counter("healthy_events")
             return {
                 "ok": True,
                 "workers_monitored": len(worker_snapshots),
@@ -2460,6 +2478,7 @@ def install_dask_scheduler_callbacks(
                 "total_completed_tasks": total_completed_tasks,
                 "total_healthy_events": total_healthy_events,
                 "worker_details": worker_snapshots,
+                "parse_warning_count": parse_warning_count,
             }
 
         worker_data = worker_snapshots.get(worker_id)
@@ -2472,15 +2491,41 @@ def install_dask_scheduler_callbacks(
                 "completed_tasks": 0,
                 "healthy_events": 0,
             }
+        if not isinstance(worker_data, dict):
+            return {
+                "ok": True,
+                "worker_id": worker_id,
+                "task_count": 0,
+                "completed_tasks": 0,
+                "pressure_events": 0,
+                "healthy_events": 0,
+                "parse_warning_count": 1,
+            }
+
+        parse_warning_count = 0
+
+        def _safe_counter(name: str) -> int:
+            nonlocal parse_warning_count
+            value = worker_data.get(name, 0)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                return value
+            parse_warning_count += 1
+            return 0
+
+        snapshots = worker_data.get("snapshots", [])
+        if not isinstance(snapshots, list):
+            parse_warning_count += 1
+            snapshots = []
 
         return {
             "ok": True,
             "worker_id": worker_id,
-            "task_count": worker_data.get("task_count", 0),
-            "completed_tasks": worker_data.get("completed_tasks", 0),
-            "pressure_events": worker_data.get("pressure_events", 0),
-            "healthy_events": worker_data.get("healthy_events", 0),
-            "snapshots": worker_data.get("snapshots", []),
+            "task_count": _safe_counter("task_count"),
+            "completed_tasks": _safe_counter("completed_tasks"),
+            "pressure_events": _safe_counter("pressure_events"),
+            "healthy_events": _safe_counter("healthy_events"),
+            "snapshots": snapshots,
+            "parse_warning_count": parse_warning_count,
         }
 
     # Create a callback object compatible with dask.callbacks.Callback

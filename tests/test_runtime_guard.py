@@ -5557,6 +5557,30 @@ class TestWorkerTransport:
         ):
             append_worker_report_jsonl(path, {"worker_id": "w1", "rss_mb": float("nan")})
 
+    def test_append_worker_report_jsonl_returns_deterministic_error_on_write_failure(
+        self, tmp_path
+    ):
+        """append_worker_report_jsonl wraps filesystem write errors in ValueError."""
+        from runtime_guard import append_worker_report_jsonl
+
+        path = str(tmp_path)
+        with pytest.raises(ValueError, match="could not write report jsonl"):
+            append_worker_report_jsonl(path, {"worker_id": "w1"})
+
+    def test_append_worker_report_jsonl_returns_deterministic_error_on_mkdir_failure(
+        self, monkeypatch, tmp_path
+    ):
+        """append_worker_report_jsonl wraps directory-creation errors in ValueError."""
+        from runtime_guard import append_worker_report_jsonl
+
+        monkeypatch.setattr(
+            "runtime_guard.os.makedirs",
+            lambda *args, **kwargs: (_ for _ in ()).throw(OSError("permission denied")),
+        )
+        path = str(tmp_path / "nested" / "reports.jsonl")
+        with pytest.raises(ValueError, match="could not create report directory"):
+            append_worker_report_jsonl(path, {"worker_id": "w1"})
+
     def test_load_worker_reports_jsonl_reads_empty_file(self, tmp_path):
         """load_worker_reports_jsonl returns empty list if file doesn't exist."""
         from runtime_guard import load_worker_reports_jsonl

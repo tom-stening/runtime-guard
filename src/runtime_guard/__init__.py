@@ -5157,7 +5157,10 @@ def append_worker_report_jsonl(path: str, report: dict[str, Any]) -> dict[str, A
     expanded = os.path.expanduser(path)
     parent = os.path.dirname(expanded)
     if parent:
-        os.makedirs(parent, exist_ok=True)
+        try:
+            os.makedirs(parent, exist_ok=True)
+        except OSError as exc:
+            raise ValueError("could not create report directory") from exc
 
     row = dict(report)
     try:
@@ -5165,8 +5168,11 @@ def append_worker_report_jsonl(path: str, report: dict[str, Any]) -> dict[str, A
     except (TypeError, ValueError) as exc:
         raise ValueError("report must be JSON-serializable with finite numbers") from exc
 
-    with open(expanded, "a", encoding="utf-8") as fh:
-        fh.write(payload + "\n")
+    try:
+        with open(expanded, "a", encoding="utf-8") as fh:
+            fh.write(payload + "\n")
+    except OSError as exc:
+        raise ValueError("could not write report jsonl") from exc
     return row
 
 

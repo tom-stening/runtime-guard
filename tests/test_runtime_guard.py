@@ -4328,6 +4328,24 @@ class TestMultiProcessOrchestration:
         with pytest.raises(ValueError, match="worker_id must be a string"):
             make_worker_report(guard, stage="worker-a", worker_id=1)  # type: ignore[arg-type]
 
+    def test_make_worker_report_rejects_empty_stage(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        with pytest.raises(ValueError, match="stage must be a non-empty string"):
+            make_worker_report(guard, stage="   ")
+
+    def test_make_worker_report_trims_stage(self, monkeypatch):
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check", lambda stage="": None)
+        monkeypatch.setattr(
+            "runtime_guard._read_snapshot",
+            lambda: MemSnapshot(
+                mem_available_mb=7000, mem_total_mb=8000, swap_used_pct=1, rss_mb=100
+            ),
+        )
+        report = make_worker_report(guard, stage="  worker-a  ")
+        assert report["stage"] == "worker-a"
+
     def test_make_worker_report_empty_worker_id_falls_back_to_pid(self, monkeypatch):
         guard = RuntimeGuard()
         monkeypatch.setattr(guard, "check", lambda stage="": None)

@@ -4974,12 +4974,15 @@ def make_worker_report(
     """Create a single worker report suitable for parent-process aggregation."""
     if not isinstance(stage, str):
         raise ValueError("stage must be a string")
+    stage_value = stage.strip()
+    if not stage_value:
+        raise ValueError("stage must be a non-empty string")
     if worker_id is not None and not isinstance(worker_id, str):
         raise ValueError("worker_id must be a string when provided")
     if metadata is not None and not isinstance(metadata, dict):
         raise ValueError("metadata must be a dictionary when provided")
 
-    report = guard.check(stage=stage)
+    report = guard.check(stage=stage_value)
     snap = report.snapshot if report is not None else _read_snapshot()
     severity = "none"
     if report is not None:
@@ -4993,7 +4996,7 @@ def make_worker_report(
         "ts": int(time.time()),
         "pid": os.getpid(),
         "worker_id": worker_id_value,
-        "stage": stage,
+        "stage": stage_value,
         "pressure": report is not None,
         "severity": severity,
         "self_inflicted": bool(report.self_inflicted) if report is not None else False,

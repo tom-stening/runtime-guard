@@ -2530,6 +2530,64 @@ def install_dask_scheduler_callbacks(
                 parse_warning_count += 1
                 return 0
 
+            def _sanitize_snapshots(raw_snapshots: Any) -> list[dict[str, Any]]:
+                nonlocal parse_warning_count
+                if not isinstance(raw_snapshots, list):
+                    parse_warning_count += 1
+                    return []
+
+                out: list[dict[str, Any]] = []
+                for item in raw_snapshots:
+                    safe_item = {
+                        "key": "unknown-task",
+                        "timestamp": 0,
+                        "severity": "warning",
+                        "cause": "unknown",
+                        "missing_mem_mb": 0,
+                    }
+                    if not isinstance(item, dict):
+                        parse_warning_count += 1
+                        out.append(safe_item)
+                        continue
+
+                    key = item.get("key", "unknown-task")
+                    if isinstance(key, str) and key:
+                        safe_item["key"] = key
+                    else:
+                        parse_warning_count += 1
+
+                    timestamp = item.get("timestamp", 0)
+                    if isinstance(timestamp, int) and not isinstance(timestamp, bool) and timestamp >= 0:
+                        safe_item["timestamp"] = timestamp
+                    else:
+                        parse_warning_count += 1
+
+                    severity = item.get("severity", "warning")
+                    if isinstance(severity, str) and severity in ("critical", "warning"):
+                        safe_item["severity"] = severity
+                    else:
+                        parse_warning_count += 1
+
+                    cause = item.get("cause", "unknown")
+                    if isinstance(cause, str):
+                        safe_item["cause"] = cause
+                    else:
+                        parse_warning_count += 1
+
+                    missing_mem_mb = item.get("missing_mem_mb", 0)
+                    if (
+                        isinstance(missing_mem_mb, (int, float))
+                        and not isinstance(missing_mem_mb, bool)
+                        and missing_mem_mb >= 0
+                    ):
+                        safe_item["missing_mem_mb"] = missing_mem_mb
+                    else:
+                        parse_warning_count += 1
+
+                    out.append(safe_item)
+
+                return out
+
             for worker_label, worker_row in worker_snapshots.items():
                 if not isinstance(worker_label, str):
                     parse_warning_count += 1
@@ -2552,10 +2610,7 @@ def install_dask_scheduler_callbacks(
                 completed_tasks = _safe_counter(worker_row, "completed_tasks")
                 healthy_events = _safe_counter(worker_row, "healthy_events")
 
-                snapshots = worker_row.get("snapshots", [])
-                if not isinstance(snapshots, list):
-                    parse_warning_count += 1
-                    snapshots = []
+                snapshots = _sanitize_snapshots(worker_row.get("snapshots", []))
 
                 worker_row["worker_id"] = (
                     worker_label if isinstance(worker_label, str) else "unknown-worker"
@@ -2613,10 +2668,65 @@ def install_dask_scheduler_callbacks(
             parse_warning_count += 1
             return 0
 
-        snapshots = worker_data.get("snapshots", [])
-        if not isinstance(snapshots, list):
-            parse_warning_count += 1
-            snapshots = []
+        def _sanitize_snapshots(raw_snapshots: Any) -> list[dict[str, Any]]:
+            nonlocal parse_warning_count
+            if not isinstance(raw_snapshots, list):
+                parse_warning_count += 1
+                return []
+
+            out: list[dict[str, Any]] = []
+            for item in raw_snapshots:
+                safe_item = {
+                    "key": "unknown-task",
+                    "timestamp": 0,
+                    "severity": "warning",
+                    "cause": "unknown",
+                    "missing_mem_mb": 0,
+                }
+                if not isinstance(item, dict):
+                    parse_warning_count += 1
+                    out.append(safe_item)
+                    continue
+
+                key = item.get("key", "unknown-task")
+                if isinstance(key, str) and key:
+                    safe_item["key"] = key
+                else:
+                    parse_warning_count += 1
+
+                timestamp = item.get("timestamp", 0)
+                if isinstance(timestamp, int) and not isinstance(timestamp, bool) and timestamp >= 0:
+                    safe_item["timestamp"] = timestamp
+                else:
+                    parse_warning_count += 1
+
+                severity = item.get("severity", "warning")
+                if isinstance(severity, str) and severity in ("critical", "warning"):
+                    safe_item["severity"] = severity
+                else:
+                    parse_warning_count += 1
+
+                cause = item.get("cause", "unknown")
+                if isinstance(cause, str):
+                    safe_item["cause"] = cause
+                else:
+                    parse_warning_count += 1
+
+                missing_mem_mb = item.get("missing_mem_mb", 0)
+                if (
+                    isinstance(missing_mem_mb, (int, float))
+                    and not isinstance(missing_mem_mb, bool)
+                    and missing_mem_mb >= 0
+                ):
+                    safe_item["missing_mem_mb"] = missing_mem_mb
+                else:
+                    parse_warning_count += 1
+
+                out.append(safe_item)
+
+            return out
+
+        snapshots = _sanitize_snapshots(worker_data.get("snapshots", []))
 
         return {
             "ok": True,

@@ -3036,6 +3036,83 @@ class TestDaskSchedulerCallbacks:
         assert refreshed["worker_details"]["worker-b"]["snapshots"] == []
         assert refreshed["parse_warning_count"] >= 6
 
+    def test_scheduler_callback_aggregate_report_sanitizes_snapshot_items(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _FakeReport:
+            is_critical = False
+            cause = "low-memory"
+            missing_mem_mb = 64
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": _FakeReport())
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", worker_id="worker-a")
+
+        aggregated = reporter()
+        snapshots = aggregated["worker_details"]["worker-a"]["snapshots"]
+        snapshots.append("corrupt")
+        snapshots.append(
+            {
+                "key": 7,
+                "timestamp": "bad",
+                "severity": "urgent",
+                "cause": {"bad": "shape"},
+                "missing_mem_mb": -1,
+            }
+        )
+
+        refreshed = reporter()
+        worker_snapshots = refreshed["worker_details"]["worker-a"]["snapshots"]
+        assert len(worker_snapshots) == 3
+        assert worker_snapshots[1]["key"] == "unknown-task"
+        assert worker_snapshots[1]["severity"] == "warning"
+        assert worker_snapshots[2]["key"] == "unknown-task"
+        assert worker_snapshots[2]["timestamp"] == 0
+        assert worker_snapshots[2]["severity"] == "warning"
+        assert worker_snapshots[2]["cause"] == "unknown"
+        assert worker_snapshots[2]["missing_mem_mb"] == 0
+        assert refreshed["parse_warning_count"] >= 6
+
+    def test_scheduler_callback_worker_report_sanitizes_snapshot_items(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _FakeReport:
+            is_critical = False
+            cause = "low-memory"
+            missing_mem_mb = 64
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": _FakeReport())
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", worker_id="worker-a")
+        aggregated = reporter()
+        aggregated["worker_details"]["worker-a"]["snapshots"] = [
+            "corrupt",
+            {
+                "key": "ok",
+                "timestamp": "bad",
+                "severity": "critical",
+                "cause": "still-ok",
+                "missing_mem_mb": -1,
+            },
+        ]
+
+        worker_report = reporter("worker-a")
+        assert len(worker_report["snapshots"]) == 2
+        assert worker_report["snapshots"][0]["key"] == "unknown-task"
+        assert worker_report["snapshots"][1]["key"] == "ok"
+        assert worker_report["snapshots"][1]["timestamp"] == 0
+        assert worker_report["snapshots"][1]["severity"] == "critical"
+        assert worker_report["snapshots"][1]["missing_mem_mb"] == 0
+        assert worker_report["parse_warning_count"] >= 3
+
     def test_scheduler_callback_write_path_recovers_from_malformed_worker_row(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

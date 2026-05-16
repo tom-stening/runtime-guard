@@ -5447,6 +5447,32 @@ class TestWorkerTransport:
             assert loaded["metrics"]["mem_mb"] == 512
             assert len(loaded["top_processes"]) == 2
 
+    def test_append_worker_report_jsonl_rejects_empty_path(self, tmp_path):
+        """append_worker_report_jsonl rejects empty path values."""
+        from runtime_guard import append_worker_report_jsonl
+
+        with pytest.raises(ValueError, match="path must be a non-empty string"):
+            append_worker_report_jsonl("   ", {"worker_id": "w1"})
+
+    def test_append_worker_report_jsonl_rejects_non_dict_report(self, tmp_path):
+        """append_worker_report_jsonl rejects non-dict report inputs."""
+        from runtime_guard import append_worker_report_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        with pytest.raises(ValueError, match="report must be a dictionary"):
+            append_worker_report_jsonl(path, [("worker_id", "w1")])  # type: ignore[arg-type]
+
+    def test_append_worker_report_jsonl_rejects_non_finite_numbers(self, tmp_path):
+        """append_worker_report_jsonl rejects NaN/Inf to keep strict JSONL."""
+        from runtime_guard import append_worker_report_jsonl
+
+        path = str(tmp_path / "reports.jsonl")
+        with pytest.raises(
+            ValueError,
+            match="report must be JSON-serializable with finite numbers",
+        ):
+            append_worker_report_jsonl(path, {"worker_id": "w1", "rss_mb": float("nan")})
+
     def test_load_worker_reports_jsonl_reads_empty_file(self, tmp_path):
         """load_worker_reports_jsonl returns empty list if file doesn't exist."""
         from runtime_guard import load_worker_reports_jsonl

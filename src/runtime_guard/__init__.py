@@ -5116,14 +5116,24 @@ def append_worker_report_jsonl(path: str, report: dict[str, Any]) -> dict[str, A
     Creates parent directories when needed and writes one compact JSON object
     per line. Returns the written report dict.
     """
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("path must be a non-empty string")
+    if not isinstance(report, dict):
+        raise ValueError("report must be a dictionary")
+
     expanded = os.path.expanduser(path)
     parent = os.path.dirname(expanded)
     if parent:
         os.makedirs(parent, exist_ok=True)
 
     row = dict(report)
+    try:
+        payload = json.dumps(row, separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("report must be JSON-serializable with finite numbers") from exc
+
     with open(expanded, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(row, separators=(",", ":")) + "\n")
+        fh.write(payload + "\n")
     return row
 
 

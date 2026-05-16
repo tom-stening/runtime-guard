@@ -228,13 +228,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(output_text)
 
-    # Gating logic
-    if args.fail_on_pressure or args.fail_on_critical:
-        summary_errors = _validate_summary_gate_fields(summary)
-        if summary_errors:
-            for row in summary_errors:
-                print(f"error: {row}", file=sys.stderr)
-            return 2
+    # Validate summary quality before any output-based decisions.
+    summary_errors = _validate_summary_gate_fields(summary)
+    if summary_errors:
+        for row in summary_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
 
     if args.fail_on_pressure:
         any_pressure, _ = _strict_bool(summary.get("any_pressure", False))

@@ -167,12 +167,11 @@ def main() -> int:
     else:
         print(rendered)
 
-    if args.fail_on_pressure or args.fail_on_critical:
-        summary_errors = _validate_summary_gate_fields(summary)
-        if summary_errors:
-            for row in summary_errors:
-                print(f"error: {row}", file=sys.stderr)
-            return 2
+    summary_errors = _validate_summary_gate_fields(summary)
+    if summary_errors:
+        for row in summary_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
 
     if args.fail_on_critical:
         critical_workers, _ = _strict_non_negative_int(summary.get("critical_workers", 0))

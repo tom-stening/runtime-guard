@@ -3668,6 +3668,68 @@ class TestPhaseContextManager:
         assert span.ended is True
         # Status might not be set if StatusCode unavailable, but should attempt
 
+    def test_phase_span_uses_context_manager_when_tracer_returns_context(self):
+        """Phase span linking supports OTEL-style context manager span handles."""
+        guard = RuntimeGuard()
+        spans: list[dict[str, Any]] = []
+
+        class _Span:
+            def __init__(self) -> None:
+                self.attributes: dict[str, Any] = {}
+
+            def set_attribute(self, key: str, value: Any) -> None:
+                self.attributes[key] = value
+
+            def is_recording(self) -> bool:
+                return True
+
+            def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+                pass
+
+            def get_span_context(self) -> Any:
+                class _Ctx:
+                    trace_id = 0x1
+                    span_id = 0x2
+                    trace_flags = type("_Flags", (), {"sampled": True})()
+
+                return _Ctx()
+
+        class _SpanContext:
+            def __init__(self, name: str) -> None:
+                self.name = name
+                self.span = _Span()
+                self.exit_calls = 0
+
+            def __enter__(self) -> _Span:
+                return self.span
+
+            def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+                self.exit_calls += 1
+                return False
+
+        class _Tracer:
+            def start_as_current_span(self, name: str) -> _SpanContext:
+                ctx = _SpanContext(name)
+                spans.append({"name": name, "ctx": ctx})
+                return ctx
+
+        trace_mod = type(
+            "_TraceMod",
+            (),
+            {
+                "get_current_span": lambda self=None: None,
+                "get_tracer": lambda self=None, name="": _Tracer(),
+            },
+        )()
+
+        with guard.phase("etl-context", emit_phase_traces=True, trace_module=trace_mod):
+            pass
+
+        assert len(spans) == 1
+        ctx = spans[0]["ctx"]
+        assert ctx.exit_calls == 1
+        assert "runtime_guard.final_mem_available_mb" in ctx.span.attributes
+
 
 
 class TestOtelPhaseEvent:

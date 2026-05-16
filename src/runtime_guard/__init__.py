@@ -418,6 +418,7 @@ class _GuardPhaseContext:
         self._emit_phase_traces = emit_phase_traces
         self._trace_module = trace_module
         self._phase_span: Any | None = None
+        self._phase_span_ctx: Any | None = None
         self._span_context_entered: bool = False
 
     def __enter__(self) -> "_GuardPhaseContext":
@@ -505,8 +506,16 @@ class _GuardPhaseContext:
             start_as_current = getattr(tracer, "start_as_current_span", None)
             if callable(start_as_current):
                 span_name = f"runtime_guard.phase.{self._stage}"
-                self._phase_span = start_as_current(span_name)
-                self._span_context_entered = True
+                span_or_ctx = start_as_current(span_name)
+                enter = getattr(span_or_ctx, "__enter__", None)
+                if callable(enter):
+                    self._phase_span_ctx = span_or_ctx
+                    self._phase_span = enter()
+                    self._span_context_entered = True
+                else:
+                    self._phase_span_ctx = None
+                    self._phase_span = span_or_ctx
+                    self._span_context_entered = True
         except Exception:
             pass
 
@@ -534,11 +543,24 @@ class _GuardPhaseContext:
                     except Exception:
                         pass
 
-            # End the span
-            end = getattr(self._phase_span, "end", None)
-            if callable(end):
-                end()
+            # Prefer context-manager close when available; otherwise end the span directly.
+            exited_with_ctx = False
+            if self._phase_span_ctx is not None:
+                exit_fn = getattr(self._phase_span_ctx, "__exit__", None)
+                if callable(exit_fn):
+                    try:
+                        exit_fn(None, None, None)
+                        exited_with_ctx = True
+                    except Exception:
+                        exited_with_ctx = False
+
+            if not exited_with_ctx:
+                end = getattr(self._phase_span, "end", None)
+                if callable(end):
+                    end()
             self._phase_span = None
+            self._phase_span_ctx = None
+            self._span_context_entered = False
         except Exception:
             pass
 

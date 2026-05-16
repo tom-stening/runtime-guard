@@ -2408,11 +2408,13 @@ def install_dask_scheduler_callbacks(
 
         @staticmethod
         def start(key: str, *args: Any, **kwargs: Any) -> None:
-            _callback_start(key, *args, worker_id=kwargs.get("worker_id"), **kwargs)
+            worker_id = kwargs.pop("worker_id", None)
+            _callback_start(key, *args, worker_id=worker_id, **kwargs)
 
         @staticmethod
         def finish(key: str, value: Any, *args: Any, **kwargs: Any) -> None:
-            _callback_finish(key, value, *args, worker_id=kwargs.get("worker_id"), **kwargs)
+            worker_id = kwargs.pop("worker_id", None)
+            _callback_finish(key, value, *args, worker_id=worker_id, **kwargs)
 
     _SchedulerCallback.get_worker_report = staticmethod(_get_worker_report)  # type: ignore
 

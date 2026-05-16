@@ -2570,6 +2570,22 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["healthy_events"] == 1
         assert len(worker_report["snapshots"]) == 1
 
+    def test_scheduler_callback_static_start_handles_worker_id_kwarg(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        # Validate compatibility with callback adapters that forward worker_id in kwargs.
+        callback_cls.start("task-1", worker_id="worker-a")
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["healthy_events"] == 1
+
 
 # ---------------------------------------------------------------------------
 # M1-C03 — Ray integration hook

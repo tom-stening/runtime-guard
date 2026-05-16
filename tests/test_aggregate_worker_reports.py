@@ -170,6 +170,78 @@ def test_fail_on_critical_returns_2_when_critical_exceeds_pressured(
     assert "summary.critical_workers cannot exceed pressured_workers" in captured.err
 
 
+def test_fail_on_pressure_returns_2_when_typed_workers_exceed_total(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    module = _load_module()
+    input_path = tmp_path / "dummy.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "typed_workers": 2,
+            "total_workers": 1,
+            "parse_warning_count": 0,
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "aggregate_worker_reports.py",
+            "--input",
+            str(input_path),
+            "--fail-on-pressure",
+        ],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "summary.typed_workers cannot exceed total_workers" in captured.err
+
+
+def test_fail_on_pressure_returns_2_when_parse_warnings_below_malformed_count(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    module = _load_module()
+    input_path = tmp_path / "dummy.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "typed_workers": 1,
+            "total_workers": 3,
+            "parse_warning_count": 1,
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "aggregate_worker_reports.py",
+            "--input",
+            str(input_path),
+            "--fail-on-pressure",
+        ],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "summary.parse_warning_count cannot be lower than malformed row count" in captured.err
+
+
 def test_returns_2_for_non_object_summary_payload(monkeypatch, tmp_path, capsys) -> None:
     module = _load_module()
     input_path = tmp_path / "dummy.jsonl"

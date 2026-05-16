@@ -46,6 +46,19 @@ def _validate_summary_gate_fields(summary: dict[str, object]) -> list[str]:
     if not total_ok:
         errors.append("summary.total_workers must be a non-negative integer")
 
+    typed_workers_default = total_workers if total_ok else 0
+    typed_workers, typed_ok = _strict_non_negative_int(
+        summary.get("typed_workers", typed_workers_default)
+    )
+    if not typed_ok:
+        errors.append("summary.typed_workers must be a non-negative integer")
+
+    parse_warning_count, parse_warning_ok = _strict_non_negative_int(
+        summary.get("parse_warning_count", 0)
+    )
+    if not parse_warning_ok:
+        errors.append("summary.parse_warning_count must be a non-negative integer")
+
     if pressure_ok and pressured_ok:
         if any_pressure and pressured_workers == 0:
             errors.append("summary.any_pressure=true requires pressured_workers > 0")
@@ -60,6 +73,16 @@ def _validate_summary_gate_fields(summary: dict[str, object]) -> list[str]:
 
     if critical_ok and pressured_ok and critical_workers > pressured_workers:
         errors.append("summary.critical_workers cannot exceed pressured_workers")
+
+    if typed_ok and total_ok and typed_workers > total_workers:
+        errors.append("summary.typed_workers cannot exceed total_workers")
+
+    if parse_warning_ok and typed_ok and total_ok:
+        malformed_count = total_workers - typed_workers
+        if parse_warning_count < malformed_count:
+            errors.append(
+                "summary.parse_warning_count cannot be lower than malformed row count"
+            )
 
     return errors
 

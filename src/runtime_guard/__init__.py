@@ -5212,29 +5212,32 @@ def _load_worker_reports_jsonl_with_stats(path: str) -> tuple[list[dict[str, Any
         "jsonl_non_finite_rows": 0,
         "jsonl_parse_warning_count": 0,
     }
-    with open(expanded, encoding="utf-8") as fh:
-        for raw in fh:
-            stats["jsonl_total_lines"] += 1
-            line = raw.strip()
-            if line == "":
-                stats["jsonl_empty_lines"] += 1
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                stats["jsonl_invalid_json_lines"] += 1
-                stats["jsonl_parse_warning_count"] += 1
-                continue
-            if isinstance(row, dict):
-                if _contains_non_finite_number(row):
-                    stats["jsonl_non_finite_rows"] += 1
+    try:
+        with open(expanded, encoding="utf-8") as fh:
+            for raw in fh:
+                stats["jsonl_total_lines"] += 1
+                line = raw.strip()
+                if line == "":
+                    stats["jsonl_empty_lines"] += 1
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    stats["jsonl_invalid_json_lines"] += 1
                     stats["jsonl_parse_warning_count"] += 1
                     continue
-                rows.append(dict(row))
-                stats["jsonl_loaded_rows"] += 1
-            else:
-                stats["jsonl_non_object_lines"] += 1
-                stats["jsonl_parse_warning_count"] += 1
+                if isinstance(row, dict):
+                    if _contains_non_finite_number(row):
+                        stats["jsonl_non_finite_rows"] += 1
+                        stats["jsonl_parse_warning_count"] += 1
+                        continue
+                    rows.append(dict(row))
+                    stats["jsonl_loaded_rows"] += 1
+                else:
+                    stats["jsonl_non_object_lines"] += 1
+                    stats["jsonl_parse_warning_count"] += 1
+    except OSError as exc:
+        raise ValueError("could not read report jsonl") from exc
     return rows, stats
 
 

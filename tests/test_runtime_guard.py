@@ -5597,6 +5597,16 @@ class TestWorkerTransport:
         with pytest.raises(ValueError, match="path must be a non-empty string"):
             load_worker_reports_jsonl("  ")
 
+    def test_load_worker_reports_jsonl_returns_deterministic_error_on_read_failure(
+        self, tmp_path
+    ):
+        """load_worker_reports_jsonl wraps filesystem read errors in ValueError."""
+        from runtime_guard import load_worker_reports_jsonl
+
+        path = str(tmp_path)
+        with pytest.raises(ValueError, match="could not read report jsonl"):
+            load_worker_reports_jsonl(path)
+
     def test_load_worker_reports_jsonl_reads_all_lines(self, tmp_path):
         """load_worker_reports_jsonl reads all lines from JSONL file."""
         from runtime_guard import append_worker_report_jsonl, load_worker_reports_jsonl
@@ -5707,6 +5717,16 @@ class TestWorkerTransport:
 
         with pytest.raises(ValueError, match="path must be a non-empty string"):
             aggregate_worker_reports_jsonl("\t")
+
+    def test_aggregate_worker_reports_jsonl_returns_deterministic_error_on_read_failure(
+        self, tmp_path
+    ):
+        """aggregate_worker_reports_jsonl wraps filesystem read errors in ValueError."""
+        from runtime_guard import aggregate_worker_reports_jsonl
+
+        path = str(tmp_path)
+        with pytest.raises(ValueError, match="could not read report jsonl"):
+            aggregate_worker_reports_jsonl(path)
 
     def test_jsonl_transport_with_make_worker_report(self, tmp_path):
         """Integration test: append JSONL worker reports and aggregate."""

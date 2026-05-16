@@ -2389,6 +2389,23 @@ def install_dask_scheduler_callbacks(
     worker_snapshots: dict[str, dict[str, Any]] = {}
     callback_count: int = 0
 
+    def _extract_worker_alias_value(value: Any) -> Any:
+        if value is None:
+            return None
+
+        if isinstance(value, dict):
+            for key in ("worker_id", "worker", "worker_addr", "worker_address", "address"):
+                if key in value:
+                    return value.get(key)
+            return None
+
+        for attr in ("worker_id", "worker", "worker_addr", "worker_address", "address"):
+            candidate = getattr(value, attr, None)
+            if candidate is not None and not callable(candidate):
+                return candidate
+
+        return value
+
     def _extract_worker_id(
         *,
         explicit_worker_id: Any = None,
@@ -2401,13 +2418,18 @@ def install_dask_scheduler_callbacks(
         source = kwargs if isinstance(kwargs, dict) else {}
         for key in ("worker_id", "worker", "worker_addr", "worker_address"):
             if key in source:
-                return source.get(key)
+                return _extract_worker_alias_value(source.get(key))
 
         for arg in args:
             if isinstance(arg, dict):
                 for key in ("worker_id", "worker", "worker_addr", "worker_address"):
                     if key in arg:
-                        return arg.get(key)
+                        return _extract_worker_alias_value(arg.get(key))
+                continue
+
+            candidate = _extract_worker_alias_value(arg)
+            if candidate is not None and candidate is not arg:
+                return candidate
         return None
 
     def _normalize_worker_label(raw_worker_id: Any) -> str:

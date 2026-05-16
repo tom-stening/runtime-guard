@@ -2391,6 +2391,13 @@ def install_dask_scheduler_callbacks(
     worker_snapshots: dict[str, dict[str, Any]] = {}
     callback_count: int = 0
 
+    def _normalize_worker_label(raw_worker_id: Any) -> str:
+        if isinstance(raw_worker_id, str):
+            normalized = raw_worker_id.strip()
+            if normalized:
+                return normalized
+        return "unknown-worker"
+
     def _callback_start(
         key: str,
         *_: Any,
@@ -2402,7 +2409,7 @@ def install_dask_scheduler_callbacks(
         callback_count += 1
 
         # Get current worker context if available
-        worker_label = worker_id or "unknown-worker"
+        worker_label = _normalize_worker_label(worker_id)
         stage = f"{stage_prefix}-task-{callback_count}"
 
         # Check memory before task
@@ -2485,7 +2492,7 @@ def install_dask_scheduler_callbacks(
         if not enable_worker_reports:
             return
 
-        worker_label = worker_id or "unknown-worker"
+        worker_label = _normalize_worker_label(worker_id)
         worker_row = worker_snapshots.get(worker_label)
         if not isinstance(worker_row, dict):
             worker_row = {
@@ -2544,11 +2551,12 @@ def install_dask_scheduler_callbacks(
                 "parse_warning_count": parse_warning_count,
             }
 
-        worker_data = worker_snapshots.get(worker_id)
+        worker_key = _normalize_worker_label(worker_id)
+        worker_data = worker_snapshots.get(worker_key)
         if worker_data is None:
             return {
                 "ok": True,
-                "worker_id": worker_id,
+                "worker_id": worker_key,
                 "pressure_events": 0,
                 "task_count": 0,
                 "completed_tasks": 0,
@@ -2557,7 +2565,7 @@ def install_dask_scheduler_callbacks(
         if not isinstance(worker_data, dict):
             return {
                 "ok": True,
-                "worker_id": worker_id,
+                "worker_id": worker_key,
                 "task_count": 0,
                 "completed_tasks": 0,
                 "pressure_events": 0,
@@ -2582,7 +2590,7 @@ def install_dask_scheduler_callbacks(
 
         return {
             "ok": True,
-            "worker_id": worker_id,
+            "worker_id": worker_key,
             "task_count": _safe_counter("task_count"),
             "completed_tasks": _safe_counter("completed_tasks"),
             "pressure_events": _safe_counter("pressure_events"),

@@ -2894,6 +2894,39 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callback_static_start_handles_malformed_worker_id(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        # Unhashable/non-string worker_id should fail safe to unknown-worker.
+        callback_cls.start("task-1", worker_id=["worker-a"])
+        callback_cls.finish("task-1", "ok", worker_id={"id": "worker-a"})
+
+        worker_report = reporter("unknown-worker")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
+    def test_scheduler_callback_worker_report_handles_malformed_worker_id_lookup(self):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        reporter = install_dask_scheduler_callbacks(guard)
+
+        # Lookup should not raise for malformed/unhashable worker ids.
+        worker_report = reporter(["worker-a"])
+        assert worker_report["ok"] is True
+        assert worker_report["worker_id"] == "unknown-worker"
+        assert worker_report["task_count"] == 0
+        assert worker_report["completed_tasks"] == 0
+        assert worker_report["pressure_events"] == 0
+        assert worker_report["healthy_events"] == 0
+
     def test_scheduler_callback_worker_report_handles_malformed_worker_row(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

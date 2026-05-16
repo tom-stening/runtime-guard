@@ -197,6 +197,13 @@ def main(argv: list[str] | None = None) -> int:
         print("error: aggregated summary payload must be a JSON object", file=sys.stderr)
         return 2
 
+    # Validate summary quality before any output-based decisions.
+    summary_errors = _validate_summary_gate_fields(summary)
+    if summary_errors:
+        for row in summary_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
+
     indent = 2 if args.pretty else None
     try:
         output_text = json.dumps(
@@ -227,13 +234,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Summary written to {out_path}", file=sys.stderr)
     else:
         print(output_text)
-
-    # Validate summary quality before any output-based decisions.
-    summary_errors = _validate_summary_gate_fields(summary)
-    if summary_errors:
-        for row in summary_errors:
-            print(f"error: {row}", file=sys.stderr)
-        return 2
 
     if args.fail_on_pressure:
         any_pressure, _ = _strict_bool(summary.get("any_pressure", False))

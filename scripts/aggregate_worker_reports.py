@@ -144,6 +144,13 @@ def main() -> int:
     if not isinstance(summary, dict):
         print("error: aggregated summary payload must be a JSON object", file=sys.stderr)
         return 2
+
+    summary_errors = _validate_summary_gate_fields(summary)
+    if summary_errors:
+        for row in summary_errors:
+            print(f"error: {row}", file=sys.stderr)
+        return 2
+
     try:
         rendered = json.dumps(summary, indent=2, sort_keys=True, allow_nan=False)
     except (TypeError, ValueError) as exc:
@@ -166,12 +173,6 @@ def main() -> int:
             return 2
     else:
         print(rendered)
-
-    summary_errors = _validate_summary_gate_fields(summary)
-    if summary_errors:
-        for row in summary_errors:
-            print(f"error: {row}", file=sys.stderr)
-        return 2
 
     if args.fail_on_critical:
         critical_workers, _ = _strict_non_negative_int(summary.get("critical_workers", 0))

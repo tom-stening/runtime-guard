@@ -323,6 +323,45 @@ def test_returns_2_for_invalid_summary_fields_without_fail_flags(
     assert "summary.typed_workers cannot exceed total_workers" in captured.err
 
 
+def test_returns_2_without_writing_output_for_invalid_summary(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    module = _load_module()
+    input_path = tmp_path / "dummy.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+    output_path = tmp_path / "summary.json"
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "typed_workers": 2,
+            "total_workers": 1,
+            "parse_warning_count": 0,
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "aggregate_worker_reports.py",
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "summary.typed_workers cannot exceed total_workers" in captured.err
+    assert not output_path.exists()
+
+
 def test_returns_2_for_non_serializable_summary_values(monkeypatch, tmp_path, capsys) -> None:
     module = _load_module()
     input_path = tmp_path / "dummy.jsonl"

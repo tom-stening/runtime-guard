@@ -182,8 +182,12 @@ def main(argv: list[str] | None = None) -> int:
         parent = os.path.dirname(out_path)
         if parent:
             os.makedirs(parent, exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as fh:
-            fh.write(output_text + "\n")
+        try:
+            with open(out_path, "w", encoding="utf-8") as fh:
+                fh.write(output_text + "\n")
+        except OSError as exc:
+            print(f"error: could not write {out_path}: {exc}", file=sys.stderr)
+            return 2
         print(f"Summary written to {out_path}", file=sys.stderr)
     else:
         print(output_text)

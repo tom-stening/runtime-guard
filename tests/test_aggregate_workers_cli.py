@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import builtins
 import sys
 from pathlib import Path
 
@@ -152,3 +153,38 @@ def test_main_returns_2_when_critical_exceeds_pressured(monkeypatch, tmp_path, c
 
     assert code == 2
     assert "summary.critical_workers cannot exceed pressured_workers" in captured.err
+
+
+def test_main_returns_2_when_output_write_fails(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "workers.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "total_workers": 0,
+        },
+    )
+    monkeypatch.setattr(
+        builtins,
+        "open",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full")),
+    )
+
+    code = module.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(tmp_path / "summary.json"),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: could not write" in captured.err

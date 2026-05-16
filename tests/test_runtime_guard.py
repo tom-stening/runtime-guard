@@ -3693,6 +3693,49 @@ class TestRayActorMemoryMonitoring:
         assert 7 not in report["methods"]
         assert report["parse_warning_count"] >= 4
 
+    def test_get_actor_report_sanitizes_malformed_node_row_fields(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-a", actor_id="actor-1") == 2
+
+        all_nodes = config["get_all_node_reports"]()
+        nodes = all_nodes["nodes"]
+        node_row = nodes["node-a"]
+        node_row["events"] = "bad"
+        node_row["entry_checks"] = "bad"
+        node_row["pressure_events"] = "bad"
+        node_row["healthy_events"] = "bad"
+        node_row["actors"] = {
+            "actor-1": {
+                "actor_id": "actor-1",
+                "events": "bad",
+                "methods": {"compute": "bad"},
+            },
+            7: {"events": 1},
+            "": {"events": 1},
+            "actor-bad": "corrupt",
+        }
+
+        report = config["get_actor_report"](node_id="node-a")
+        assert report["ok"] is True
+        assert report["node_id"] == "node-a"
+        assert report["events"] == 0
+        assert report["entry_checks"] == 0
+        assert report["pressure_events"] == 0
+        assert report["healthy_events"] == 0
+        assert set(report["actors"].keys()) == {"actor-1"}
+        assert report["actors"]["actor-1"]["events"] == 0
+        assert report["actors"]["actor-1"]["methods"]["compute"] == 0
+        assert report["parse_warning_count"] >= 8
+
     def test_actor_monitoring_tracks_key_parse_warnings(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

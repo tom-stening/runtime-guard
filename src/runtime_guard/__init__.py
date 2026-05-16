@@ -3140,6 +3140,48 @@ def enable_ray_actor_memory_monitoring(
 
         return safe_row
 
+    def _sanitize_node_row_for_report(node_row: dict[str, Any], node_key: str) -> dict[str, Any]:
+        safe_row: dict[str, Any] = {}
+
+        safe_node_id = _normalize_key(node_row.get("node_id", node_key), fallback=node_key)
+        safe_row["node_id"] = safe_node_id
+
+        for counter_name in (
+            "events",
+            "entry_checks",
+            "exit_checks",
+            "pressure_events",
+            "healthy_events",
+        ):
+            raw_value = node_row.get(counter_name, 0)
+            counter_value, counter_ok = _strict_non_negative_counter(raw_value)
+            if not counter_ok and raw_value not in (0,):
+                _warn_parse()
+            safe_row[counter_name] = counter_value
+
+        actors = node_row.get("actors")
+        if not isinstance(actors, dict):
+            if actors is not None:
+                _warn_parse()
+            actors = {}
+
+        safe_actors: dict[str, dict[str, Any]] = {}
+        for raw_actor_id, raw_actor_row in actors.items():
+            if not isinstance(raw_actor_id, str):
+                _warn_parse()
+                continue
+            actor_key = raw_actor_id.strip()
+            if not actor_key:
+                _warn_parse()
+                continue
+            if not isinstance(raw_actor_row, dict):
+                _warn_parse()
+                continue
+            safe_actors[actor_key] = _sanitize_actor_row_for_report(raw_actor_row, actor_key)
+
+        safe_row["actors"] = safe_actors
+        return safe_row
+
     def _get_actor_report(*, node_id: str | None = None, actor_id: str | None = None) -> dict[str, Any]:
         if node_id is None and actor_id is None:
             total_events = 0
@@ -3180,7 +3222,8 @@ def enable_ray_actor_memory_monitoring(
                     "parse_warning_count": parse_warning_count,
                 }
             if actor_id is None:
-                return {"ok": True, **node_row, "parse_warning_count": parse_warning_count}
+                safe_node_row = _sanitize_node_row_for_report(node_row, node_key)
+                return {"ok": True, **safe_node_row, "parse_warning_count": parse_warning_count}
             actor_key = _normalize_key(actor_id, fallback="unknown-actor")
             actors = node_row.get("actors")
             if not isinstance(actors, dict):

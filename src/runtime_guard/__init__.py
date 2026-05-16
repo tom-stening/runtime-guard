@@ -2521,23 +2521,55 @@ def install_dask_scheduler_callbacks(
             total_completed_tasks = 0
             total_healthy_events = 0
             parse_warning_count = 0
-            for worker_row in worker_snapshots.values():
+
+            def _safe_counter(worker_row: dict[str, Any], name: str) -> int:
+                nonlocal parse_warning_count
+                value = worker_row.get(name, 0)
+                if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                    return value
+                parse_warning_count += 1
+                return 0
+
+            for worker_label, worker_row in worker_snapshots.items():
+                if not isinstance(worker_label, str):
+                    parse_warning_count += 1
+
                 if not isinstance(worker_row, dict):
                     parse_warning_count += 1
+                    safe_row = {
+                        "worker_id": worker_label if isinstance(worker_label, str) else "unknown-worker",
+                        "task_count": 0,
+                        "completed_tasks": 0,
+                        "pressure_events": 0,
+                        "healthy_events": 0,
+                        "snapshots": [],
+                    }
+                    worker_snapshots[worker_label] = safe_row
                     continue
 
-                def _safe_counter(name: str) -> int:
-                    nonlocal parse_warning_count
-                    value = worker_row.get(name, 0)
-                    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-                        return value
-                    parse_warning_count += 1
-                    return 0
+                pressure_events = _safe_counter(worker_row, "pressure_events")
+                task_count = _safe_counter(worker_row, "task_count")
+                completed_tasks = _safe_counter(worker_row, "completed_tasks")
+                healthy_events = _safe_counter(worker_row, "healthy_events")
 
-                total_events += _safe_counter("pressure_events")
-                total_tasks += _safe_counter("task_count")
-                total_completed_tasks += _safe_counter("completed_tasks")
-                total_healthy_events += _safe_counter("healthy_events")
+                snapshots = worker_row.get("snapshots", [])
+                if not isinstance(snapshots, list):
+                    parse_warning_count += 1
+                    snapshots = []
+
+                worker_row["worker_id"] = (
+                    worker_label if isinstance(worker_label, str) else "unknown-worker"
+                )
+                worker_row["task_count"] = task_count
+                worker_row["completed_tasks"] = completed_tasks
+                worker_row["pressure_events"] = pressure_events
+                worker_row["healthy_events"] = healthy_events
+                worker_row["snapshots"] = snapshots
+
+                total_events += pressure_events
+                total_tasks += task_count
+                total_completed_tasks += completed_tasks
+                total_healthy_events += healthy_events
             return {
                 "ok": True,
                 "workers_monitored": len(worker_snapshots),

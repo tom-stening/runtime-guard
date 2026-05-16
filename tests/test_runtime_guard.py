@@ -2998,6 +2998,44 @@ class TestDaskSchedulerCallbacks:
         assert refreshed["total_healthy_events"] == 1
         assert refreshed["parse_warning_count"] >= 1
 
+    def test_scheduler_callback_aggregate_report_sanitizes_worker_details(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", worker_id="worker-a")
+        callback_cls.finish("task-1", "ok", worker_id="worker-a")
+
+        aggregated = reporter()
+        details = aggregated["worker_details"]
+        details["worker-a"] = {
+            "worker_id": "worker-a",
+            "task_count": "bad",
+            "completed_tasks": "bad",
+            "pressure_events": "bad",
+            "healthy_events": "bad",
+            "snapshots": "bad",
+        }
+        details["worker-b"] = "corrupt"
+
+        refreshed = reporter()
+        assert refreshed["ok"] is True
+        assert refreshed["worker_details"]["worker-a"]["task_count"] == 0
+        assert refreshed["worker_details"]["worker-a"]["completed_tasks"] == 0
+        assert refreshed["worker_details"]["worker-a"]["pressure_events"] == 0
+        assert refreshed["worker_details"]["worker-a"]["healthy_events"] == 0
+        assert refreshed["worker_details"]["worker-a"]["snapshots"] == []
+        assert refreshed["worker_details"]["worker-b"]["task_count"] == 0
+        assert refreshed["worker_details"]["worker-b"]["completed_tasks"] == 0
+        assert refreshed["worker_details"]["worker-b"]["pressure_events"] == 0
+        assert refreshed["worker_details"]["worker-b"]["healthy_events"] == 0
+        assert refreshed["worker_details"]["worker-b"]["snapshots"] == []
+        assert refreshed["parse_warning_count"] >= 6
+
     def test_scheduler_callback_write_path_recovers_from_malformed_worker_row(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

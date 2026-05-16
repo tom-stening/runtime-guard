@@ -45,7 +45,21 @@ def test_validate_cli_configuration_rejects_non_string_paths() -> None:
 
     errors = module._validate_cli_configuration(_Args())
     assert any("--input must be a non-empty string path" in row for row in errors)
-    assert any("--output must be a string path" in row for row in errors)
+    assert any("--output must be a non-empty string path" in row for row in errors)
+
+
+def test_validate_cli_configuration_rejects_empty_output_path() -> None:
+    module = _load_module()
+
+    class _Args:
+        input = "workers.jsonl"
+        output = "  "
+        fail_on_pressure = False
+        fail_on_critical = False
+        pretty = False
+
+    errors = module._validate_cli_configuration(_Args())
+    assert any("--output must be a non-empty string path" in row for row in errors)
 
 
 def test_main_returns_2_for_non_boolean_any_pressure(monkeypatch, tmp_path, capsys) -> None:

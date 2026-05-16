@@ -72,8 +72,9 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
         errors.append("--input must be a non-empty string path")
 
     output_path = getattr(args, "output", None)
-    if output_path is not None and not isinstance(output_path, str):
-        errors.append("--output must be a string path")
+    if output_path is not None:
+        if not isinstance(output_path, str) or not output_path.strip():
+            errors.append("--output must be a non-empty string path")
 
     for field in ["fail_on_pressure", "fail_on_critical"]:
         value = getattr(args, field, False)

@@ -2228,8 +2228,29 @@ def attach_dask_guard(
         exit_ = getattr(ctx, "__exit__", None)
         if not callable(enter) or not callable(exit_):
             return fn(*args, **kwargs)
-        with ctx:
+        try:
+            enter()
+        except Exception:
             return fn(*args, **kwargs)
+
+        try:
+            result = fn(*args, **kwargs)
+        except BaseException as exc:
+            suppress = False
+            try:
+                suppress = bool(exit_(type(exc), exc, exc.__traceback__))
+            except Exception:
+                suppress = False
+            if suppress:
+                return None
+            raise
+
+        try:
+            exit_(None, None, None)
+        except Exception:
+            # Callback teardown should never block guarded execution.
+            return result
+        return result
 
     def _guarded_compute(*args: Any, **kwargs: Any) -> Any:
         guard.check_and_log(stage=stage)

@@ -2033,6 +2033,42 @@ class TestDaskIntegration:
         finally:
             restore()
 
+    def test_attach_with_scheduler_callbacks_fails_open_when_context_enter_raises(self, monkeypatch):
+        callback_events: list[str] = []
+
+        class _DaskWithBrokenCallbackContext(self._DummyDask):
+            class callbacks:
+                class Callback:
+                    def __enter__(self):
+                        callback_events.append("enter")
+                        raise RuntimeError("broken callback context")
+
+                    def __exit__(self, exc_type, exc, tb):
+                        callback_events.append("exit")
+                        return False
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_dask_guard(
+            guard,
+            stage="dask-broken-callback-context",
+            enable_scheduler_callbacks=True,
+            scheduler_stage_prefix="dask-scheduler",
+            module=_DaskWithBrokenCallbackContext,
+        )
+        try:
+            assert _DaskWithBrokenCallbackContext.compute(7, add=8) == 15
+            assert calls == ["dask-broken-callback-context"]
+            assert callback_events == ["enter"]
+
+            validation = validate_dask_integration(guard, module=_DaskWithBrokenCallbackContext)
+            assert validation["scheduler_callbacks_wrapped"] is True
+            assert validation["scheduler_callback_context_available"] is True
+        finally:
+            restore()
+
     def test_collect_dask_integration_evidence_with_version_metadata(self, monkeypatch):
         class VersionedDask:
             __version__ = "2024.1.0"

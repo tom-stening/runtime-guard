@@ -2358,7 +2358,12 @@ def install_dask_scheduler_callbacks(
     worker_snapshots: dict[str, dict[str, Any]] = {}
     callback_count: int = 0
 
-    def _callback_start(key: str, *_: Any, worker_id: str | None = None) -> None:
+    def _callback_start(
+        key: str,
+        *_: Any,
+        worker_id: str | None = None,
+        **_ignored_kwargs: Any,
+    ) -> None:
         """Called before task execution (requires dask.callbacks.Callback.start)."""
         nonlocal callback_count
         callback_count += 1
@@ -2395,7 +2400,13 @@ def install_dask_scheduler_callbacks(
             else:
                 worker_snapshots[worker_label]["healthy_events"] += 1
 
-    def _callback_finish(key: str, value: Any, *_: Any, worker_id: str | None = None) -> None:
+    def _callback_finish(
+        key: str,
+        value: Any,
+        *_: Any,
+        worker_id: str | None = None,
+        **_ignored_kwargs: Any,
+    ) -> None:
         """Called after task execution (requires dask.callbacks.Callback.finish)."""
         if not enable_worker_reports:
             return

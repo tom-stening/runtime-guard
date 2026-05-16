@@ -2794,6 +2794,34 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callback_static_start_ignores_extra_forwarded_kwargs(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start(
+            "task-1",
+            worker_id="worker-a",
+            worker_state="running",
+            task_group="group-a",
+        )
+        callback_cls.finish(
+            "task-1",
+            "ok",
+            worker_id="worker-a",
+            worker_state="running",
+            task_group="group-a",
+        )
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
 
 # ---------------------------------------------------------------------------
 # M1-C03 — Ray integration hook

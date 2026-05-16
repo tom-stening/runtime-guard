@@ -3097,6 +3097,34 @@ def enable_ray_actor_memory_monitoring(
         method_count, _ = _strict_non_negative_counter(methods.get(method_key, 0))
         methods[method_key] = method_count + 1
 
+    def _sanitize_actor_row_for_report(actor_row: dict[str, Any], actor_key: str) -> dict[str, Any]:
+        safe_row: dict[str, Any] = {}
+
+        safe_actor_id = _normalize_key(actor_row.get("actor_id", actor_key), fallback=actor_key)
+        safe_row["actor_id"] = safe_actor_id
+
+        for counter_name in (
+            "events",
+            "entry_checks",
+            "exit_checks",
+            "pressure_events",
+            "healthy_events",
+        ):
+            raw_value = actor_row.get(counter_name, 0)
+            counter_value, counter_ok = _strict_non_negative_counter(raw_value)
+            if not counter_ok and raw_value not in (0,):
+                _warn_parse()
+            safe_row[counter_name] = counter_value
+
+        methods = actor_row.get("methods")
+        if not isinstance(methods, dict):
+            if methods is not None:
+                _warn_parse()
+            methods = {}
+        safe_row["methods"] = methods
+
+        return safe_row
+
     def _get_actor_report(*, node_id: str | None = None, actor_id: str | None = None) -> dict[str, Any]:
         if node_id is None and actor_id is None:
             total_events = 0
@@ -3163,7 +3191,13 @@ def enable_ray_actor_memory_monitoring(
                     "methods": {},
                     "parse_warning_count": parse_warning_count,
                 }
-            return {"ok": True, "node_id": node_key, **actor_row, "parse_warning_count": parse_warning_count}
+            safe_actor_row = _sanitize_actor_row_for_report(actor_row, actor_key)
+            return {
+                "ok": True,
+                "node_id": node_key,
+                **safe_actor_row,
+                "parse_warning_count": parse_warning_count,
+            }
 
         actor_key = _normalize_key(actor_id, fallback="unknown-actor")
         for node_key, node_row in actor_event_state.items():
@@ -3179,7 +3213,13 @@ def enable_ray_actor_memory_monitoring(
                 if not isinstance(actor_row, dict):
                     _warn_parse()
                     continue
-                return {"ok": True, "node_id": node_key, **actor_row, "parse_warning_count": parse_warning_count}
+                safe_actor_row = _sanitize_actor_row_for_report(actor_row, actor_key)
+                return {
+                    "ok": True,
+                    "node_id": node_key,
+                    **safe_actor_row,
+                    "parse_warning_count": parse_warning_count,
+                }
 
         return {
             "ok": True,

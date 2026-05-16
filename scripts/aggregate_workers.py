@@ -181,7 +181,11 @@ def main(argv: list[str] | None = None) -> int:
         out_path = os.path.expanduser(args.output)
         parent = os.path.dirname(out_path)
         if parent:
-            os.makedirs(parent, exist_ok=True)
+            try:
+                os.makedirs(parent, exist_ok=True)
+            except OSError as exc:
+                print(f"error: could not create output directory {parent}: {exc}", file=sys.stderr)
+                return 2
         try:
             with open(out_path, "w", encoding="utf-8") as fh:
                 fh.write(output_text + "\n")

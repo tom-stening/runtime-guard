@@ -188,3 +188,40 @@ def test_main_returns_2_when_output_write_fails(monkeypatch, tmp_path, capsys) -
 
     assert code == 2
     assert "error: could not write" in captured.err
+
+
+def test_main_returns_2_when_output_directory_creation_fails(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    module = _load_module()
+    input_path = tmp_path / "workers.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: {
+            "any_pressure": False,
+            "pressured_workers": 0,
+            "critical_workers": 0,
+            "total_workers": 0,
+        },
+    )
+    monkeypatch.setattr(
+        module.os,
+        "makedirs",
+        lambda path, exist_ok=False: (_ for _ in ()).throw(OSError("permission denied")),
+    )
+
+    code = module.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(tmp_path / "nested" / "summary.json"),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: could not create output directory" in captured.err

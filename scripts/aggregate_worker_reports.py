@@ -127,7 +127,11 @@ def main() -> int:
         output_path = Path(args.output).expanduser()
         parent = output_path.parent
         if parent and not parent.exists():
-            parent.mkdir(parents=True, exist_ok=True)
+            try:
+                parent.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                print(f"error: could not create output directory {parent}: {exc}", file=sys.stderr)
+                return 2
         try:
             output_path.write_text(rendered + "\n", encoding="utf-8")
         except OSError as exc:

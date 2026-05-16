@@ -4503,6 +4503,18 @@ class TestMultiProcessOrchestration:
         assert summary["invalid_missing_mem_workers"] == ["a"]
         assert summary["invalid_swap_workers"] == ["a"]
 
+    def test_aggregate_worker_reports_parse_warnings_include_invalid_worker_ids(self):
+        summary = aggregate_worker_reports(
+            [
+                {"worker_id": "  ", "pressure": False, "severity": "none"},
+                {"worker_id": 1, "pressure": False, "severity": "none"},
+                {"worker_id": "ok", "pressure": False, "severity": "none"},
+            ]
+        )
+
+        assert summary["parse_warning_count"] == 2
+        assert summary["invalid_worker_id_workers"] == ["unknown-worker-1", "unknown-worker-2"]
+
     def test_aggregate_worker_reports_fail_closed_on_non_object_rows(self):
         summary = aggregate_worker_reports(
             [

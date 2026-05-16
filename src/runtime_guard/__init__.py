@@ -5029,13 +5029,15 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
     if not isinstance(reports, list):
         raise ValueError("reports must be a list")
 
-    def _worker_name(row: dict[str, Any], index: int) -> str:
+    def _worker_identity(row: dict[str, Any], index: int) -> tuple[str, bool]:
+        if "worker_id" not in row:
+            return f"unknown-worker-{index + 1}", True
         worker_id = row.get("worker_id")
         if isinstance(worker_id, str):
             text = worker_id.strip()
             if text:
-                return text
-        return f"unknown-worker-{index + 1}"
+                return text, True
+        return f"unknown-worker-{index + 1}", False
 
     def _strict_non_negative_int(value: Any) -> tuple[int, bool]:
         if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
@@ -5049,6 +5051,7 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
     invalid_severity_workers: list[str] = []
     invalid_missing_mem_workers: list[str] = []
     invalid_swap_workers: list[str] = []
+    invalid_worker_id_workers: list[str] = []
     malformed_worker_rows: list[str] = []
     parse_warning_count = 0
 
@@ -5060,8 +5063,15 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
         malformed_worker_rows.append(f"unknown-worker-{index + 1}")
         parse_warning_count += 1
 
+    worker_context: list[tuple[dict[str, Any], str]] = []
     for index, row in enumerate(typed_rows):
-        worker_name = _worker_name(row, index)
+        worker_name, worker_id_ok = _worker_identity(row, index)
+        worker_context.append((row, worker_name))
+        if not worker_id_ok:
+            invalid_worker_id_workers.append(worker_name)
+            parse_warning_count += 1
+
+    for row, worker_name in worker_context:
 
         pressure_raw = row.get("pressure", False)
         if isinstance(pressure_raw, bool):
@@ -5090,8 +5100,7 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
 
     max_missing = 0
     max_swap = 0
-    for index, r in enumerate(typed_rows):
-        worker_name = _worker_name(r, index)
+    for r, worker_name in worker_context:
         missing_mem_mb, missing_mem_ok = _strict_non_negative_int(r.get("missing_mem_mb", 0))
         if missing_mem_ok:
             max_missing = max(max_missing, missing_mem_mb)
@@ -5127,6 +5136,7 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "invalid_severity_workers": sorted(set(invalid_severity_workers)),
         "invalid_missing_mem_workers": sorted(set(invalid_missing_mem_workers)),
         "invalid_swap_workers": sorted(set(invalid_swap_workers)),
+        "invalid_worker_id_workers": sorted(set(invalid_worker_id_workers)),
         "workers": typed_rows,
     }
 

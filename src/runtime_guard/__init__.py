@@ -2390,21 +2390,41 @@ def install_dask_scheduler_callbacks(
     callback_count: int = 0
 
     def _extract_worker_alias_value(value: Any) -> Any:
-        if value is None:
-            return None
+        current = value
+        seen: set[int] = set()
 
-        if isinstance(value, dict):
-            for key in ("worker_id", "worker", "worker_addr", "worker_address", "address"):
-                if key in value:
-                    return value.get(key)
-            return None
+        for _ in range(5):
+            if current is None:
+                return None
 
-        for attr in ("worker_id", "worker", "worker_addr", "worker_address", "address"):
-            candidate = getattr(value, attr, None)
-            if candidate is not None and not callable(candidate):
-                return candidate
+            if isinstance(current, dict):
+                next_value = None
+                for key in ("worker_id", "worker", "worker_addr", "worker_address", "address"):
+                    if key in current:
+                        next_value = current.get(key)
+                        break
+                if next_value is None:
+                    return None
+                current = next_value
+                continue
 
-        return value
+            next_value = None
+            for attr in ("worker_id", "worker", "worker_addr", "worker_address", "address"):
+                candidate = getattr(current, attr, None)
+                if candidate is not None and not callable(candidate):
+                    next_value = candidate
+                    break
+
+            if next_value is None:
+                return current
+
+            candidate_id = id(next_value)
+            if candidate_id in seen:
+                return None
+            seen.add(candidate_id)
+            current = next_value
+
+        return current
 
     def _extract_worker_id(
         *,

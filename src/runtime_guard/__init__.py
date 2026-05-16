@@ -5069,6 +5069,7 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
         else:
             pressure = False
             invalid_pressure_workers.append(worker_name)
+            parse_warning_count += 1
 
         severity_raw = row.get("severity", "")
         if isinstance(severity_raw, str):
@@ -5076,9 +5077,11 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
             if severity not in {"none", "warning", "critical"}:
                 invalid_severity_workers.append(worker_name)
                 severity = ""
+                parse_warning_count += 1
         else:
             severity = ""
             invalid_severity_workers.append(worker_name)
+            parse_warning_count += 1
 
         if pressure:
             pressured.append(row)
@@ -5094,12 +5097,14 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
             max_missing = max(max_missing, missing_mem_mb)
         else:
             invalid_missing_mem_workers.append(worker_name)
+            parse_warning_count += 1
 
         swap_used_pct, swap_used_pct_ok = _strict_non_negative_int(r.get("swap_used_pct", 0))
         if swap_used_pct_ok:
             max_swap = max(max_swap, swap_used_pct)
         else:
             invalid_swap_workers.append(worker_name)
+            parse_warning_count += 1
 
     worst_severity = "none"
     if critical:

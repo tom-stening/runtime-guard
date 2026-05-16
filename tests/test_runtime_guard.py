@@ -4484,6 +4484,25 @@ class TestMultiProcessOrchestration:
         assert summary["invalid_missing_mem_workers"] == ["a", "b"]
         assert summary["invalid_swap_workers"] == ["a", "b"]
 
+    def test_aggregate_worker_reports_parse_warnings_include_invalid_field_types(self):
+        summary = aggregate_worker_reports(
+            [
+                {
+                    "worker_id": "a",
+                    "pressure": "false",
+                    "severity": "major",
+                    "missing_mem_mb": "900",
+                    "swap_used_pct": "99",
+                }
+            ]
+        )
+
+        assert summary["parse_warning_count"] == 4
+        assert summary["invalid_pressure_workers"] == ["a"]
+        assert summary["invalid_severity_workers"] == ["a"]
+        assert summary["invalid_missing_mem_workers"] == ["a"]
+        assert summary["invalid_swap_workers"] == ["a"]
+
     def test_aggregate_worker_reports_fail_closed_on_non_object_rows(self):
         summary = aggregate_worker_reports(
             [

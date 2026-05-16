@@ -113,7 +113,11 @@ def main() -> int:
         print(f"error: input file not found: {input_path}", file=sys.stderr)
         return 2
 
-    summary = aggregate_worker_reports_jsonl(str(input_path))
+    try:
+        summary = aggregate_worker_reports_jsonl(str(input_path))
+    except OSError as exc:
+        print(f"error: could not read {input_path}: {exc}", file=sys.stderr)
+        return 2
     if not isinstance(summary, dict):
         print("error: aggregated summary payload must be a JSON object", file=sys.stderr)
         return 2

@@ -207,6 +207,29 @@ def test_returns_2_when_input_file_missing(monkeypatch, capsys) -> None:
     assert "error: input file not found:" in captured.err
 
 
+def test_returns_2_when_input_file_unreadable(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    input_path = tmp_path / "dummy.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "aggregate_worker_reports_jsonl",
+        lambda _path: (_ for _ in ()).throw(OSError("permission denied")),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["aggregate_worker_reports.py", "--input", str(input_path)],
+    )
+
+    code = module.main()
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "error: could not read" in captured.err
+
+
 def test_validate_cli_configuration_rejects_non_boolean_flags() -> None:
     module = _load_module()
 

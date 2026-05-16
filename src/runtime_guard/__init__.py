@@ -3121,7 +3121,22 @@ def enable_ray_actor_memory_monitoring(
             if methods is not None:
                 _warn_parse()
             methods = {}
-        safe_row["methods"] = methods
+
+        safe_methods: dict[str, int] = {}
+        for raw_method_name, raw_method_count in methods.items():
+            if not isinstance(raw_method_name, str):
+                _warn_parse()
+                continue
+            method_name = raw_method_name.strip()
+            if not method_name:
+                _warn_parse()
+                continue
+            method_count, method_ok = _strict_non_negative_counter(raw_method_count)
+            if not method_ok and raw_method_count not in (0,):
+                _warn_parse()
+            safe_methods[method_name] = method_count
+
+        safe_row["methods"] = safe_methods
 
         return safe_row
 

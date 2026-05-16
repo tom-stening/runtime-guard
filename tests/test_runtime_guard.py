@@ -3660,6 +3660,39 @@ class TestRayActorMemoryMonitoring:
         assert report["methods"] == {}
         assert report["parse_warning_count"] >= 6
 
+    def test_get_actor_report_sanitizes_malformed_method_counters(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-a", actor_id="actor-1") == 2
+
+        all_nodes = config["get_all_node_reports"]()
+        nodes = all_nodes["nodes"]
+        actor_row = nodes["node-a"]["actors"]["actor-1"]
+        actor_row["methods"] = {
+            "compute": "bad",
+            "ok": 2,
+            "": 3,
+            7: 1,
+            "negative": -1,
+        }
+
+        report = config["get_actor_report"](node_id="node-a", actor_id="actor-1")
+        assert report["ok"] is True
+        assert report["methods"]["compute"] == 0
+        assert report["methods"]["ok"] == 2
+        assert report["methods"]["negative"] == 0
+        assert "" not in report["methods"]
+        assert 7 not in report["methods"]
+        assert report["parse_warning_count"] >= 4
+
     def test_actor_monitoring_tracks_key_parse_warnings(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

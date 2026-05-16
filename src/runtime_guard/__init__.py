@@ -4346,8 +4346,18 @@ def append_audit_log(
     Records are chained by hash (`prev_hash` -> `hash`) to make tampering
     evident during downstream verification.
     """
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("path must be a non-empty string")
+    if not isinstance(event, dict):
+        raise ValueError("event must be a dictionary")
+    if type(event) is not dict:
+        raise ValueError("event must be a plain dictionary")
+
     expanded = os.path.expanduser(path)
-    os.makedirs(os.path.dirname(expanded) or ".", exist_ok=True)
+    try:
+        os.makedirs(os.path.dirname(expanded) or ".", exist_ok=True)
+    except OSError as exc:
+        raise ValueError("could not create audit log directory") from exc
 
     algo = hash_algo.strip().lower()
     if algo not in _FIPS_HASH_ALGOS:
@@ -4411,8 +4421,8 @@ def append_audit_log(
                             f"line {line_no} expected string"
                         )
                     prev_hash = row_hash_raw
-        except OSError:
-            prev_hash = ""
+        except OSError as exc:
+            raise ValueError("could not read audit log") from exc
     chain_input = f"{prev_hash}\n{ts}\n{event_payload}".encode("utf-8")
     digest = hashlib.new(algo, chain_input).hexdigest()
 
@@ -4425,8 +4435,11 @@ def append_audit_log(
         "hash": digest,
     }
 
-    with open(expanded, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+    try:
+        with open(expanded, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+    except OSError as exc:
+        raise ValueError("could not write audit log") from exc
 
     return record
 

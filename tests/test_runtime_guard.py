@@ -4107,6 +4107,75 @@ class TestAuditLog:
         assert isinstance(record["hash"], str)
         assert len(record["hash"]) == 64
 
+    def test_append_audit_log_rejects_empty_path(self):
+        with pytest.raises(ValueError, match="path must be a non-empty string"):
+            append_audit_log("  ", {"action": "test"})
+
+    def test_append_audit_log_rejects_non_dict_event(self, tmp_path):
+        path = tmp_path / "audit.log"
+        with pytest.raises(ValueError, match="event must be a dictionary"):
+            append_audit_log(str(path), ["bad"])  # type: ignore[arg-type]
+
+    def test_append_audit_log_rejects_non_plain_dict_event(self, tmp_path):
+        path = tmp_path / "audit.log"
+
+        class _Event(dict):
+            pass
+
+        with pytest.raises(ValueError, match="event must be a plain dictionary"):
+            append_audit_log(str(path), _Event(action="test"))
+
+    def test_append_audit_log_returns_deterministic_error_on_mkdir_failure(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr(
+            "runtime_guard.os.makedirs",
+            lambda *args, **kwargs: (_ for _ in ()).throw(OSError("permission denied")),
+        )
+        path = str(tmp_path / "nested" / "audit.log")
+
+        with pytest.raises(ValueError, match="could not create audit log directory"):
+            append_audit_log(path, {"action": "test"})
+
+    def test_append_audit_log_returns_deterministic_error_on_read_failure(
+        self, monkeypatch, tmp_path
+    ):
+        path = tmp_path / "audit.log"
+        path.write_text('{"hash_algo":"sha256","hash":"abc"}\n', encoding="utf-8")
+
+        original_open = open
+
+        def _raising_open(*args, **kwargs):
+            file_arg = args[0] if args else kwargs.get("file")
+            mode = args[1] if len(args) > 1 else kwargs.get("mode", "r")
+            if str(file_arg) == str(path) and "r" in str(mode):
+                raise OSError("read blocked")
+            return original_open(*args, **kwargs)
+
+        monkeypatch.setattr("builtins.open", _raising_open)
+
+        with pytest.raises(ValueError, match="could not read audit log"):
+            append_audit_log(str(path), {"action": "test"})
+
+    def test_append_audit_log_returns_deterministic_error_on_write_failure(
+        self, monkeypatch, tmp_path
+    ):
+        path = tmp_path / "audit.log"
+
+        original_open = open
+
+        def _raising_open(*args, **kwargs):
+            file_arg = args[0] if args else kwargs.get("file")
+            mode = args[1] if len(args) > 1 else kwargs.get("mode", "r")
+            if str(file_arg) == str(path) and "a" in str(mode):
+                raise OSError("disk full")
+            return original_open(*args, **kwargs)
+
+        monkeypatch.setattr("builtins.open", _raising_open)
+
+        with pytest.raises(ValueError, match="could not write audit log"):
+            append_audit_log(str(path), {"action": "test"})
+
     def test_append_audit_log_hash_chain(self, tmp_path):
         path = tmp_path / "audit.log"
         first = append_audit_log(str(path), {"n": 1})

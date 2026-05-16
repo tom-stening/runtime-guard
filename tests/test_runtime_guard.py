@@ -4296,6 +4296,13 @@ class TestAuditLog:
         with pytest.raises(ValueError, match="non-object row"):
             append_audit_log(str(path), {"action": "policy_violation", "n": 1})
 
+    def test_append_audit_log_rejects_invalid_json_existing_row(self, tmp_path):
+        path = tmp_path / "audit.log"
+        path.write_text("{not-json}\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="invalid JSON row"):
+            append_audit_log(str(path), {"action": "policy_violation", "n": 1})
+
     def test_append_audit_log_rejects_invalid_existing_field_types(self, tmp_path):
         path = tmp_path / "audit.log"
         path.write_text(

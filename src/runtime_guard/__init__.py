@@ -4394,8 +4394,10 @@ def append_audit_log(
                         continue
                     try:
                         row = json.loads(line)
-                    except Exception:
-                        continue
+                    except Exception as exc:
+                        raise ValueError(
+                            f"Audit log contains invalid JSON row at line {line_no}"
+                        ) from exc
 
                     if not isinstance(row, dict):
                         raise ValueError(

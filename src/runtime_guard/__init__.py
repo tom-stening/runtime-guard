@@ -3682,6 +3682,13 @@ def enable_ray_actor_memory_monitoring(
             _warn_parse()
             methods = {}
             actor_row["methods"] = methods
+        elif type(methods) is not dict:
+            _warn_parse()
+            try:
+                methods = dict(methods)
+            except Exception:
+                methods = {}
+            actor_row["methods"] = methods
         try:
             raw_method_count = methods.get(method_key, 0)
         except Exception:

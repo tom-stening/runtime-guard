@@ -3732,6 +3732,11 @@ def enable_ray_actor_memory_monitoring(
     def _remote_wrapper(fn: Any) -> Any:
         """Wrapper for remote functions to add memory monitoring."""
 
+        def _canonical_id_key(raw_key: Any) -> str:
+            if not isinstance(raw_key, str):
+                return ""
+            return "".join(ch for ch in raw_key.lower() if ch.isalnum())
+
         fn_signature: inspect.Signature | None = None
         accepts_var_kwargs = False
         accepts_node_id_kwarg = False
@@ -3759,12 +3764,40 @@ def enable_ray_actor_memory_monitoring(
         preserve_actor_id = accepts_var_kwargs or accepts_actor_id_kwarg
 
         def _wrapper(*args: Any, **kwargs: Any) -> Any:
+            call_kwargs = kwargs
+
+            node_alias_key = None
+            actor_alias_key = None
+            for key in kwargs:
+                if key == "node_id":
+                    continue
+                if _canonical_id_key(key) == "nodeid" and node_alias_key is None:
+                    node_alias_key = key
+                if key == "actor_id":
+                    continue
+                if _canonical_id_key(key) == "actorid" and actor_alias_key is None:
+                    actor_alias_key = key
+
+            if node_alias_key is not None:
+                if call_kwargs is kwargs:
+                    call_kwargs = dict(kwargs)
+                if preserve_node_id and "node_id" not in call_kwargs:
+                    call_kwargs["node_id"] = call_kwargs[node_alias_key]
+                call_kwargs.pop(node_alias_key, None)
+
+            if actor_alias_key is not None:
+                if call_kwargs is kwargs:
+                    call_kwargs = dict(kwargs)
+                if preserve_actor_id and "actor_id" not in call_kwargs:
+                    call_kwargs["actor_id"] = call_kwargs[actor_alias_key]
+                call_kwargs.pop(actor_alias_key, None)
+
             stage = f"{stage_prefix}::{fn.__name__}"
-            raw_node_id = kwargs.get("node_id", "remote-node")
-            raw_actor_id = kwargs.get("actor_id", f"remote::{fn.__name__}")
+            raw_node_id = call_kwargs.get("node_id", "remote-node")
+            raw_actor_id = call_kwargs.get("actor_id", f"remote::{fn.__name__}")
             if fn_signature is not None:
                 try:
-                    bound = fn_signature.bind_partial(*args, **kwargs)
+                    bound = fn_signature.bind_partial(*args, **call_kwargs)
                 except TypeError:
                     bound = None
                 if bound is not None:
@@ -3773,13 +3806,14 @@ def enable_ray_actor_memory_monitoring(
 
             node_id = _normalize_key(raw_node_id, fallback="remote-node")
             actor_id = _normalize_key(raw_actor_id, fallback="remote-actor")
-            if not preserve_node_id and "node_id" in kwargs:
-                kwargs = dict(kwargs)
-                kwargs.pop("node_id", None)
-            if not preserve_actor_id and "actor_id" in kwargs:
-                if "node_id" not in kwargs:
-                    kwargs = dict(kwargs)
-                kwargs.pop("actor_id", None)
+            if not preserve_node_id and "node_id" in call_kwargs:
+                if call_kwargs is kwargs:
+                    call_kwargs = dict(kwargs)
+                call_kwargs.pop("node_id", None)
+            if not preserve_actor_id and "actor_id" in call_kwargs:
+                if call_kwargs is kwargs:
+                    call_kwargs = dict(kwargs)
+                call_kwargs.pop("actor_id", None)
             if check_on_entry:
                 report = guard.check_and_log(stage=f"{stage}:entry")
                 _record_actor_event(
@@ -3790,7 +3824,7 @@ def enable_ray_actor_memory_monitoring(
                     pressure_detected=report is not None,
                 )
             try:
-                result = fn(*args, **kwargs)
+                result = fn(*args, **call_kwargs)
             finally:
                 if check_on_exit:
                     report = guard.check_and_log(stage=f"{stage}:exit")

@@ -3763,6 +3763,41 @@ class TestRayActorMemoryMonitoring:
         assert report["ok"] is True
         assert report["events"] == 1
 
+    def test_remote_wrapper_normalizes_node_actor_kwarg_aliases(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int, *, node_id: str, actor_id: str) -> tuple[int, str, str]:
+            return x + 1, node_id, actor_id
+
+        wrapped = config["remote_wrapper"](compute)
+        result = wrapped(10, nodeId="node-z", actorId="actor-z")
+
+        assert result == (11, "node-z", "actor-z")
+        report = config["get_actor_report"](node_id="node-z", actor_id="actor-z")
+        assert report["ok"] is True
+        assert report["events"] == 1
+
+    def test_remote_wrapper_drops_node_actor_kwarg_aliases_for_nonmatching_signature(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(10, nodeId="node-drop", actorId="actor-drop") == 11
+
+        report = config["get_actor_report"](node_id="remote-node", actor_id="remote::compute")
+        assert report["ok"] is True
+        assert report["events"] == 1
+
     def test_remote_wrapper_drops_kwargs_for_positional_only_node_actor_params(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

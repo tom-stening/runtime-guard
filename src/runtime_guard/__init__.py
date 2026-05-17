@@ -2058,9 +2058,13 @@ def attach_polars_guard(
                 return _chain_native_callback(value), True
 
             if isinstance(value, list):
+                try:
+                    value_items = list(value)
+                except Exception:
+                    return value, False
                 wrapped_items = []
                 wrapped_any = False
-                for item in value:
+                for item in value_items:
                     if item is None or callable(item):
                         wrapped_items.append(_chain_native_callback(item))
                         wrapped_any = True
@@ -2071,9 +2075,13 @@ def attach_polars_guard(
                 return value, False
 
             if isinstance(value, tuple):
+                try:
+                    value_items = tuple(value)
+                except Exception:
+                    return value, False
                 wrapped_items = []
                 wrapped_any = False
-                for item in value:
+                for item in value_items:
                     if item is None or callable(item):
                         wrapped_items.append(_chain_native_callback(item))
                         wrapped_any = True

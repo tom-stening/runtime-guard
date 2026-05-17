@@ -2291,6 +2291,29 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_preserves_callback_sequence_value_when_iteration_raises(self, monkeypatch):
+        class _BrokenCallbackList(list):
+            def __iter__(self):  # type: ignore[override]
+                raise RuntimeError("broken callback list iter")
+
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, optimization_callback: Any | None = None) -> Any:
+                    return optimization_callback
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            callbacks = _BrokenCallbackList([lambda *_a, **_k: None])
+            result = CallbackPolars.LazyFrame().collect(optimization_callback=callbacks)
+            assert result is callbacks
+            assert calls == ["polars-native"]
+        finally:
+            restore()
+
     def test_attach_chains_positional_only_collect_callback(self, monkeypatch):
         class CallbackPolars:
             class LazyFrame:

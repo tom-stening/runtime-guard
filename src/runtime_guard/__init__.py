@@ -2737,18 +2737,20 @@ def install_dask_scheduler_callbacks(
                 except Exception:
                     return default
 
+            def _coerce_non_negative_int(value: Any) -> int:
+                if not isinstance(value, int) or isinstance(value, bool):
+                    return 0
+                try:
+                    return value if value >= 0 else 0
+                except Exception:
+                    return 0
+
             task_count = _safe_worker_row_get("task_count", 0)
-            if not isinstance(task_count, int) or isinstance(task_count, bool) or task_count < 0:
-                task_count = 0
+            task_count = _coerce_non_negative_int(task_count)
             worker_row["task_count"] = task_count + 1
             if report is not None:
                 pressure_events = _safe_worker_row_get("pressure_events", 0)
-                if (
-                    not isinstance(pressure_events, int)
-                    or isinstance(pressure_events, bool)
-                    or pressure_events < 0
-                ):
-                    pressure_events = 0
+                pressure_events = _coerce_non_negative_int(pressure_events)
                 worker_row["pressure_events"] = pressure_events + 1
 
                 is_critical = _safe_report_field(report, "is_critical", False)
@@ -2760,12 +2762,14 @@ def install_dask_scheduler_callbacks(
                     cause = "unknown"
 
                 missing_mem_mb = _safe_report_field(report, "missing_mem_mb", 0)
-                if (
-                    not isinstance(missing_mem_mb, (int, float))
-                    or isinstance(missing_mem_mb, bool)
-                    or missing_mem_mb < 0
-                ):
+                if not isinstance(missing_mem_mb, (int, float)) or isinstance(missing_mem_mb, bool):
                     missing_mem_mb = 0
+                else:
+                    try:
+                        if missing_mem_mb < 0:
+                            missing_mem_mb = 0
+                    except Exception:
+                        missing_mem_mb = 0
 
                 snapshots = _safe_worker_row_get("snapshots", [])
                 if not isinstance(snapshots, list):
@@ -2789,12 +2793,7 @@ def install_dask_scheduler_callbacks(
                     snapshots.append(snapshot_entry)
             else:
                 healthy_events = _safe_worker_row_get("healthy_events", 0)
-                if (
-                    not isinstance(healthy_events, int)
-                    or isinstance(healthy_events, bool)
-                    or healthy_events < 0
-                ):
-                    healthy_events = 0
+                healthy_events = _coerce_non_negative_int(healthy_events)
                 worker_row["healthy_events"] = healthy_events + 1
 
     def _callback_finish(
@@ -2851,13 +2850,16 @@ def install_dask_scheduler_callbacks(
             except Exception:
                 return default
 
+        def _coerce_non_negative_int(value: Any) -> int:
+            if not isinstance(value, int) or isinstance(value, bool):
+                return 0
+            try:
+                return value if value >= 0 else 0
+            except Exception:
+                return 0
+
         completed_tasks = _safe_worker_row_get("completed_tasks", 0)
-        if (
-            not isinstance(completed_tasks, int)
-            or isinstance(completed_tasks, bool)
-            or completed_tasks < 0
-        ):
-            completed_tasks = 0
+        completed_tasks = _coerce_non_negative_int(completed_tasks)
         worker_row["completed_tasks"] = completed_tasks + 1
 
     def _get_worker_report(worker_id: str | None = None) -> dict[str, Any]:

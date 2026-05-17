@@ -4282,6 +4282,51 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callbacks_handle_hostile_counter_comparisons_on_write_path(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _BadInt(int):
+            def __lt__(self, other):  # type: ignore[override]
+                raise RuntimeError("broken callback counter compare")
+
+        class _BadFloat(float):
+            def __lt__(self, other):  # type: ignore[override]
+                raise RuntimeError("broken missing_mem compare")
+
+        class _PressureReport:
+            is_critical = True
+            cause = "memory"
+            missing_mem_mb = _BadFloat(64.0)
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": _PressureReport())
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        all_workers = reporter(None)
+        all_workers["worker_details"]["worker-a"] = {
+            "worker_id": "worker-a",
+            "task_count": _BadInt(0),
+            "completed_tasks": _BadInt(0),
+            "pressure_events": _BadInt(0),
+            "healthy_events": _BadInt(0),
+            "snapshots": [],
+        }
+
+        callback_cls.start("task-1", worker_id="worker-a")
+        callback_cls.finish("task-1", "ok", worker_id="worker-a")
+
+        worker_report = reporter("worker-a")
+        assert worker_report["ok"] is True
+        assert worker_report["worker_id"] == "worker-a"
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["pressure_events"] == 1
+        assert worker_report["snapshots"][0]["missing_mem_mb"] == 0
+
     def test_scheduler_callback_context_accepts_worker_alias_key_format_drift(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

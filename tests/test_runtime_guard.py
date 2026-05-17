@@ -1885,6 +1885,39 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_positional_only_callback_prefers_canonical_and_drops_callback_kwargs(
+        self, monkeypatch
+    ):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, optimization_callback: Any | None = None, /, **kwargs: Any) -> tuple[int, Any, dict[str, Any]]:
+                    if callable(optimization_callback):
+                        optimization_callback("logical-plan")
+                    return 42, optimization_callback, dict(kwargs)
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            canonical_calls: list[str] = []
+            alias_calls: list[str] = []
+            result, callback_value, forwarded_kwargs = CallbackPolars.LazyFrame().collect(
+                **{
+                    "optimizationCallback": lambda plan: alias_calls.append(plan),
+                    "optimization_callback": lambda plan: canonical_calls.append(plan),
+                }
+            )
+            assert result == 42
+            assert callable(callback_value)
+            assert calls == ["polars-native", "polars-native-native-callback"]
+            assert canonical_calls == ["logical-plan"]
+            assert alias_calls == []
+            assert forwarded_kwargs == {}
+        finally:
+            restore()
+
     def test_attach_chains_callback_sequence_for_explicit_callback_kwarg(self, monkeypatch):
         class CallbackPolars:
             class LazyFrame:

@@ -4386,6 +4386,25 @@ class TestRayActorMemoryMonitoring:
         assert report["ok"] is True
         assert report["events"] == 1
 
+    def test_remote_wrapper_drops_hyphenated_node_actor_aliases_for_nonmatching_signature(
+        self, monkeypatch
+    ):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(10, **{"node-id": "node-drop", "actor-id": "actor-drop"}) == 11
+
+        report = config["get_actor_report"](node_id="remote-node", actor_id="remote::compute")
+        assert report["ok"] is True
+        assert report["events"] == 1
+
     def test_remote_wrapper_drops_kwargs_for_positional_only_node_actor_params(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

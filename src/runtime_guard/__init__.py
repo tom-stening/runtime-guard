@@ -2489,11 +2489,17 @@ def install_dask_scheduler_callbacks(
                 return value
         return None
 
-    def _extract_worker_alias_value(value: Any) -> Any:
+    def _extract_worker_alias_value(value: Any, *, _seen_ids: set[int] | None = None) -> Any:
+        seen_ids = _seen_ids if _seen_ids is not None else set()
+
         if isinstance(value, (list, tuple)):
+            container_id = id(value)
+            if container_id in seen_ids:
+                return None
+            seen_ids.add(container_id)
             for item in value:
                 if isinstance(item, (Mapping, list, tuple)):
-                    candidate = _extract_worker_alias_value(item)
+                    candidate = _extract_worker_alias_value(item, _seen_ids=seen_ids)
                 else:
                     has_alias_attr = False
                     for attr in (
@@ -2512,7 +2518,7 @@ def install_dask_scheduler_callbacks(
                             break
                     if not has_alias_attr:
                         continue
-                    candidate = _extract_worker_alias_value(item)
+                    candidate = _extract_worker_alias_value(item, _seen_ids=seen_ids)
                 if candidate is not None:
                     return candidate
             return None
@@ -2551,9 +2557,10 @@ def install_dask_scheduler_callbacks(
                 return current
 
             candidate_id = id(next_value)
-            if candidate_id in seen:
+            if candidate_id in seen or candidate_id in seen_ids:
                 return None
             seen.add(candidate_id)
+            seen_ids.add(candidate_id)
             current = next_value
 
         return current

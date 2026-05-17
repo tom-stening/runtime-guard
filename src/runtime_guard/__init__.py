@@ -2600,6 +2600,14 @@ def install_dask_scheduler_callbacks(
                     return _extract_worker_alias_value(arg_candidate)
                 continue
 
+            if isinstance(arg, (bytes, bytearray)):
+                try:
+                    decoded_label = bytes(arg).decode("utf-8", errors="ignore").strip()
+                except Exception:
+                    decoded_label = ""
+                if decoded_label and _looks_like_worker_label(decoded_label):
+                    return decoded_label
+
             if isinstance(arg, str):
                 candidate_label = arg.strip()
                 if candidate_label and _looks_like_worker_label(candidate_label):

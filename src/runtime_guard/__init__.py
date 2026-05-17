@@ -3762,11 +3762,19 @@ def enable_ray_actor_memory_monitoring(
                 safe_node_row = _sanitize_node_row_for_report(node_row, node_key)
                 return {"ok": True, **safe_node_row, "parse_warning_count": parse_warning_count}
             actor_key = _normalize_key(actor_id, fallback="unknown-actor")
-            actors = node_row.get("actors")
+            try:
+                actors = node_row.get("actors")
+            except Exception:
+                _warn_parse()
+                actors = {}
             if not isinstance(actors, dict):
                 _warn_parse()
                 actors = {}
-            actor_row = actors.get(actor_key)
+            try:
+                actor_row = actors.get(actor_key)
+            except Exception:
+                _warn_parse()
+                actor_row = None
             if actor_row is None:
                 return {
                     "ok": True,
@@ -3799,11 +3807,19 @@ def enable_ray_actor_memory_monitoring(
             if not isinstance(node_row, dict):
                 _warn_parse()
                 continue
-            actors = node_row.get("actors")
+            try:
+                actors = node_row.get("actors")
+            except Exception:
+                _warn_parse()
+                continue
             if not isinstance(actors, dict):
                 _warn_parse()
                 continue
-            actor_row = actors.get(actor_key)
+            try:
+                actor_row = actors.get(actor_key)
+            except Exception:
+                _warn_parse()
+                continue
             if actor_row is not None:
                 if not isinstance(actor_row, dict):
                     _warn_parse()
@@ -3946,7 +3962,7 @@ def enable_ray_actor_memory_monitoring(
                 if not isinstance(actor_row, dict):
                     _warn_parse()
                     continue
-                raw_actor_events = actor_row.get("events", 0)
+                raw_actor_events = _safe_row_get(actor_row, "events", 0)
                 actor_events, actor_events_ok = _strict_non_negative_counter(raw_actor_events)
                 if not actor_events_ok and raw_actor_events not in (0,):
                     _warn_parse()

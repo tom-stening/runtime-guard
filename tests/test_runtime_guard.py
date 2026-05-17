@@ -317,6 +317,89 @@ class TestJsonEvents:
         assert summary["total_healthy_events"] == 0
         assert summary["parse_warning_count"] >= 1
 
+    def test_cluster_summary_handles_actor_rows_with_raising_get(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        class _BrokenActorRow(dict):
+            def get(self, key, default=None):  # type: ignore[override]
+                raise RuntimeError("broken cluster actor row get")
+
+        all_nodes = config["get_all_node_reports"]()
+        all_nodes["nodes"]["node-a"] = {
+            "node_id": "node-a",
+            "events": 0,
+            "pressure_events": 0,
+            "healthy_events": 0,
+            "actors": {"actor-a": _BrokenActorRow()},
+        }
+
+        summary = config["cluster_summary"]()
+        assert summary["ok"] is True
+        assert summary["nodes_monitored"] >= 1
+        assert summary["actors_monitored"] >= 1
+        assert summary["total_events"] == 0
+        assert summary["total_pressure_events"] == 0
+        assert summary["total_healthy_events"] == 0
+        assert summary["busiest_actor_events"] == 0
+        assert summary["parse_warning_count"] >= 1
+
+    def test_get_actor_report_handles_node_rows_with_raising_get(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        class _BrokenNodeRow(dict):
+            def get(self, key, default=None):  # type: ignore[override]
+                raise RuntimeError("broken actor report node row get")
+
+        all_nodes = config["get_all_node_reports"]()
+        all_nodes["nodes"]["node-a"] = _BrokenNodeRow()
+
+        report = config["get_actor_report"](node_id="node-a", actor_id="actor-a")
+        assert report["ok"] is True
+        assert report["node_id"] == "node-a"
+        assert report["actor_id"] == "actor-a"
+        assert report["events"] == 0
+        assert report["methods"] == {}
+        assert report["parse_warning_count"] >= 1
+
+    def test_get_actor_report_handles_actor_maps_with_raising_get(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        class _BrokenActors(dict):
+            def get(self, key, default=None):  # type: ignore[override]
+                raise RuntimeError("broken actors map get")
+
+        all_nodes = config["get_all_node_reports"]()
+        all_nodes["nodes"]["node-a"] = {
+            "node_id": "node-a",
+            "events": 0,
+            "pressure_events": 0,
+            "healthy_events": 0,
+            "actors": _BrokenActors(),
+        }
+
+        report = config["get_actor_report"](node_id="node-a", actor_id="actor-a")
+        assert report["ok"] is True
+        assert report["node_id"] == "node-a"
+        assert report["actor_id"] == "actor-a"
+        assert report["events"] == 0
+        assert report["methods"] == {}
+        assert report["parse_warning_count"] >= 1
+
     def test_json_event_stage_propagated(self):
         g = RuntimeGuard()
         report = _make_report(stage="my-stage")

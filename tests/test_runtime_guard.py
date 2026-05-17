@@ -3961,6 +3961,26 @@ class TestRayActorMemoryMonitoring:
         assert report["ok"] is True
         assert report["events"] == 1
 
+    def test_remote_wrapper_handles_callable_object_without_name(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        class _CallableRemote:
+            def __call__(self, value: int, *, node_id: str = "node-a", actor_id: str = "actor-a") -> int:
+                return value + 1
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+        wrapped = config["remote_wrapper"](_CallableRemote())
+
+        result = wrapped(10, node_id="node-z", actor_id="actor-z")
+        assert result == 11
+
+        report = config["get_actor_report"](node_id="node-z", actor_id="actor-z")
+        assert report["ok"] is True
+        assert report["events"] == 1
+
     def test_remote_wrapper_normalizes_node_actor_kwarg_aliases(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

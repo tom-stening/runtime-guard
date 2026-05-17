@@ -3798,6 +3798,12 @@ def enable_ray_actor_memory_monitoring(
     def _remote_wrapper(fn: Any) -> Any:
         """Wrapper for remote functions to add memory monitoring."""
 
+        fn_name = getattr(fn, "__name__", None)
+        if not isinstance(fn_name, str) or not fn_name:
+            fn_name = getattr(type(fn), "__name__", "remote_fn")
+            if not isinstance(fn_name, str) or not fn_name:
+                fn_name = "remote_fn"
+
         def _canonical_id_key(raw_key: Any) -> str:
             if not isinstance(raw_key, str):
                 return ""
@@ -3858,9 +3864,9 @@ def enable_ray_actor_memory_monitoring(
                     call_kwargs["actor_id"] = call_kwargs[actor_alias_key]
                 call_kwargs.pop(actor_alias_key, None)
 
-            stage = f"{stage_prefix}::{fn.__name__}"
+            stage = f"{stage_prefix}::{fn_name}"
             raw_node_id = call_kwargs.get("node_id", "remote-node")
-            raw_actor_id = call_kwargs.get("actor_id", f"remote::{fn.__name__}")
+            raw_actor_id = call_kwargs.get("actor_id", f"remote::{fn_name}")
             if fn_signature is not None:
                 try:
                     bound = fn_signature.bind_partial(*args, **call_kwargs)
@@ -3885,7 +3891,7 @@ def enable_ray_actor_memory_monitoring(
                 _record_actor_event(
                     node_id=node_id,
                     actor_id=actor_id,
-                    method_name=fn.__name__,
+                        method_name=fn_name,
                     event_type="entry",
                     pressure_detected=report is not None,
                 )
@@ -3897,7 +3903,7 @@ def enable_ray_actor_memory_monitoring(
                     _record_actor_event(
                         node_id=node_id,
                         actor_id=actor_id,
-                        method_name=fn.__name__,
+                        method_name=fn_name,
                         event_type="exit",
                         pressure_detected=report is not None,
                     )

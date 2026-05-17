@@ -4018,6 +4018,30 @@ class TestRayActorMemoryMonitoring:
         assert report["ok"] is True
         assert report["events"] == 1
 
+    def test_remote_wrapper_handles_multiple_node_actor_alias_kwargs(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        result = wrapped(
+            10,
+            nodeId="node-z",
+            nodeID="node-z-shadow",
+            actorId="actor-z",
+            actorID="actor-z-shadow",
+        )
+
+        assert result == 11
+        report = config["get_actor_report"](node_id="remote-node", actor_id="remote::compute")
+        assert report["ok"] is True
+        assert report["events"] == 1
+
     def test_remote_wrapper_drops_node_actor_kwarg_aliases_for_nonmatching_signature(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

@@ -3853,31 +3853,33 @@ def enable_ray_actor_memory_monitoring(
         def _wrapper(*args: Any, **kwargs: Any) -> Any:
             call_kwargs = kwargs
 
-            node_alias_key = None
-            actor_alias_key = None
+            node_alias_keys: list[str] = []
+            actor_alias_keys: list[str] = []
             for key in kwargs:
                 if key == "node_id":
                     continue
-                if _canonical_id_key(key) == "nodeid" and node_alias_key is None:
-                    node_alias_key = key
+                if _canonical_id_key(key) == "nodeid":
+                    node_alias_keys.append(key)
                 if key == "actor_id":
                     continue
-                if _canonical_id_key(key) == "actorid" and actor_alias_key is None:
-                    actor_alias_key = key
+                if _canonical_id_key(key) == "actorid":
+                    actor_alias_keys.append(key)
 
-            if node_alias_key is not None:
+            if node_alias_keys:
                 if call_kwargs is kwargs:
                     call_kwargs = dict(kwargs)
                 if preserve_node_id and "node_id" not in call_kwargs:
-                    call_kwargs["node_id"] = call_kwargs[node_alias_key]
-                call_kwargs.pop(node_alias_key, None)
+                    call_kwargs["node_id"] = call_kwargs[node_alias_keys[0]]
+                for alias_key in node_alias_keys:
+                    call_kwargs.pop(alias_key, None)
 
-            if actor_alias_key is not None:
+            if actor_alias_keys:
                 if call_kwargs is kwargs:
                     call_kwargs = dict(kwargs)
                 if preserve_actor_id and "actor_id" not in call_kwargs:
-                    call_kwargs["actor_id"] = call_kwargs[actor_alias_key]
-                call_kwargs.pop(actor_alias_key, None)
+                    call_kwargs["actor_id"] = call_kwargs[actor_alias_keys[0]]
+                for alias_key in actor_alias_keys:
+                    call_kwargs.pop(alias_key, None)
 
             stage = f"{stage_prefix}::{fn_name}"
             raw_node_id = call_kwargs.get("node_id", "remote-node")

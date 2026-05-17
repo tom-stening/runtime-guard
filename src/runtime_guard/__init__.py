@@ -2014,8 +2014,18 @@ def attach_polars_guard(
             return "".join(ch for ch in raw_key.lower() if ch.isalnum())
 
         signature: inspect.Signature | None = None
+        accepts_var_kwargs = False
+        accepted_keyword_param_names: set[str] = set()
         try:
             signature = inspect.signature(fn)
+            for pname, param in signature.parameters.items():
+                if param.kind is inspect.Parameter.VAR_KEYWORD:
+                    accepts_var_kwargs = True
+                if param.kind in (
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    inspect.Parameter.KEYWORD_ONLY,
+                ):
+                    accepted_keyword_param_names.add(pname)
         except Exception:
             signature = None
         callback_kw_names: tuple[str, ...] = _infer_polars_callback_kwargs(fn)
@@ -2078,9 +2088,11 @@ def attach_polars_guard(
         def _guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
             if callback_kw_names:
+                callback_kw_names_set = set(callback_kw_names)
                 explicit_alias_map = {
                     _canonical_callback_key(callback_name): callback_name
                     for callback_name in callback_kw_names
+                    if callback_name in accepted_keyword_param_names
                 }
                 for kw_name in list(kwargs):
                     if kw_name in callback_kw_names:
@@ -2095,6 +2107,16 @@ def attach_polars_guard(
                         kwargs.pop(kw_name, None)
                         continue
                     kwargs[mapped_name] = kwargs.pop(kw_name)
+
+                if signature is not None and not accepts_var_kwargs:
+                    for kw_name in list(kwargs):
+                        if "callback" not in kw_name.lower():
+                            continue
+                        if kw_name in callback_kw_names_set and kw_name in accepted_keyword_param_names:
+                            continue
+                        if kw_name in accepted_keyword_param_names:
+                            continue
+                        kwargs.pop(kw_name, None)
 
             callback_like_kwargs = tuple(
                 kw_name for kw_name in kwargs if "callback" in kw_name.lower()

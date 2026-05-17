@@ -1811,6 +1811,30 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_drops_alias_kwarg_for_positional_only_callback_signature(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, optimization_callback: Any | None = None, /) -> int:
+                    if callable(optimization_callback):
+                        optimization_callback("logical-plan")
+                    return 42
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                optimizationCallback=lambda plan: user_calls.append(plan)
+            )
+            assert result == 42
+            assert calls == ["polars-native", "polars-native-native-callback"]
+            assert user_calls == []
+        finally:
+            restore()
+
     def test_attach_chains_callback_sequence_for_explicit_callback_kwarg(self, monkeypatch):
         class CallbackPolars:
             class LazyFrame:

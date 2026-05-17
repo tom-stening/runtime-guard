@@ -2424,6 +2424,24 @@ def install_dask_scheduler_callbacks(
     worker_snapshots: dict[str, dict[str, Any]] = {}
     callback_count: int = 0
 
+    def _canonical_worker_alias_key(raw_key: Any) -> str:
+        if not isinstance(raw_key, str):
+            return ""
+        return "".join(ch for ch in raw_key.lower() if ch.isalnum())
+
+    def _find_worker_alias_in_mapping(mapping: dict[Any, Any]) -> Any:
+        preferred_keys = {
+            "workerid",
+            "worker",
+            "workeraddr",
+            "workeraddress",
+            "address",
+        }
+        for key, value in mapping.items():
+            if _canonical_worker_alias_key(key) in preferred_keys:
+                return value
+        return None
+
     def _extract_worker_alias_value(value: Any) -> Any:
         if isinstance(value, (list, tuple)):
             for item in value:
@@ -2457,11 +2475,7 @@ def install_dask_scheduler_callbacks(
                 return None
 
             if isinstance(current, dict):
-                next_value = None
-                for key in ("worker_id", "worker", "worker_addr", "worker_address", "address"):
-                    if key in current:
-                        next_value = current.get(key)
-                        break
+                next_value = _find_worker_alias_in_mapping(current)
                 if next_value is None:
                     return None
                 current = next_value
@@ -2495,15 +2509,15 @@ def install_dask_scheduler_callbacks(
             return explicit_worker_id
 
         source = kwargs if isinstance(kwargs, dict) else {}
-        for key in ("worker_id", "worker", "worker_addr", "worker_address"):
-            if key in source:
-                return _extract_worker_alias_value(source.get(key))
+        source_candidate = _find_worker_alias_in_mapping(source)
+        if source_candidate is not None:
+            return _extract_worker_alias_value(source_candidate)
 
         for arg in args:
             if isinstance(arg, dict):
-                for key in ("worker_id", "worker", "worker_addr", "worker_address"):
-                    if key in arg:
-                        return _extract_worker_alias_value(arg.get(key))
+                arg_candidate = _find_worker_alias_in_mapping(arg)
+                if arg_candidate is not None:
+                    return _extract_worker_alias_value(arg_candidate)
                 continue
 
             candidate = _extract_worker_alias_value(arg)

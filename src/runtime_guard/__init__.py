@@ -2884,6 +2884,12 @@ def install_dask_scheduler_callbacks(
                     parse_warning_count += 1
                     return []
 
+                try:
+                    snapshot_items = list(raw_snapshots)
+                except Exception:
+                    parse_warning_count += 1
+                    return []
+
                 def _safe_item_get(item: dict[str, Any], key: str, default: Any) -> Any:
                     nonlocal parse_warning_count
                     try:
@@ -2893,7 +2899,7 @@ def install_dask_scheduler_callbacks(
                         return default
 
                 out: list[dict[str, Any]] = []
-                for item in raw_snapshots:
+                for item in snapshot_items:
                     safe_item = {
                         "key": "unknown-task",
                         "timestamp": 0,
@@ -3052,6 +3058,12 @@ def install_dask_scheduler_callbacks(
                 parse_warning_count += 1
                 return []
 
+            try:
+                snapshot_items = list(raw_snapshots)
+            except Exception:
+                parse_warning_count += 1
+                return []
+
             def _safe_item_get(item: dict[str, Any], key: str, default: Any) -> Any:
                 nonlocal parse_warning_count
                 try:
@@ -3061,7 +3073,7 @@ def install_dask_scheduler_callbacks(
                     return default
 
             out: list[dict[str, Any]] = []
-            for item in raw_snapshots:
+            for item in snapshot_items:
                 safe_item = {
                     "key": "unknown-task",
                     "timestamp": 0,

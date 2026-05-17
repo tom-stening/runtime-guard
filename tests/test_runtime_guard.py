@@ -4089,6 +4089,41 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["pressure_events"] == 1
         assert len(worker_report["snapshots"]) == 1
 
+    def test_scheduler_callbacks_handle_snapshot_lists_with_raising_iter(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _BrokenSnapshots(list):
+            def __iter__(self):  # type: ignore[override]
+                raise RuntimeError("broken snapshots iter")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+
+        all_workers = reporter(None)
+        all_workers["worker_details"]["worker-a"] = {
+            "worker_id": "worker-a",
+            "task_count": 1,
+            "completed_tasks": 1,
+            "pressure_events": 0,
+            "healthy_events": 1,
+            "snapshots": _BrokenSnapshots(),
+        }
+
+        worker_report = reporter("worker-a")
+        assert worker_report["ok"] is True
+        assert worker_report["worker_id"] == "worker-a"
+        assert worker_report["snapshots"] == []
+        assert worker_report["parse_warning_count"] >= 1
+
+        all_workers["worker_details"]["worker-a"]["snapshots"] = _BrokenSnapshots()
+
+        aggregate_report = reporter(None)
+        assert aggregate_report["ok"] is True
+        assert aggregate_report["workers_monitored"] >= 1
+        assert aggregate_report["parse_warning_count"] >= 1
+
     def test_scheduler_callbacks_handle_worker_rows_with_raising_setitem(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

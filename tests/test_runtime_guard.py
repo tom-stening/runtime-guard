@@ -4260,6 +4260,26 @@ class TestRayActorMemoryMonitoring:
         assert report["ok"] is True
         assert report["events"] == 1
 
+    def test_remote_wrapper_preserves_alias_telemetry_for_positional_only_params(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int, node_id: str = "node-default", actor_id: str = "actor-default", /) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(10, nodeId="node-alias-posonly", actorId="actor-alias-posonly") == 11
+
+        report = config["get_actor_report"](
+            node_id="node-alias-posonly",
+            actor_id="actor-alias-posonly",
+        )
+        assert report["ok"] is True
+        assert report["events"] == 1
+
     def test_get_actor_report_handles_malformed_node_row(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

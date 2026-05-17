@@ -3859,6 +3859,8 @@ def enable_ray_actor_memory_monitoring(
         accepts_var_kwargs = False
         accepts_node_id_kwarg = False
         accepts_actor_id_kwarg = False
+        has_positional_only_node_id = False
+        has_positional_only_actor_id = False
         try:
             fn_signature = inspect.signature(fn)
         except Exception:
@@ -3872,11 +3874,15 @@ def enable_ray_actor_memory_monitoring(
                     inspect.Parameter.KEYWORD_ONLY,
                 ):
                     accepts_node_id_kwarg = True
+                if pname == "node_id" and param.kind is inspect.Parameter.POSITIONAL_ONLY:
+                    has_positional_only_node_id = True
                 if pname == "actor_id" and param.kind in (
                     inspect.Parameter.POSITIONAL_OR_KEYWORD,
                     inspect.Parameter.KEYWORD_ONLY,
                 ):
                     accepts_actor_id_kwarg = True
+                if pname == "actor_id" and param.kind is inspect.Parameter.POSITIONAL_ONLY:
+                    has_positional_only_actor_id = True
 
         preserve_node_id = accepts_var_kwargs or accepts_node_id_kwarg
         preserve_actor_id = accepts_var_kwargs or accepts_actor_id_kwarg
@@ -3896,6 +3902,13 @@ def enable_ray_actor_memory_monitoring(
                 if _canonical_id_key(key) == "actorid":
                     actor_alias_keys.append(key)
 
+            raw_node_id: Any | None = kwargs.get("node_id")
+            if raw_node_id is None and node_alias_keys and has_positional_only_node_id:
+                raw_node_id = kwargs.get(node_alias_keys[0])
+            raw_actor_id: Any | None = kwargs.get("actor_id")
+            if raw_actor_id is None and actor_alias_keys and has_positional_only_actor_id:
+                raw_actor_id = kwargs.get(actor_alias_keys[0])
+
             if node_alias_keys:
                 if call_kwargs is kwargs:
                     call_kwargs = dict(kwargs)
@@ -3913,8 +3926,10 @@ def enable_ray_actor_memory_monitoring(
                     call_kwargs.pop(alias_key, None)
 
             stage = f"{stage_prefix}::{fn_name}"
-            raw_node_id = call_kwargs.get("node_id", "remote-node")
-            raw_actor_id = call_kwargs.get("actor_id", f"remote::{fn_name}")
+            if raw_node_id is None:
+                raw_node_id = call_kwargs.get("node_id", "remote-node")
+            if raw_actor_id is None:
+                raw_actor_id = call_kwargs.get("actor_id", f"remote::{fn_name}")
             if fn_signature is not None:
                 try:
                     bound = fn_signature.bind_partial(*args, **call_kwargs)

@@ -61,6 +61,7 @@ import sys
 import threading
 import time
 import weakref
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -2453,7 +2454,7 @@ def install_dask_scheduler_callbacks(
             return ""
         return "".join(ch for ch in raw_key.lower() if ch.isalnum())
 
-    def _find_worker_alias_in_mapping(mapping: dict[Any, Any]) -> Any:
+    def _find_worker_alias_in_mapping(mapping: Mapping[Any, Any]) -> Any:
         preferred_keys = {
             "workerid",
             "worker",
@@ -2469,7 +2470,7 @@ def install_dask_scheduler_callbacks(
     def _extract_worker_alias_value(value: Any) -> Any:
         if isinstance(value, (list, tuple)):
             for item in value:
-                if isinstance(item, (dict, list, tuple)):
+                if isinstance(item, (Mapping, list, tuple)):
                     candidate = _extract_worker_alias_value(item)
                 else:
                     has_alias_attr = False
@@ -2498,7 +2499,7 @@ def install_dask_scheduler_callbacks(
             if current is None:
                 return None
 
-            if isinstance(current, dict):
+            if isinstance(current, Mapping):
                 next_value = _find_worker_alias_in_mapping(current)
                 if next_value is None:
                     return None
@@ -2538,7 +2539,7 @@ def install_dask_scheduler_callbacks(
             return _extract_worker_alias_value(source_candidate)
 
         for arg in args:
-            if isinstance(arg, dict):
+            if isinstance(arg, Mapping):
                 arg_candidate = _find_worker_alias_in_mapping(arg)
                 if arg_candidate is not None:
                     return _extract_worker_alias_value(arg_candidate)

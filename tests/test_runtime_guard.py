@@ -3106,6 +3106,25 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callback_static_start_accepts_mapping_worker_alias_values(self, monkeypatch):
+        from collections import UserDict
+
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", worker=UserDict({"address": "worker-a"}))
+        callback_cls.finish("task-1", "ok", worker_addr=UserDict({"worker": "worker-a"}))
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
     def test_scheduler_callback_context_accepts_worker_alias_key_format_drift(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 
@@ -3145,6 +3164,27 @@ class TestDaskSchedulerCallbacks:
 
         callback_cls.start("task-1", {"worker_address": "worker-a"})
         callback_cls.finish("task-1", "ok", {"worker": "worker-a"})
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
+    def test_scheduler_callback_static_start_accepts_mapping_positional_worker_payloads(
+        self, monkeypatch
+    ):
+        from collections import UserDict
+
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", UserDict({"workerAddress": "worker-a"}))
+        callback_cls.finish("task-1", "ok", UserDict({"worker-id": "worker-a"}))
 
         worker_report = reporter("worker-a")
         assert worker_report["task_count"] == 1

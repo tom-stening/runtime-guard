@@ -3221,6 +3221,61 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callback_static_start_accepts_worker_object_camelcase_alias_values(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _WorkerRef:
+            def __init__(self, workerAddress: str):
+                self.workerAddress = workerAddress
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", worker=_WorkerRef("worker-a"))
+        callback_cls.finish("task-1", "ok", workerAddr=_WorkerRef("worker-a"))
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
+    def test_scheduler_callback_context_accepts_worker_object_camelcase_alias_values(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _FakeDask:
+            class callbacks:
+                class Callback:
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, exc_type, exc, tb):
+                        return False
+
+        class _WorkerRef:
+            def __init__(self, workerId: str):
+                self.workerId = workerId
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard, module=_FakeDask)
+        ctx = reporter.create_callback_context()
+
+        ctx._pretask("task-1", workerAddress=_WorkerRef("worker-a"))
+        ctx._posttask("task-1", "ok", worker=_WorkerRef("worker-a"))
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
     def test_scheduler_callback_static_start_accepts_nested_worker_alias_payloads(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

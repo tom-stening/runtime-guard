@@ -2476,9 +2476,12 @@ def install_dask_scheduler_callbacks(
                     has_alias_attr = False
                     for attr in (
                         "worker_id",
+                        "workerId",
                         "worker",
                         "worker_addr",
+                        "workerAddr",
                         "worker_address",
+                        "workerAddress",
                         "address",
                     ):
                         attr_value = getattr(item, attr, None)
@@ -2507,7 +2510,16 @@ def install_dask_scheduler_callbacks(
                 continue
 
             next_value = None
-            for attr in ("worker_id", "worker", "worker_addr", "worker_address", "address"):
+            for attr in (
+                "worker_id",
+                "workerId",
+                "worker",
+                "worker_addr",
+                "workerAddr",
+                "worker_address",
+                "workerAddress",
+                "address",
+            ):
                 candidate = getattr(current, attr, None)
                 if candidate is not None and not callable(candidate):
                     next_value = candidate

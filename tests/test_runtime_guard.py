@@ -4308,6 +4308,24 @@ class TestRayActorMemoryMonitoring:
         assert report["ok"] is True
         assert report["events"] == 1
 
+    def test_remote_wrapper_normalizes_hyphenated_node_actor_kwarg_aliases(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int, *, node_id: str, actor_id: str) -> tuple[int, str, str]:
+            return x + 1, node_id, actor_id
+
+        wrapped = config["remote_wrapper"](compute)
+        result = wrapped(10, **{"node-id": "node-hyphen", "actor-id": "actor-hyphen"})
+
+        assert result == (11, "node-hyphen", "actor-hyphen")
+        report = config["get_actor_report"](node_id="node-hyphen", actor_id="actor-hyphen")
+        assert report["ok"] is True
+        assert report["events"] == 1
+
     def test_remote_wrapper_handles_multiple_node_actor_alias_kwargs(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

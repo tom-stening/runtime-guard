@@ -3907,7 +3907,15 @@ def enable_ray_actor_memory_monitoring(
             }
 
         actor_key = _normalize_key(actor_id, fallback="unknown-actor")
-        for node_key, node_row in actor_event_state.items():
+        for raw_node_key, node_row in actor_event_state.items():
+            if isinstance(raw_node_key, str):
+                node_key = raw_node_key.strip()
+                if not node_key:
+                    _warn_parse()
+                    node_key = "unknown-node"
+            else:
+                _warn_parse()
+                node_key = "unknown-node"
             if not isinstance(node_row, dict):
                 _warn_parse()
                 continue

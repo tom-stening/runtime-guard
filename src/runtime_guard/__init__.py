@@ -3525,8 +3525,12 @@ def enable_ray_actor_memory_monitoring(
     parse_warning_count = 0
 
     def _strict_non_negative_counter(value: Any) -> tuple[int, bool]:
-        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-            return value, True
+        if isinstance(value, int) and not isinstance(value, bool):
+            try:
+                if value >= 0:
+                    return value, True
+            except Exception:
+                return 0, False
         return 0, False
 
     def _warn_parse() -> None:

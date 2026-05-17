@@ -2087,12 +2087,18 @@ def attach_polars_guard(
 
         def _guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
+            positional_callback_alias_values: dict[str, Any] = {}
             if callback_kw_names:
                 callback_kw_names_set = set(callback_kw_names)
                 explicit_alias_map = {
                     _canonical_callback_key(callback_name): callback_name
                     for callback_name in callback_kw_names
                     if callback_name in accepted_keyword_param_names
+                }
+                explicit_positional_alias_map = {
+                    _canonical_callback_key(callback_name): callback_name
+                    for callback_name in explicit_callback_kw_names
+                    if callback_name not in accepted_keyword_param_names
                 }
                 for kw_name in list(kwargs):
                     if kw_name in callback_kw_names:
@@ -2101,12 +2107,19 @@ def attach_polars_guard(
                         continue
                     canonical_name = _canonical_callback_key(kw_name)
                     mapped_name = explicit_alias_map.get(canonical_name)
-                    if not mapped_name:
+                    if mapped_name:
+                        if mapped_name in kwargs:
+                            kwargs.pop(kw_name, None)
+                            continue
+                        kwargs[mapped_name] = kwargs.pop(kw_name)
                         continue
-                    if mapped_name in kwargs:
-                        kwargs.pop(kw_name, None)
-                        continue
-                    kwargs[mapped_name] = kwargs.pop(kw_name)
+                    positional_mapped_name = explicit_positional_alias_map.get(canonical_name)
+                    if (
+                        positional_mapped_name
+                        and accepts_var_kwargs
+                        and positional_mapped_name not in positional_callback_alias_values
+                    ):
+                        positional_callback_alias_values[positional_mapped_name] = kwargs.pop(kw_name)
 
                 if signature is not None and not accepts_var_kwargs:
                     for kw_name in list(kwargs):
@@ -2131,6 +2144,8 @@ def attach_polars_guard(
                         wrapped_any = False
                         saw_callback_arg = False
                         for kw_name in explicit_callback_kw_names:
+                            if kw_name not in bound.arguments and kw_name in positional_callback_alias_values:
+                                bound.arguments[kw_name] = positional_callback_alias_values[kw_name]
                             if kw_name in bound.arguments:
                                 saw_callback_arg = True
                                 user_callback = bound.arguments.get(kw_name)

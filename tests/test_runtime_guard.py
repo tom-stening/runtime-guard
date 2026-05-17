@@ -1961,6 +1961,37 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_drops_duplicate_callback_alias_variants_when_canonical_present(
+        self, monkeypatch
+    ):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    post_opt_callback: Any | None = None,
+                    **kwargs: Any,
+                ) -> dict[str, Any]:
+                    if callable(post_opt_callback):
+                        post_opt_callback("logical-plan")
+                    return kwargs
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                postOptCallback=lambda plan: user_calls.append(f"one:{plan}"),
+                postOPTCallback=lambda plan: user_calls.append(f"two:{plan}"),
+            )
+            assert result == {}
+            assert calls == ["polars-native", "polars-native-native-callback"]
+            assert user_calls == ["one:logical-plan"]
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask integration hook
@@ -3209,6 +3240,25 @@ class TestDaskSchedulerCallbacks:
         callback_cls.finish("task-1", "ok", "worker-a")
 
         worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
+    def test_scheduler_callback_static_start_accepts_positional_host_port_worker_id(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", "127.0.0.1:8786")
+        callback_cls.finish("task-1", "ok", "127.0.0.1:8786")
+
+        worker_report = reporter("127.0.0.1:8786")
         assert worker_report["task_count"] == 1
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1

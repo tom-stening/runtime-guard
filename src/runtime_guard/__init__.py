@@ -3819,7 +3819,15 @@ def enable_ray_actor_memory_monitoring(
         if node_id is None and actor_id is None:
             safe_nodes: dict[str, dict[str, Any]] = {}
             total_events = 0
-            for node_key, row in actor_event_state.items():
+            for raw_node_key, row in actor_event_state.items():
+                if isinstance(raw_node_key, str):
+                    node_key = raw_node_key.strip()
+                    if not node_key:
+                        _warn_parse()
+                        node_key = "unknown-node"
+                else:
+                    _warn_parse()
+                    node_key = "unknown-node"
                 if not isinstance(row, dict):
                     _warn_parse()
                     continue

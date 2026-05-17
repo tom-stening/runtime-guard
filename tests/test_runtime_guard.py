@@ -590,6 +590,29 @@ class TestJsonEvents:
         assert report["methods"] == {}
         assert report["parse_warning_count"] >= 1
 
+    def test_get_actor_report_global_view_normalizes_malformed_node_keys(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        all_nodes = config["get_all_node_reports"]()
+        all_nodes["nodes"][("bad", "node", "key")] = {
+            "node_id": "",
+            "events": 2,
+            "pressure_events": 1,
+            "healthy_events": 1,
+            "actors": {},
+        }
+
+        report = config["get_actor_report"]()
+        assert report["ok"] is True
+        assert "unknown-node" in report["nodes"]
+        assert all(isinstance(node_key, str) for node_key in report["nodes"])
+        assert report["parse_warning_count"] >= 1
+
     def test_get_actor_report_handles_actor_maps_with_raising_get(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

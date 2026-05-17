@@ -2605,7 +2605,7 @@ def install_dask_scheduler_callbacks(
                     return _extract_worker_alias_value(arg_candidate)
                 continue
 
-            if isinstance(arg, (bytes, bytearray)):
+            if isinstance(arg, (bytes, bytearray, memoryview)):
                 try:
                     decoded_label = bytes(arg).decode("utf-8", errors="ignore").strip()
                 except Exception:
@@ -2624,7 +2624,7 @@ def install_dask_scheduler_callbacks(
         return None
 
     def _normalize_worker_label(raw_worker_id: Any) -> str:
-        if isinstance(raw_worker_id, (bytes, bytearray)):
+        if isinstance(raw_worker_id, (bytes, bytearray, memoryview)):
             try:
                 decoded = bytes(raw_worker_id).decode("utf-8", errors="ignore").strip()
             except Exception:

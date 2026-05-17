@@ -2007,6 +2007,11 @@ def attach_polars_guard(
         return _restore
 
     def _wrap_lazyframe_method(name: str, fn: Any) -> Any:
+        def _canonical_callback_key(raw_key: Any) -> str:
+            if not isinstance(raw_key, str):
+                return ""
+            return "".join(ch for ch in raw_key.lower() if ch.isalnum())
+
         signature: inspect.Signature | None = None
         try:
             signature = inspect.signature(fn)
@@ -2071,6 +2076,25 @@ def attach_polars_guard(
 
         def _guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
             guard.check_and_log(stage=stage)
+            if callback_kw_names:
+                explicit_alias_map = {
+                    _canonical_callback_key(callback_name): callback_name
+                    for callback_name in callback_kw_names
+                }
+                for kw_name in list(kwargs):
+                    if kw_name in callback_kw_names:
+                        continue
+                    if "callback" not in kw_name.lower():
+                        continue
+                    canonical_name = _canonical_callback_key(kw_name)
+                    mapped_name = explicit_alias_map.get(canonical_name)
+                    if not mapped_name:
+                        continue
+                    if mapped_name in kwargs:
+                        kwargs.pop(kw_name, None)
+                        continue
+                    kwargs[mapped_name] = kwargs.pop(kw_name)
+
             callback_like_kwargs = tuple(
                 kw_name for kw_name in kwargs if "callback" in kw_name.lower()
             )

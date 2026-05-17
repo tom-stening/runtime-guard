@@ -1881,6 +1881,62 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_normalizes_callback_alias_for_explicit_parameter(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    multiplier: int = 1,
+                    post_opt_callback: Any | None = None,
+                ) -> int:
+                    if callable(post_opt_callback):
+                        post_opt_callback("logical-plan")
+                    return 21 * multiplier
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                multiplier=2,
+                postOptCallback=lambda plan: user_calls.append(plan),
+            )
+            assert result == 42
+            assert calls == ["polars-native", "polars-native-native-callback"]
+            assert user_calls == ["logical-plan"]
+        finally:
+            restore()
+
+    def test_attach_keeps_explicit_callback_when_alias_and_explicit_both_present(self, monkeypatch):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(self, post_opt_callback: Any | None = None) -> int:
+                    if callable(post_opt_callback):
+                        post_opt_callback("logical-plan")
+                    return 42
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_calls: list[str] = []
+            alias_calls: list[str] = []
+            result = CallbackPolars.LazyFrame().collect(
+                post_opt_callback=lambda plan: user_calls.append(plan),
+                postOptCallback=lambda plan: alias_calls.append(plan),
+            )
+            assert result == 42
+            assert calls == ["polars-native", "polars-native-native-callback"]
+            assert user_calls == ["logical-plan"]
+            assert alias_calls == []
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask integration hook

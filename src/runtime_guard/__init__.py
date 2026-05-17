@@ -2100,8 +2100,15 @@ def attach_polars_guard(
                     for callback_name in explicit_callback_kw_names
                     if callback_name not in accepted_keyword_param_names
                 }
+                explicit_positional_callback_names = set(explicit_positional_alias_map.values())
                 for kw_name in list(kwargs):
                     if kw_name in callback_kw_names:
+                        if (
+                            accepts_var_kwargs
+                            and kw_name in explicit_positional_callback_names
+                            and kw_name not in positional_callback_alias_values
+                        ):
+                            positional_callback_alias_values[kw_name] = kwargs.pop(kw_name)
                         continue
                     if "callback" not in kw_name.lower():
                         continue

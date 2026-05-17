@@ -2619,6 +2619,13 @@ def install_dask_scheduler_callbacks(
         return None
 
     def _normalize_worker_label(raw_worker_id: Any) -> str:
+        if isinstance(raw_worker_id, (bytes, bytearray)):
+            try:
+                decoded = bytes(raw_worker_id).decode("utf-8", errors="ignore").strip()
+            except Exception:
+                decoded = ""
+            if decoded:
+                return decoded
         if isinstance(raw_worker_id, str):
             normalized = raw_worker_id.strip()
             if normalized:

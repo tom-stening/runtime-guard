@@ -3695,7 +3695,14 @@ def enable_ray_actor_memory_monitoring(
     def _sanitize_actor_row_for_report(actor_row: dict[str, Any], actor_key: str) -> dict[str, Any]:
         safe_row: dict[str, Any] = {}
 
-        safe_actor_id = _normalize_key(actor_row.get("actor_id", actor_key), fallback=actor_key)
+        def _safe_actor_row_get(key: str, default: Any) -> Any:
+            try:
+                return actor_row.get(key, default)
+            except Exception:
+                _warn_parse()
+                return default
+
+        safe_actor_id = _normalize_key(_safe_actor_row_get("actor_id", actor_key), fallback=actor_key)
         safe_row["actor_id"] = safe_actor_id
 
         for counter_name in (
@@ -3705,13 +3712,13 @@ def enable_ray_actor_memory_monitoring(
             "pressure_events",
             "healthy_events",
         ):
-            raw_value = actor_row.get(counter_name, 0)
+            raw_value = _safe_actor_row_get(counter_name, 0)
             counter_value, counter_ok = _strict_non_negative_counter(raw_value)
             if not counter_ok and raw_value not in (0,):
                 _warn_parse()
             safe_row[counter_name] = counter_value
 
-        methods = actor_row.get("methods")
+        methods = _safe_actor_row_get("methods", {})
         if not isinstance(methods, dict):
             if methods is not None:
                 _warn_parse()
@@ -3738,7 +3745,14 @@ def enable_ray_actor_memory_monitoring(
     def _sanitize_node_row_for_report(node_row: dict[str, Any], node_key: str) -> dict[str, Any]:
         safe_row: dict[str, Any] = {}
 
-        safe_node_id = _normalize_key(node_row.get("node_id", node_key), fallback=node_key)
+        def _safe_node_row_get(key: str, default: Any) -> Any:
+            try:
+                return node_row.get(key, default)
+            except Exception:
+                _warn_parse()
+                return default
+
+        safe_node_id = _normalize_key(_safe_node_row_get("node_id", node_key), fallback=node_key)
         safe_row["node_id"] = safe_node_id
 
         for counter_name in (
@@ -3748,13 +3762,13 @@ def enable_ray_actor_memory_monitoring(
             "pressure_events",
             "healthy_events",
         ):
-            raw_value = node_row.get(counter_name, 0)
+            raw_value = _safe_node_row_get(counter_name, 0)
             counter_value, counter_ok = _strict_non_negative_counter(raw_value)
             if not counter_ok and raw_value not in (0,):
                 _warn_parse()
             safe_row[counter_name] = counter_value
 
-        actors = node_row.get("actors")
+        actors = _safe_node_row_get("actors", {})
         if not isinstance(actors, dict):
             if actors is not None:
                 _warn_parse()

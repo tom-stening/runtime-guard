@@ -3732,7 +3732,12 @@ def enable_ray_actor_memory_monitoring(
             methods = {}
 
         safe_methods: dict[str, int] = {}
-        for raw_method_name, raw_method_count in methods.items():
+        try:
+            method_items = list(methods.items())
+        except Exception:
+            _warn_parse()
+            method_items = []
+        for raw_method_name, raw_method_count in method_items:
             if not isinstance(raw_method_name, str):
                 _warn_parse()
                 continue
@@ -3782,7 +3787,12 @@ def enable_ray_actor_memory_monitoring(
             actors = {}
 
         safe_actors: dict[str, dict[str, Any]] = {}
-        for raw_actor_id, raw_actor_row in actors.items():
+        try:
+            actor_items = list(actors.items())
+        except Exception:
+            _warn_parse()
+            actor_items = []
+        for raw_actor_id, raw_actor_row in actor_items:
             if not isinstance(raw_actor_id, str):
                 _warn_parse()
                 continue

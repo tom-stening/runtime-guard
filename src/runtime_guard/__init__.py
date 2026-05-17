@@ -2581,6 +2581,7 @@ def install_dask_scheduler_callbacks(
                 or lowered.startswith("inproc://")
                 or lowered.startswith("ipc://")
                 or lowered.startswith("tls://")
+                or lowered.startswith("ucx://")
                 or has_host_port_shape
             )
 

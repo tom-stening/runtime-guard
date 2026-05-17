@@ -2472,6 +2472,11 @@ def install_dask_scheduler_callbacks(
     callback_count: int = 0
 
     def _canonical_worker_alias_key(raw_key: Any) -> str:
+        if isinstance(raw_key, (bytes, bytearray)):
+            try:
+                raw_key = bytes(raw_key).decode("utf-8", errors="ignore")
+            except Exception:
+                return ""
         if not isinstance(raw_key, str):
             return ""
         return "".join(ch for ch in raw_key.lower() if ch.isalnum())

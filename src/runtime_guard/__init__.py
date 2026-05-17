@@ -2571,6 +2571,16 @@ def install_dask_scheduler_callbacks(
         args: tuple[Any, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
+        def _looks_like_worker_label(value: str) -> bool:
+            lowered = value.lower()
+            return (
+                "worker" in lowered
+                or lowered.startswith("tcp://")
+                or lowered.startswith("inproc://")
+                or lowered.startswith("ipc://")
+                or lowered.startswith("tls://")
+            )
+
         if explicit_worker_id is not None:
             return explicit_worker_id
 
@@ -2585,6 +2595,11 @@ def install_dask_scheduler_callbacks(
                 if arg_candidate is not None:
                     return _extract_worker_alias_value(arg_candidate)
                 continue
+
+            if isinstance(arg, str):
+                candidate_label = arg.strip()
+                if candidate_label and _looks_like_worker_label(candidate_label):
+                    return candidate_label
 
             candidate = _extract_worker_alias_value(arg)
             if candidate is not None and candidate is not arg:

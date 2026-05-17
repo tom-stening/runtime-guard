@@ -3378,6 +3378,38 @@ class TestDaskSchedulerCallbacks:
         assert unknown_report["completed_tasks"] == 1
         assert unknown_report["healthy_events"] == 1
 
+    def test_scheduler_callback_static_start_handles_raising_report_attributes(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _BrokenReport:
+            @property
+            def is_critical(self):
+                raise RuntimeError("broken critical attr")
+
+            @property
+            def cause(self):
+                raise RuntimeError("broken cause attr")
+
+            @property
+            def missing_mem_mb(self):
+                raise RuntimeError("broken missing mem attr")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": _BrokenReport())
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", worker_id="worker-a")
+        callback_cls.finish("task-1", "ok", worker_id="worker-a")
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["pressure_events"] == 1
+
     def test_scheduler_callback_context_accepts_worker_alias_key_format_drift(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

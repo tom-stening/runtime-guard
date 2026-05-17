@@ -2680,6 +2680,12 @@ def install_dask_scheduler_callbacks(
         nonlocal callback_count
         callback_count += 1
 
+        def _safe_report_field(report_obj: Any, field_name: str, default: Any) -> Any:
+            try:
+                return getattr(report_obj, field_name, default)
+            except Exception:
+                return default
+
         # Get current worker context if available
         worker_label = _normalize_worker_label(worker_id)
         stage = f"{stage_prefix}-task-{callback_count}"
@@ -2714,15 +2720,15 @@ def install_dask_scheduler_callbacks(
                     pressure_events = 0
                 worker_row["pressure_events"] = pressure_events + 1
 
-                is_critical = getattr(report, "is_critical", False)
+                is_critical = _safe_report_field(report, "is_critical", False)
                 if not isinstance(is_critical, bool):
                     is_critical = False
 
-                cause = getattr(report, "cause", "unknown")
+                cause = _safe_report_field(report, "cause", "unknown")
                 if not isinstance(cause, str):
                     cause = "unknown"
 
-                missing_mem_mb = getattr(report, "missing_mem_mb", 0)
+                missing_mem_mb = _safe_report_field(report, "missing_mem_mb", 0)
                 if (
                     not isinstance(missing_mem_mb, (int, float))
                     or isinstance(missing_mem_mb, bool)

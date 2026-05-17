@@ -2881,8 +2881,13 @@ def install_dask_scheduler_callbacks(
             def _safe_counter(worker_row: dict[str, Any], name: str) -> int:
                 nonlocal parse_warning_count
                 value = _safe_worker_row_get(worker_row, name, 0)
-                if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-                    return value
+                if isinstance(value, int) and not isinstance(value, bool):
+                    try:
+                        if value >= 0:
+                            return value
+                    except Exception:
+                        parse_warning_count += 1
+                        return 0
                 parse_warning_count += 1
                 return 0
 
@@ -3055,8 +3060,13 @@ def install_dask_scheduler_callbacks(
         def _safe_counter(name: str) -> int:
             nonlocal parse_warning_count
             value = _safe_worker_data_get(name, 0)
-            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-                return value
+            if isinstance(value, int) and not isinstance(value, bool):
+                try:
+                    if value >= 0:
+                        return value
+                except Exception:
+                    parse_warning_count += 1
+                    return 0
             parse_warning_count += 1
             return 0
 

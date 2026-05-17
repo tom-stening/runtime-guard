@@ -4147,6 +4147,53 @@ class TestDaskSchedulerCallbacks:
         assert aggregate_report["workers_monitored"] >= 1
         assert aggregate_report["parse_warning_count"] >= 1
 
+    def test_get_worker_reports_handle_hostile_int_like_counters(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _BadInt(int):
+            def __ge__(self, other):  # type: ignore[override]
+                raise RuntimeError("broken worker counter compare")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+
+        all_workers = reporter(None)
+        all_workers["worker_details"]["worker-a"] = {
+            "worker_id": "worker-a",
+            "task_count": _BadInt(3),
+            "completed_tasks": _BadInt(2),
+            "pressure_events": _BadInt(1),
+            "healthy_events": _BadInt(4),
+            "snapshots": [],
+        }
+
+        worker_report = reporter("worker-a")
+        assert worker_report["ok"] is True
+        assert worker_report["task_count"] == 0
+        assert worker_report["completed_tasks"] == 0
+        assert worker_report["pressure_events"] == 0
+        assert worker_report["healthy_events"] == 0
+        assert worker_report["parse_warning_count"] >= 4
+
+        all_workers["worker_details"]["worker-a"] = {
+            "worker_id": "worker-a",
+            "task_count": _BadInt(3),
+            "completed_tasks": _BadInt(2),
+            "pressure_events": _BadInt(1),
+            "healthy_events": _BadInt(4),
+            "snapshots": [],
+        }
+
+        aggregate_report = reporter(None)
+        assert aggregate_report["ok"] is True
+        assert aggregate_report["total_tasks"] == 0
+        assert aggregate_report["total_completed_tasks"] == 0
+        assert aggregate_report["total_pressure_events"] == 0
+        assert aggregate_report["total_healthy_events"] == 0
+        assert aggregate_report["parse_warning_count"] >= 4
+
     def test_scheduler_callbacks_handle_worker_rows_with_raising_setitem(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

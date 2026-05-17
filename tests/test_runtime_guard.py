@@ -3263,6 +3263,25 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callback_static_start_accepts_positional_ucx_worker_endpoint(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", "ucx://10.0.0.1:13337")
+        callback_cls.finish("task-1", "ok", "ucx://10.0.0.1:13337")
+
+        worker_report = reporter("ucx://10.0.0.1:13337")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
     def test_scheduler_callback_static_start_accepts_mapping_positional_worker_payloads(
         self, monkeypatch
     ):

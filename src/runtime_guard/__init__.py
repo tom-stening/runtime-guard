@@ -2524,6 +2524,12 @@ def install_dask_scheduler_callbacks(
     def _extract_worker_alias_value(value: Any, *, _seen_ids: set[int] | None = None) -> Any:
         seen_ids = _seen_ids if _seen_ids is not None else set()
 
+        def _safe_get_alias_attr(target: Any, attr: str) -> Any:
+            try:
+                return getattr(target, attr, None)
+            except Exception:
+                return None
+
         if isinstance(value, (list, tuple)):
             container_id = id(value)
             if container_id in seen_ids:
@@ -2544,7 +2550,7 @@ def install_dask_scheduler_callbacks(
                         "workerAddress",
                         "address",
                     ):
-                        attr_value = getattr(item, attr, None)
+                        attr_value = _safe_get_alias_attr(item, attr)
                         if attr_value is not None and not callable(attr_value):
                             has_alias_attr = True
                             break
@@ -2580,7 +2586,7 @@ def install_dask_scheduler_callbacks(
                 "workerAddress",
                 "address",
             ):
-                candidate = getattr(current, attr, None)
+                candidate = _safe_get_alias_attr(current, attr)
                 if candidate is not None and not callable(candidate):
                     next_value = candidate
                     break

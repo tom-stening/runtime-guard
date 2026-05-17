@@ -3562,11 +3562,8 @@ def enable_ray_actor_memory_monitoring(
         actor_key = _normalize_key(actor_id, fallback="unknown-actor")
         method_key = _normalize_key(method_name, fallback="unknown-method")
 
-        node_row = actor_event_state.get(node_key)
-        if not isinstance(node_row, dict):
-            if node_row is not None:
-                _warn_parse()
-            node_row = {
+        def _default_node_row() -> dict[str, Any]:
+            return {
                 "node_id": node_key,
                 "events": 0,
                 "entry_checks": 0,
@@ -3575,7 +3572,25 @@ def enable_ray_actor_memory_monitoring(
                 "healthy_events": 0,
                 "actors": {},
             }
-            actor_event_state[node_key] = node_row
+
+        node_row = actor_event_state.get(node_key)
+        if not isinstance(node_row, dict):
+            if node_row is not None:
+                _warn_parse()
+            node_row = _default_node_row()
+        elif type(node_row) is not dict:
+            _warn_parse()
+            try:
+                node_row = dict(node_row)
+            except Exception:
+                node_row = _default_node_row()
+        else:
+            try:
+                node_row.get("node_id", node_key)
+            except Exception:
+                _warn_parse()
+                node_row = _default_node_row()
+        actor_event_state[node_key] = node_row
         node_events, _ = _strict_non_negative_counter(node_row.get("events", 0))
         node_row["events"] = node_events + 1
         if event_type == "entry":
@@ -3597,7 +3612,13 @@ def enable_ray_actor_memory_monitoring(
             actors = {}
             node_row["actors"] = actors
 
-        actor_row = actors.get(actor_key)
+        try:
+            actor_row = actors.get(actor_key)
+        except Exception:
+            _warn_parse()
+            actors = {}
+            node_row["actors"] = actors
+            actor_row = None
         if not isinstance(actor_row, dict):
             if actor_row is not None:
                 _warn_parse()
@@ -3611,6 +3632,36 @@ def enable_ray_actor_memory_monitoring(
                 "methods": {},
             }
             actors[actor_key] = actor_row
+        elif type(actor_row) is not dict:
+            _warn_parse()
+            try:
+                actor_row = dict(actor_row)
+            except Exception:
+                actor_row = {
+                    "actor_id": actor_key,
+                    "events": 0,
+                    "entry_checks": 0,
+                    "exit_checks": 0,
+                    "pressure_events": 0,
+                    "healthy_events": 0,
+                    "methods": {},
+                }
+            actors[actor_key] = actor_row
+        else:
+            try:
+                actor_row.get("actor_id", actor_key)
+            except Exception:
+                _warn_parse()
+                actor_row = {
+                    "actor_id": actor_key,
+                    "events": 0,
+                    "entry_checks": 0,
+                    "exit_checks": 0,
+                    "pressure_events": 0,
+                    "healthy_events": 0,
+                    "methods": {},
+                }
+                actors[actor_key] = actor_row
         actor_events, _ = _strict_non_negative_counter(actor_row.get("events", 0))
         actor_row["events"] = actor_events + 1
         if event_type == "entry":
@@ -3631,7 +3682,14 @@ def enable_ray_actor_memory_monitoring(
             _warn_parse()
             methods = {}
             actor_row["methods"] = methods
-        method_count, _ = _strict_non_negative_counter(methods.get(method_key, 0))
+        try:
+            raw_method_count = methods.get(method_key, 0)
+        except Exception:
+            _warn_parse()
+            methods = {}
+            actor_row["methods"] = methods
+            raw_method_count = 0
+        method_count, _ = _strict_non_negative_counter(raw_method_count)
         methods[method_key] = method_count + 1
 
     def _sanitize_actor_row_for_report(actor_row: dict[str, Any], actor_key: str) -> dict[str, Any]:

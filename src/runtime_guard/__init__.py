@@ -2690,34 +2690,38 @@ def install_dask_scheduler_callbacks(
         worker_label = _normalize_worker_label(worker_id)
         stage = f"{stage_prefix}-task-{callback_count}"
 
-        # Check memory before task
-        report = guard.check_and_log(stage=stage)
+        def _default_worker_row() -> dict[str, Any]:
+            return {
+                "worker_id": worker_label,
+                "task_count": 0,
+                "completed_tasks": 0,
+                "pressure_events": 0,
+                "healthy_events": 0,
+                "snapshots": [],
+            }
 
-        if enable_worker_reports:
+        def _ensure_mutable_worker_row() -> dict[str, Any]:
             worker_row = worker_snapshots.get(worker_label)
             if not isinstance(worker_row, dict):
-                worker_row = {
-                    "worker_id": worker_label,
-                    "task_count": 0,
-                    "completed_tasks": 0,
-                    "pressure_events": 0,
-                    "healthy_events": 0,
-                    "snapshots": [],
-                }
-                worker_snapshots[worker_label] = worker_row
+                worker_row = _default_worker_row()
+            elif type(worker_row) is not dict:
+                try:
+                    worker_row = dict(worker_row)
+                except Exception:
+                    worker_row = _default_worker_row()
             else:
                 try:
                     worker_row.get("worker_id", worker_label)
                 except Exception:
-                    worker_row = {
-                        "worker_id": worker_label,
-                        "task_count": 0,
-                        "completed_tasks": 0,
-                        "pressure_events": 0,
-                        "healthy_events": 0,
-                        "snapshots": [],
-                    }
-                    worker_snapshots[worker_label] = worker_row
+                    worker_row = _default_worker_row()
+            worker_snapshots[worker_label] = worker_row
+            return worker_row
+
+        # Check memory before task
+        report = guard.check_and_log(stage=stage)
+
+        if enable_worker_reports:
+            worker_row = _ensure_mutable_worker_row()
 
             def _safe_worker_row_get(name: str, default: Any) -> Any:
                 try:
@@ -2807,7 +2811,18 @@ def install_dask_scheduler_callbacks(
                 "healthy_events": 0,
                 "snapshots": [],
             }
-            worker_snapshots[worker_label] = worker_row
+        elif type(worker_row) is not dict:
+            try:
+                worker_row = dict(worker_row)
+            except Exception:
+                worker_row = {
+                    "worker_id": worker_label,
+                    "task_count": 0,
+                    "completed_tasks": 0,
+                    "pressure_events": 0,
+                    "healthy_events": 0,
+                    "snapshots": [],
+                }
         else:
             try:
                 worker_row.get("worker_id", worker_label)
@@ -2820,7 +2835,7 @@ def install_dask_scheduler_callbacks(
                     "healthy_events": 0,
                     "snapshots": [],
                 }
-                worker_snapshots[worker_label] = worker_row
+        worker_snapshots[worker_label] = worker_row
 
         def _safe_worker_row_get(name: str, default: Any) -> Any:
             try:
@@ -2945,6 +2960,20 @@ def install_dask_scheduler_callbacks(
                     }
                     worker_snapshots[worker_label] = safe_row
                     continue
+                if type(worker_row) is not dict:
+                    parse_warning_count += 1
+                    try:
+                        worker_row = dict(worker_row)
+                    except Exception:
+                        worker_row = {
+                            "worker_id": worker_label if isinstance(worker_label, str) else "unknown-worker",
+                            "task_count": 0,
+                            "completed_tasks": 0,
+                            "pressure_events": 0,
+                            "healthy_events": 0,
+                            "snapshots": [],
+                        }
+                    worker_snapshots[worker_label] = worker_row
 
                 pressure_events = _safe_counter(worker_row, "pressure_events")
                 task_count = _safe_counter(worker_row, "task_count")

@@ -3327,6 +3327,29 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callback_static_start_handles_malformed_mapping_alias_values(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _BrokenMapping(dict):
+            def items(self):  # type: ignore[override]
+                raise RuntimeError("broken mapping")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", worker=_BrokenMapping())
+        callback_cls.finish("task-1", "ok", worker=_BrokenMapping())
+
+        unknown_report = reporter("unknown-worker")
+        assert unknown_report["task_count"] == 1
+        assert unknown_report["completed_tasks"] == 1
+        assert unknown_report["healthy_events"] == 1
+
     def test_scheduler_callback_context_accepts_worker_alias_key_format_drift(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

@@ -2509,9 +2509,16 @@ def install_dask_scheduler_callbacks(
             "workeraddress",
             "address",
         }
-        for key, value in mapping.items():
-            if _canonical_worker_alias_key(key) in preferred_keys:
-                return value
+        try:
+            items_iter = mapping.items()
+        except Exception:
+            return None
+        try:
+            for key, value in items_iter:
+                if _canonical_worker_alias_key(key) in preferred_keys:
+                    return value
+        except Exception:
+            return None
         return None
 
     def _extract_worker_alias_value(value: Any, *, _seen_ids: set[int] | None = None) -> Any:

@@ -2705,13 +2705,32 @@ def install_dask_scheduler_callbacks(
                     "snapshots": [],
                 }
                 worker_snapshots[worker_label] = worker_row
+            else:
+                try:
+                    worker_row.get("worker_id", worker_label)
+                except Exception:
+                    worker_row = {
+                        "worker_id": worker_label,
+                        "task_count": 0,
+                        "completed_tasks": 0,
+                        "pressure_events": 0,
+                        "healthy_events": 0,
+                        "snapshots": [],
+                    }
+                    worker_snapshots[worker_label] = worker_row
 
-            task_count = worker_row.get("task_count", 0)
+            def _safe_worker_row_get(name: str, default: Any) -> Any:
+                try:
+                    return worker_row.get(name, default)
+                except Exception:
+                    return default
+
+            task_count = _safe_worker_row_get("task_count", 0)
             if not isinstance(task_count, int) or isinstance(task_count, bool) or task_count < 0:
                 task_count = 0
             worker_row["task_count"] = task_count + 1
             if report is not None:
-                pressure_events = worker_row.get("pressure_events", 0)
+                pressure_events = _safe_worker_row_get("pressure_events", 0)
                 if (
                     not isinstance(pressure_events, int)
                     or isinstance(pressure_events, bool)
@@ -2736,7 +2755,7 @@ def install_dask_scheduler_callbacks(
                 ):
                     missing_mem_mb = 0
 
-                snapshots = worker_row.get("snapshots")
+                snapshots = _safe_worker_row_get("snapshots", [])
                 if not isinstance(snapshots, list):
                     snapshots = []
                     worker_row["snapshots"] = snapshots
@@ -2750,7 +2769,7 @@ def install_dask_scheduler_callbacks(
                     }
                 )
             else:
-                healthy_events = worker_row.get("healthy_events", 0)
+                healthy_events = _safe_worker_row_get("healthy_events", 0)
                 if (
                     not isinstance(healthy_events, int)
                     or isinstance(healthy_events, bool)
@@ -2782,8 +2801,27 @@ def install_dask_scheduler_callbacks(
                 "snapshots": [],
             }
             worker_snapshots[worker_label] = worker_row
+        else:
+            try:
+                worker_row.get("worker_id", worker_label)
+            except Exception:
+                worker_row = {
+                    "worker_id": worker_label,
+                    "task_count": 0,
+                    "completed_tasks": 0,
+                    "pressure_events": 0,
+                    "healthy_events": 0,
+                    "snapshots": [],
+                }
+                worker_snapshots[worker_label] = worker_row
 
-        completed_tasks = worker_row.get("completed_tasks", 0)
+        def _safe_worker_row_get(name: str, default: Any) -> Any:
+            try:
+                return worker_row.get(name, default)
+            except Exception:
+                return default
+
+        completed_tasks = _safe_worker_row_get("completed_tasks", 0)
         if (
             not isinstance(completed_tasks, int)
             or isinstance(completed_tasks, bool)

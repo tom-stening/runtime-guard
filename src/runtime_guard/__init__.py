@@ -3611,6 +3611,13 @@ def enable_ray_actor_memory_monitoring(
             _warn_parse()
             actors = {}
             node_row["actors"] = actors
+        elif type(actors) is not dict:
+            _warn_parse()
+            try:
+                actors = dict(actors)
+            except Exception:
+                actors = {}
+            node_row["actors"] = actors
 
         try:
             actor_row = actors.get(actor_key)

@@ -373,6 +373,35 @@ class TestJsonEvents:
         assert report["events"] == 1
         assert report["entry_checks"] == 1
 
+    def test_remote_wrapper_handles_actor_maps_with_raising_setitem(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        class _BrokenActors(dict):
+            def __setitem__(self, key, value):  # type: ignore[override]
+                raise RuntimeError("broken record actor map setitem")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        all_nodes = config["get_all_node_reports"]()
+        all_nodes["nodes"]["node-a"] = {
+            "node_id": "node-a",
+            "events": 0,
+            "entry_checks": 0,
+            "exit_checks": 0,
+            "pressure_events": 0,
+            "healthy_events": 0,
+            "actors": _BrokenActors(),
+        }
+
+        assert config["remote_wrapper"](lambda x: x + 1)(1, node_id="node-a", actor_id="actor-1") == 2
+
+        report = config["get_actor_report"](node_id="node-a", actor_id="actor-1")
+        assert report["ok"] is True
+        assert report["events"] == 1
+        assert report["entry_checks"] == 1
+
     def test_remote_wrapper_handles_method_maps_with_raising_get(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

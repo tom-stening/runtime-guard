@@ -2816,6 +2816,14 @@ def install_dask_scheduler_callbacks(
                     parse_warning_count += 1
                     return []
 
+                def _safe_item_get(item: dict[str, Any], key: str, default: Any) -> Any:
+                    nonlocal parse_warning_count
+                    try:
+                        return item.get(key, default)
+                    except Exception:
+                        parse_warning_count += 1
+                        return default
+
                 out: list[dict[str, Any]] = []
                 for item in raw_snapshots:
                     safe_item = {
@@ -2830,31 +2838,31 @@ def install_dask_scheduler_callbacks(
                         out.append(safe_item)
                         continue
 
-                    key = item.get("key", "unknown-task")
+                    key = _safe_item_get(item, "key", "unknown-task")
                     if isinstance(key, str) and key:
                         safe_item["key"] = key
                     else:
                         parse_warning_count += 1
 
-                    timestamp = item.get("timestamp", 0)
+                    timestamp = _safe_item_get(item, "timestamp", 0)
                     if isinstance(timestamp, int) and not isinstance(timestamp, bool) and timestamp >= 0:
                         safe_item["timestamp"] = timestamp
                     else:
                         parse_warning_count += 1
 
-                    severity = item.get("severity", "warning")
+                    severity = _safe_item_get(item, "severity", "warning")
                     if isinstance(severity, str) and severity in ("critical", "warning"):
                         safe_item["severity"] = severity
                     else:
                         parse_warning_count += 1
 
-                    cause = item.get("cause", "unknown")
+                    cause = _safe_item_get(item, "cause", "unknown")
                     if isinstance(cause, str):
                         safe_item["cause"] = cause
                     else:
                         parse_warning_count += 1
 
-                    missing_mem_mb = item.get("missing_mem_mb", 0)
+                    missing_mem_mb = _safe_item_get(item, "missing_mem_mb", 0)
                     if (
                         isinstance(missing_mem_mb, (int, float))
                         and not isinstance(missing_mem_mb, bool)
@@ -2954,6 +2962,14 @@ def install_dask_scheduler_callbacks(
                 parse_warning_count += 1
                 return []
 
+            def _safe_item_get(item: dict[str, Any], key: str, default: Any) -> Any:
+                nonlocal parse_warning_count
+                try:
+                    return item.get(key, default)
+                except Exception:
+                    parse_warning_count += 1
+                    return default
+
             out: list[dict[str, Any]] = []
             for item in raw_snapshots:
                 safe_item = {
@@ -2968,31 +2984,31 @@ def install_dask_scheduler_callbacks(
                     out.append(safe_item)
                     continue
 
-                key = item.get("key", "unknown-task")
+                key = _safe_item_get(item, "key", "unknown-task")
                 if isinstance(key, str) and key:
                     safe_item["key"] = key
                 else:
                     parse_warning_count += 1
 
-                timestamp = item.get("timestamp", 0)
+                timestamp = _safe_item_get(item, "timestamp", 0)
                 if isinstance(timestamp, int) and not isinstance(timestamp, bool) and timestamp >= 0:
                     safe_item["timestamp"] = timestamp
                 else:
                     parse_warning_count += 1
 
-                severity = item.get("severity", "warning")
+                severity = _safe_item_get(item, "severity", "warning")
                 if isinstance(severity, str) and severity in ("critical", "warning"):
                     safe_item["severity"] = severity
                 else:
                     parse_warning_count += 1
 
-                cause = item.get("cause", "unknown")
+                cause = _safe_item_get(item, "cause", "unknown")
                 if isinstance(cause, str):
                     safe_item["cause"] = cause
                 else:
                     parse_warning_count += 1
 
-                missing_mem_mb = item.get("missing_mem_mb", 0)
+                missing_mem_mb = _safe_item_get(item, "missing_mem_mb", 0)
                 if (
                     isinstance(missing_mem_mb, (int, float))
                     and not isinstance(missing_mem_mb, bool)

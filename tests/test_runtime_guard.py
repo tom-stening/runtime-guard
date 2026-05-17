@@ -3410,6 +3410,45 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["pressure_events"] == 1
 
+    def test_get_worker_report_handles_snapshot_entries_with_raising_get(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _PressureReport:
+            is_critical = True
+            cause = "low-memory"
+            missing_mem_mb = 128
+
+        class _BrokenSnapshot(dict):
+            def get(self, key, default=None):  # type: ignore[override]
+                raise RuntimeError("broken snapshot get")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": _PressureReport())
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", worker_id="worker-a")
+        callback_cls.finish("task-1", "ok", worker_id="worker-a")
+
+        all_workers = reporter(None)
+        all_workers["worker_details"]["worker-a"]["snapshots"] = [_BrokenSnapshot()]
+
+        worker_report = reporter("worker-a")
+        assert worker_report["ok"] is True
+        assert worker_report["task_count"] == 1
+        assert worker_report["pressure_events"] == 1
+        assert worker_report["snapshots"] == [
+            {
+                "key": "unknown-task",
+                "timestamp": 0,
+                "severity": "warning",
+                "cause": "unknown",
+                "missing_mem_mb": 0,
+            }
+        ]
+        assert worker_report["parse_warning_count"] >= 1
+
     def test_scheduler_callback_context_accepts_worker_alias_key_format_drift(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

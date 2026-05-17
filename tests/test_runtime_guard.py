@@ -3995,6 +3995,61 @@ class TestDaskSchedulerCallbacks:
         ]
         assert worker_report["parse_warning_count"] >= 1
 
+    def test_get_worker_reports_handle_snapshot_numeric_fields_with_raising_compare(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _BadInt(int):
+            def __ge__(self, other):  # type: ignore[override]
+                raise RuntimeError("broken snapshot compare")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+
+        all_workers = reporter(None)
+        all_workers["worker_details"]["worker-a"] = {
+            "worker_id": "worker-a",
+            "task_count": 1,
+            "completed_tasks": 1,
+            "pressure_events": 1,
+            "healthy_events": 0,
+            "snapshots": [
+                {
+                    "key": "task-1",
+                    "timestamp": _BadInt(10),
+                    "severity": "critical",
+                    "cause": "memory",
+                    "missing_mem_mb": _BadInt(64),
+                }
+            ],
+        }
+
+        worker_report = reporter("worker-a")
+        assert worker_report["ok"] is True
+        assert worker_report["snapshots"][0]["timestamp"] == 0
+        assert worker_report["snapshots"][0]["missing_mem_mb"] == 0
+        assert worker_report["parse_warning_count"] >= 2
+
+        all_workers["worker_details"]["worker-a"]["snapshots"] = [
+            {
+                "key": "task-1",
+                "timestamp": _BadInt(10),
+                "severity": "critical",
+                "cause": "memory",
+                "missing_mem_mb": _BadInt(64),
+            }
+        ]
+
+        aggregate_report = reporter(None)
+        assert aggregate_report["ok"] is True
+        snapshots = aggregate_report["worker_details"]["worker-a"]["snapshots"]
+        assert snapshots[0]["timestamp"] == 0
+        assert snapshots[0]["missing_mem_mb"] == 0
+        assert aggregate_report["parse_warning_count"] >= 2
+
     def test_get_worker_report_handles_worker_rows_with_raising_get(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

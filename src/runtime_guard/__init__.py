@@ -2932,8 +2932,14 @@ def install_dask_scheduler_callbacks(
                         parse_warning_count += 1
 
                     timestamp = _safe_item_get(item, "timestamp", 0)
-                    if isinstance(timestamp, int) and not isinstance(timestamp, bool) and timestamp >= 0:
-                        safe_item["timestamp"] = timestamp
+                    if isinstance(timestamp, int) and not isinstance(timestamp, bool):
+                        try:
+                            if timestamp >= 0:
+                                safe_item["timestamp"] = timestamp
+                            else:
+                                parse_warning_count += 1
+                        except Exception:
+                            parse_warning_count += 1
                     else:
                         parse_warning_count += 1
 
@@ -2950,12 +2956,16 @@ def install_dask_scheduler_callbacks(
                         parse_warning_count += 1
 
                     missing_mem_mb = _safe_item_get(item, "missing_mem_mb", 0)
-                    if (
-                        isinstance(missing_mem_mb, (int, float))
-                        and not isinstance(missing_mem_mb, bool)
-                        and missing_mem_mb >= 0
+                    if isinstance(missing_mem_mb, (int, float)) and not isinstance(
+                        missing_mem_mb, bool
                     ):
-                        safe_item["missing_mem_mb"] = missing_mem_mb
+                        try:
+                            if missing_mem_mb >= 0:
+                                safe_item["missing_mem_mb"] = missing_mem_mb
+                            else:
+                                parse_warning_count += 1
+                        except Exception:
+                            parse_warning_count += 1
                     else:
                         parse_warning_count += 1
 
@@ -3111,8 +3121,14 @@ def install_dask_scheduler_callbacks(
                     parse_warning_count += 1
 
                 timestamp = _safe_item_get(item, "timestamp", 0)
-                if isinstance(timestamp, int) and not isinstance(timestamp, bool) and timestamp >= 0:
-                    safe_item["timestamp"] = timestamp
+                if isinstance(timestamp, int) and not isinstance(timestamp, bool):
+                    try:
+                        if timestamp >= 0:
+                            safe_item["timestamp"] = timestamp
+                        else:
+                            parse_warning_count += 1
+                    except Exception:
+                        parse_warning_count += 1
                 else:
                     parse_warning_count += 1
 
@@ -3129,12 +3145,16 @@ def install_dask_scheduler_callbacks(
                     parse_warning_count += 1
 
                 missing_mem_mb = _safe_item_get(item, "missing_mem_mb", 0)
-                if (
-                    isinstance(missing_mem_mb, (int, float))
-                    and not isinstance(missing_mem_mb, bool)
-                    and missing_mem_mb >= 0
+                if isinstance(missing_mem_mb, (int, float)) and not isinstance(
+                    missing_mem_mb, bool
                 ):
-                    safe_item["missing_mem_mb"] = missing_mem_mb
+                    try:
+                        if missing_mem_mb >= 0:
+                            safe_item["missing_mem_mb"] = missing_mem_mb
+                        else:
+                            parse_warning_count += 1
+                    except Exception:
+                        parse_warning_count += 1
                 else:
                     parse_warning_count += 1
 

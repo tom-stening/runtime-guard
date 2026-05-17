@@ -3474,6 +3474,31 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["snapshots"] == []
         assert worker_report["parse_warning_count"] >= 1
 
+    def test_get_worker_report_aggregate_handles_worker_rows_with_raising_get(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _BrokenWorkerRow(dict):
+            def get(self, key, default=None):  # type: ignore[override]
+                raise RuntimeError("broken aggregate worker row get")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+
+        all_workers = reporter(None)
+        all_workers["worker_details"]["worker-a"] = _BrokenWorkerRow()
+
+        aggregate_report = reporter(None)
+        assert aggregate_report["ok"] is True
+        assert aggregate_report["workers_monitored"] >= 1
+        assert aggregate_report["total_tasks"] == 0
+        assert aggregate_report["total_completed_tasks"] == 0
+        assert aggregate_report["total_pressure_events"] == 0
+        assert aggregate_report["total_healthy_events"] == 0
+        assert aggregate_report["worker_details"]["worker-a"]["snapshots"] == []
+        assert aggregate_report["parse_warning_count"] >= 1
+
     def test_scheduler_callback_context_accepts_worker_alias_key_format_drift(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

@@ -2802,9 +2802,17 @@ def install_dask_scheduler_callbacks(
             total_healthy_events = 0
             parse_warning_count = 0
 
+            def _safe_worker_row_get(worker_row: dict[str, Any], name: str, default: Any) -> Any:
+                nonlocal parse_warning_count
+                try:
+                    return worker_row.get(name, default)
+                except Exception:
+                    parse_warning_count += 1
+                    return default
+
             def _safe_counter(worker_row: dict[str, Any], name: str) -> int:
                 nonlocal parse_warning_count
-                value = worker_row.get(name, 0)
+                value = _safe_worker_row_get(worker_row, name, 0)
                 if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
                     return value
                 parse_warning_count += 1
@@ -2898,7 +2906,7 @@ def install_dask_scheduler_callbacks(
                 completed_tasks = _safe_counter(worker_row, "completed_tasks")
                 healthy_events = _safe_counter(worker_row, "healthy_events")
 
-                snapshots = _sanitize_snapshots(worker_row.get("snapshots", []))
+                snapshots = _sanitize_snapshots(_safe_worker_row_get(worker_row, "snapshots", []))
 
                 worker_row["worker_id"] = (
                     worker_label if isinstance(worker_label, str) else "unknown-worker"
@@ -2957,6 +2965,7 @@ def install_dask_scheduler_callbacks(
                 return default
 
         def _safe_counter(name: str) -> int:
+            nonlocal parse_warning_count
             value = _safe_worker_data_get(name, 0)
             if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
                 return value

@@ -3282,6 +3282,32 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callback_static_start_accepts_mapping_memoryview_worker_alias_values(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start(
+            "task-1",
+            worker={"address": memoryview(b"worker-a")},
+        )
+        callback_cls.finish(
+            "task-1",
+            "ok",
+            worker={"address": memoryview(b"worker-a")},
+        )
+
+        worker_report = reporter("worker-a")
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
     def test_scheduler_callback_context_accepts_worker_alias_key_format_drift(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

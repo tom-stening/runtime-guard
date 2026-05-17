@@ -2759,15 +2759,22 @@ def install_dask_scheduler_callbacks(
                 if not isinstance(snapshots, list):
                     snapshots = []
                     worker_row["snapshots"] = snapshots
-                snapshots.append(
-                    {
-                        "key": str(key),
-                        "timestamp": int(time.time()),
-                        "severity": "critical" if is_critical else "warning",
-                        "cause": cause,
-                        "missing_mem_mb": missing_mem_mb,
-                    }
-                )
+                snapshot_entry = {
+                    "key": str(key),
+                    "timestamp": int(time.time()),
+                    "severity": "critical" if is_critical else "warning",
+                    "cause": cause,
+                    "missing_mem_mb": missing_mem_mb,
+                }
+                try:
+                    snapshots.append(snapshot_entry)
+                except Exception:
+                    try:
+                        snapshots = list(snapshots)
+                    except Exception:
+                        snapshots = []
+                    worker_row["snapshots"] = snapshots
+                    snapshots.append(snapshot_entry)
             else:
                 healthy_events = _safe_worker_row_get("healthy_events", 0)
                 if (

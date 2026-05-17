@@ -4679,6 +4679,33 @@ class TestRayActorMemoryMonitoring:
         assert report["ok"] is True
         assert report["events"] == 1
 
+    def test_remote_wrapper_normalizes_memoryview_node_actor_ids(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert (
+            wrapped(
+                1,
+                node_id=memoryview(b"node-memoryview"),
+                actor_id=memoryview(b"actor-memoryview"),
+            )
+            == 2
+        )
+
+        report = config["get_actor_report"](
+            node_id="node-memoryview",
+            actor_id="actor-memoryview",
+        )
+        assert report["ok"] is True
+        assert report["events"] == 1
+
     def test_cluster_summary_tracks_parse_warnings_for_malformed_counters(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

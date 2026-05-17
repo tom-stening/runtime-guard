@@ -3369,7 +3369,7 @@ def enable_ray_actor_memory_monitoring(
         parse_warning_count += 1
 
     def _normalize_key(raw: Any, *, fallback: str) -> str:
-        if isinstance(raw, (bytes, bytearray)):
+        if isinstance(raw, (bytes, bytearray, memoryview)):
             try:
                 decoded = bytes(raw).decode("utf-8", errors="ignore").strip()
             except Exception:

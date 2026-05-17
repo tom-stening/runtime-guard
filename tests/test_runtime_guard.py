@@ -271,6 +271,52 @@ class TestJsonEvents:
         }
         assert required.issubset(payload.keys())
 
+    def test_get_all_node_reports_handles_node_rows_with_raising_get(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        class _BrokenNodeRow(dict):
+            def get(self, key, default=None):  # type: ignore[override]
+                raise RuntimeError("broken node row get")
+
+        all_nodes = config["get_all_node_reports"]()
+        all_nodes["nodes"]["node-a"] = _BrokenNodeRow()
+
+        refreshed = config["get_all_node_reports"]()
+        assert refreshed["ok"] is True
+        assert refreshed["nodes_monitored"] >= 1
+        assert refreshed["total_events"] == 0
+        assert refreshed["total_pressure_events"] == 0
+        assert refreshed["total_healthy_events"] == 0
+        assert refreshed["parse_warning_count"] >= 1
+
+    def test_cluster_summary_handles_node_rows_with_raising_get(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        class _BrokenNodeRow(dict):
+            def get(self, key, default=None):  # type: ignore[override]
+                raise RuntimeError("broken cluster node row get")
+
+        all_nodes = config["get_all_node_reports"]()
+        all_nodes["nodes"]["node-a"] = _BrokenNodeRow()
+
+        summary = config["cluster_summary"]()
+        assert summary["ok"] is True
+        assert summary["nodes_monitored"] >= 1
+        assert summary["total_events"] == 0
+        assert summary["total_pressure_events"] == 0
+        assert summary["total_healthy_events"] == 0
+        assert summary["parse_warning_count"] >= 1
+
     def test_json_event_stage_propagated(self):
         g = RuntimeGuard()
         report = _make_report(stage="my-stage")

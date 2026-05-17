@@ -3837,24 +3837,35 @@ def enable_ray_actor_memory_monitoring(
         total_events = 0
         total_pressure_events = 0
         total_healthy_events = 0
+
+        def _safe_row_get(row: dict[str, Any], key: str, default: Any) -> Any:
+            try:
+                return row.get(key, default)
+            except Exception:
+                _warn_parse()
+                return default
+
         for node_id, row in actor_event_state.items():
             if not isinstance(node_id, str) or not node_id.strip():
                 _warn_parse()
             if not isinstance(row, dict):
                 _warn_parse()
                 continue
-            events, events_ok = _strict_non_negative_counter(row.get("events", 0))
-            if not events_ok and row.get("events", 0) not in (0,):
+            raw_events = _safe_row_get(row, "events", 0)
+            events, events_ok = _strict_non_negative_counter(raw_events)
+            if not events_ok and raw_events not in (0,):
                 _warn_parse()
             total_events += events
 
-            pressure_events, pressure_ok = _strict_non_negative_counter(row.get("pressure_events", 0))
-            if not pressure_ok and row.get("pressure_events", 0) not in (0,):
+            raw_pressure_events = _safe_row_get(row, "pressure_events", 0)
+            pressure_events, pressure_ok = _strict_non_negative_counter(raw_pressure_events)
+            if not pressure_ok and raw_pressure_events not in (0,):
                 _warn_parse()
             total_pressure_events += pressure_events
 
-            healthy_events, healthy_ok = _strict_non_negative_counter(row.get("healthy_events", 0))
-            if not healthy_ok and row.get("healthy_events", 0) not in (0,):
+            raw_healthy_events = _safe_row_get(row, "healthy_events", 0)
+            healthy_events, healthy_ok = _strict_non_negative_counter(raw_healthy_events)
+            if not healthy_ok and raw_healthy_events not in (0,):
                 _warn_parse()
             total_healthy_events += healthy_events
 
@@ -3877,6 +3888,14 @@ def enable_ray_actor_memory_monitoring(
         busiest_events = -1
         busiest_actor = None
         busiest_actor_events = -1
+
+        def _safe_row_get(row: dict[str, Any], key: str, default: Any) -> Any:
+            try:
+                return row.get(key, default)
+            except Exception:
+                _warn_parse()
+                return default
+
         for raw_node_id, row in actor_event_state.items():
             if isinstance(raw_node_id, str):
                 node_id = raw_node_id.strip()
@@ -3890,17 +3909,17 @@ def enable_ray_actor_memory_monitoring(
             if not isinstance(row, dict):
                 _warn_parse()
                 continue
-            raw_events = row.get("events", 0)
+            raw_events = _safe_row_get(row, "events", 0)
             events, events_ok = _strict_non_negative_counter(raw_events)
             if not events_ok and raw_events not in (0,):
                 _warn_parse()
             total_events += events
-            raw_pressure_events = row.get("pressure_events", 0)
+            raw_pressure_events = _safe_row_get(row, "pressure_events", 0)
             pressure_events, pressure_ok = _strict_non_negative_counter(raw_pressure_events)
             if not pressure_ok and raw_pressure_events not in (0,):
                 _warn_parse()
             total_pressure_events += pressure_events
-            raw_healthy_events = row.get("healthy_events", 0)
+            raw_healthy_events = _safe_row_get(row, "healthy_events", 0)
             healthy_events, healthy_ok = _strict_non_negative_counter(raw_healthy_events)
             if not healthy_ok and raw_healthy_events not in (0,):
                 _warn_parse()
@@ -3908,7 +3927,7 @@ def enable_ray_actor_memory_monitoring(
             if events > busiest_events:
                 busiest_events = events
                 busiest_node = node_id
-            actors = row.get("actors")
+            actors = _safe_row_get(row, "actors", {})
             if not isinstance(actors, dict):
                 _warn_parse()
                 actors = {}

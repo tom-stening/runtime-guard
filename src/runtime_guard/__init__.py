@@ -4037,7 +4037,13 @@ def enable_ray_actor_memory_monitoring(
                 _warn_parse()
                 actors = {}
 
-            for raw_actor_id, actor_row in actors.items():
+            try:
+                actor_items = list(actors.items())
+            except Exception:
+                _warn_parse()
+                actor_items = []
+
+            for raw_actor_id, actor_row in actor_items:
                 if isinstance(raw_actor_id, str):
                     actor_id = raw_actor_id.strip()
                     if not actor_id:

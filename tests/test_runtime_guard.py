@@ -507,6 +507,37 @@ class TestJsonEvents:
         assert summary["busiest_actor_events"] == 0
         assert summary["parse_warning_count"] >= 1
 
+    def test_cluster_summary_handles_actor_maps_with_raising_items(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        config = enable_ray_actor_memory_monitoring(guard)
+
+        class _BrokenActors(dict):
+            def items(self):  # type: ignore[override]
+                raise RuntimeError("broken cluster actor map items")
+
+        all_nodes = config["get_all_node_reports"]()
+        all_nodes["nodes"]["node-a"] = {
+            "node_id": "node-a",
+            "events": 0,
+            "pressure_events": 0,
+            "healthy_events": 0,
+            "actors": _BrokenActors(),
+        }
+
+        summary = config["cluster_summary"]()
+        assert summary["ok"] is True
+        assert summary["nodes_monitored"] >= 1
+        assert summary["actors_monitored"] == 0
+        assert summary["total_events"] == 0
+        assert summary["total_pressure_events"] == 0
+        assert summary["total_healthy_events"] == 0
+        assert summary["busiest_actor_events"] == 0
+        assert summary["parse_warning_count"] >= 1
+
     def test_get_actor_report_handles_node_rows_with_raising_get(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

@@ -9655,6 +9655,33 @@ class TestDistributedTracePropagator:
         out = tp["inject"]({}, span=_Span())
         assert out == {}
 
+    def test_inject_handles_get_span_context_raising(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _Span:
+            def get_span_context(self):
+                raise RuntimeError("broken get_span_context")
+
+        out = tp["inject"]({}, span=_Span())
+        assert out == {}
+
+    def test_inject_handles_span_context_fields_raising(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _SpanCtx:
+            @property
+            def trace_id(self):
+                raise RuntimeError("broken trace_id")
+
+        class _Span:
+            def get_span_context(self):
+                return _SpanCtx()
+
+        out = tp["inject"]({}, span=_Span())
+        assert out == {}
+
     def test_restore_is_noop(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard)

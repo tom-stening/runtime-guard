@@ -5052,21 +5052,49 @@ def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtim
     This helper provides M1-C05 scaffolding without requiring
     ``prometheus_client``. It can be served by any HTTP endpoint.
     """
-    snap = report.snapshot
+    def _safe_attr(obj: Any, name: str, default: Any) -> Any:
+        try:
+            return getattr(obj, name)
+        except Exception:
+            return default
+
+    snap = _safe_attr(report, "snapshot", None)
+    if snap is None:
+        snap = type(
+            "_SafeSnap",
+            (),
+            {
+                "mem_total_mb": 0,
+                "mem_available_mb": 0,
+                "swap_total_mb": 0,
+                "swap_free_mb": 0,
+                "swap_used_pct": 0,
+                "rss_mb": 0,
+                "vm_swap_mb": 0,
+                "host_mem_total_mb": 0,
+                "host_mem_available_mb": 0,
+                "host_swap_total_mb": 0,
+                "host_swap_free_mb": 0,
+                "host_swap_used_pct": 0,
+                "drift_mem_total_mb": 0,
+                "drift_mem_available_mb": 0,
+                "drift_swap_used_pct": 0,
+            },
+        )()
     try:
         metric_prefix = f"{prefix}"
     except Exception:
         metric_prefix = "runtime_guard"
     try:
-        stage = report.stage.replace('"', '\\"')
+        stage = _safe_attr(report, "stage", "unknown").replace('"', '\\"')
     except Exception:
         stage = "unknown"
     try:
-        is_critical_metric = 1 if bool(report.is_critical) else 0
+        is_critical_metric = 1 if bool(_safe_attr(report, "is_critical", False)) else 0
     except Exception:
         is_critical_metric = 0
     try:
-        self_inflicted_metric = 1 if bool(report.self_inflicted) else 0
+        self_inflicted_metric = 1 if bool(_safe_attr(report, "self_inflicted", False)) else 0
     except Exception:
         self_inflicted_metric = 0
 
@@ -5079,33 +5107,33 @@ def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtim
     lines = [
         f"{metric_prefix}_is_critical {is_critical_metric}",
         f"{metric_prefix}_self_inflicted {self_inflicted_metric}",
-        f'{metric_prefix}_self_pct{{stage="{stage}"}} {_metric_value(report.self_pct)}',
-        f'{metric_prefix}_min_mem_mb{{stage="{stage}"}} {_metric_value(report.min_mem_mb)}',
-        f'{metric_prefix}_max_swap_pct{{stage="{stage}"}} {_metric_value(report.max_swap_pct)}',
-        f'{metric_prefix}_missing_mem_mb{{stage="{stage}"}} {_metric_value(report.missing_mem_mb)}',
-        f'{metric_prefix}_swap_excess_pct{{stage="{stage}"}} {_metric_value(report.swap_excess_pct)}',
-        f'{metric_prefix}_mem_total_mb{{stage="{stage}"}} {_metric_value(snap.mem_total_mb)}',
-        f'{metric_prefix}_mem_available_mb{{stage="{stage}"}} {_metric_value(snap.mem_available_mb)}',
-        f'{metric_prefix}_swap_total_mb{{stage="{stage}"}} {_metric_value(snap.swap_total_mb)}',
-        f'{metric_prefix}_swap_free_mb{{stage="{stage}"}} {_metric_value(snap.swap_free_mb)}',
-        f'{metric_prefix}_swap_used_pct{{stage="{stage}"}} {_metric_value(snap.swap_used_pct)}',
-        f'{metric_prefix}_rss_mb{{stage="{stage}"}} {_metric_value(snap.rss_mb)}',
-        f'{metric_prefix}_vm_swap_mb{{stage="{stage}"}} {_metric_value(snap.vm_swap_mb)}',
+        f'{metric_prefix}_self_pct{{stage="{stage}"}} {_metric_value(_safe_attr(report, "self_pct", 0))}',
+        f'{metric_prefix}_min_mem_mb{{stage="{stage}"}} {_metric_value(_safe_attr(report, "min_mem_mb", 0))}',
+        f'{metric_prefix}_max_swap_pct{{stage="{stage}"}} {_metric_value(_safe_attr(report, "max_swap_pct", 0))}',
+        f'{metric_prefix}_missing_mem_mb{{stage="{stage}"}} {_metric_value(_safe_attr(report, "missing_mem_mb", 0))}',
+        f'{metric_prefix}_swap_excess_pct{{stage="{stage}"}} {_metric_value(_safe_attr(report, "swap_excess_pct", 0))}',
+        f'{metric_prefix}_mem_total_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "mem_total_mb", 0))}',
+        f'{metric_prefix}_mem_available_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "mem_available_mb", 0))}',
+        f'{metric_prefix}_swap_total_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "swap_total_mb", 0))}',
+        f'{metric_prefix}_swap_free_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "swap_free_mb", 0))}',
+        f'{metric_prefix}_swap_used_pct{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "swap_used_pct", 0))}',
+        f'{metric_prefix}_rss_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "rss_mb", 0))}',
+        f'{metric_prefix}_vm_swap_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "vm_swap_mb", 0))}',
     ]
     # Add host (Windows) metrics if present
     try:
-        include_host_metrics = bool(getattr(snap, "host_mem_total_mb", 0))
+        include_host_metrics = bool(_safe_attr(snap, "host_mem_total_mb", 0))
     except Exception:
         include_host_metrics = False
     if include_host_metrics:
-        lines.append(f'{metric_prefix}_host_mem_total_mb{{stage="{stage}"}} {_metric_value(snap.host_mem_total_mb)}')
-        lines.append(f'{metric_prefix}_host_mem_available_mb{{stage="{stage}"}} {_metric_value(snap.host_mem_available_mb)}')
-        lines.append(f'{metric_prefix}_host_swap_total_mb{{stage="{stage}"}} {_metric_value(snap.host_swap_total_mb)}')
-        lines.append(f'{metric_prefix}_host_swap_free_mb{{stage="{stage}"}} {_metric_value(snap.host_swap_free_mb)}')
-        lines.append(f'{metric_prefix}_host_swap_used_pct{{stage="{stage}"}} {_metric_value(snap.host_swap_used_pct)}')
-        lines.append(f'{metric_prefix}_drift_mem_total_mb{{stage="{stage}"}} {_metric_value(snap.drift_mem_total_mb)}')
-        lines.append(f'{metric_prefix}_drift_mem_available_mb{{stage="{stage}"}} {_metric_value(snap.drift_mem_available_mb)}')
-        lines.append(f'{metric_prefix}_drift_swap_used_pct{{stage="{stage}"}} {_metric_value(snap.drift_swap_used_pct)}')
+        lines.append(f'{metric_prefix}_host_mem_total_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "host_mem_total_mb", 0))}')
+        lines.append(f'{metric_prefix}_host_mem_available_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "host_mem_available_mb", 0))}')
+        lines.append(f'{metric_prefix}_host_swap_total_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "host_swap_total_mb", 0))}')
+        lines.append(f'{metric_prefix}_host_swap_free_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "host_swap_free_mb", 0))}')
+        lines.append(f'{metric_prefix}_host_swap_used_pct{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "host_swap_used_pct", 0))}')
+        lines.append(f'{metric_prefix}_drift_mem_total_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "drift_mem_total_mb", 0))}')
+        lines.append(f'{metric_prefix}_drift_mem_available_mb{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "drift_mem_available_mb", 0))}')
+        lines.append(f'{metric_prefix}_drift_swap_used_pct{{stage="{stage}"}} {_metric_value(_safe_attr(snap, "drift_swap_used_pct", 0))}')
     return "\n".join(lines) + "\n"
 
 

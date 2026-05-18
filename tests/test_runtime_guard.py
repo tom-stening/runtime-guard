@@ -6588,6 +6588,16 @@ class TestPrometheusRenderer:
         text = render_prometheus_metrics(report)
         assert 'runtime_guard_self_pct{stage="metrics"} 0' in text
 
+    def test_render_handles_snapshot_lookup_raising(self):
+        class _BadReport:
+            @property
+            def snapshot(self):
+                raise RuntimeError("broken snapshot lookup")
+
+        text = render_prometheus_metrics(_BadReport())
+        assert "runtime_guard_is_critical 0" in text
+        assert 'runtime_guard_mem_available_mb{stage="unknown"} 0' in text
+
 
 # ---------------------------------------------------------------------------
 # M1-C07 — Config schema validation scaffold

@@ -5187,8 +5187,11 @@ def install_distributed_trace_propagator(
             out[key_norm] = value
 
         if isinstance(headers, dict):
-            for k, v in headers.items():
-                _add_pair(k, v)
+            try:
+                for k, v in headers.items():
+                    _add_pair(k, v)
+            except Exception:
+                return {}
             return out
         try:
             for k, v in headers:

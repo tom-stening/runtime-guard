@@ -9557,6 +9557,17 @@ class TestDistributedTracePropagator:
         ctx = tp["extract"]({"traceparent": _BadStr("00-deadbeef")})
         assert ctx == {}
 
+    def test_extract_handles_header_mappings_with_raising_items(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _BadHeaders(dict):
+            def items(self):  # type: ignore[override]
+                raise RuntimeError("broken header items")
+
+        ctx = tp["extract"](_BadHeaders({"traceparent": "00-deadbeef"}))
+        assert ctx == {}
+
     def test_inject_with_no_otel_returns_unchanged(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard, module=object())  # no OTEL

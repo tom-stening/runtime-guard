@@ -2673,7 +2673,10 @@ def install_dask_scheduler_callbacks(
             if decoded:
                 return decoded
         if isinstance(raw_worker_id, str):
-            normalized = raw_worker_id.strip()
+            try:
+                normalized = raw_worker_id.strip()
+            except Exception:
+                normalized = ""
             if normalized:
                 return normalized
         return "unknown-worker"

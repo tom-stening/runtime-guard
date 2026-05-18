@@ -5357,7 +5357,10 @@ def install_distributed_trace_propagator(
             header_key = header_name.lower()
         except Exception:
             return out
-        out[header_key] = f"00-{trace_id:032x}-{span_id:016x}-{flags}"
+        try:
+            out[header_key] = f"00-{trace_id:032x}-{span_id:016x}-{flags}"
+        except Exception:
+            return out
         return out
 
     def _restore() -> None:

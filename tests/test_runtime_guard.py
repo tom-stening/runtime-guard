@@ -9924,6 +9924,30 @@ class TestDistributedTracePropagator:
         out = tp["inject"]({"ok": "yes"}, span=_Span())
         assert out == {"ok": "yes"}
 
+    def test_inject_handles_sampled_truthiness_raising(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _BadBool:
+            def __bool__(self):
+                raise RuntimeError("broken sampled truthiness")
+
+        class _Flags:
+            sampled = _BadBool()
+
+        class _SpanCtx:
+            trace_id = 0x4BF92F3577B34DA6A3CE929D0E0E4736
+            span_id = 0x00F067AA0BA902B7
+            trace_flags = _Flags()
+
+        class _Span:
+            def get_span_context(self):
+                return _SpanCtx()
+
+        out = tp["inject"]({"ok": "yes"}, span=_Span())
+        assert "traceparent" in out
+        assert out["traceparent"].endswith("-00")
+
     def test_restore_is_noop(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard)

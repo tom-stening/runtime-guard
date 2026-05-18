@@ -5356,7 +5356,10 @@ def install_distributed_trace_propagator(
             sampled = getattr(trace_flags, "sampled", None)
         except Exception:
             sampled = None
-        flags = "01" if sampled else "00"
+        try:
+            flags = "01" if sampled else "00"
+        except Exception:
+            flags = "00"
 
         try:
             header_key = header_name.lower()

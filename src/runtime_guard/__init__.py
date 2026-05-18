@@ -4959,8 +4959,11 @@ def emit_otel_event(
     if not callable(add_event):
         return False
 
-    attrs = pressure_report_attributes(report)
-    attrs.update(trace_context_attributes(span=target_span))
+    try:
+        attrs = pressure_report_attributes(report)
+        attrs.update(trace_context_attributes(span=target_span))
+    except Exception:
+        return False
     try:
         add_event(event_name, attributes=attrs)
     except Exception:

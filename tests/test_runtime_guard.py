@@ -6427,6 +6427,21 @@ class TestOpenTelemetryExport:
         ok = emit_otel_event(report, span=_BadSpan())
         assert ok is False
 
+    def test_emit_handles_raising_report_attribute_extraction(self):
+        class _BadReport:
+            def __getattr__(self, name):
+                raise RuntimeError(f"broken report attribute: {name}")
+
+        class _Span:
+            def is_recording(self) -> bool:
+                return True
+
+            def add_event(self, name: str, *, attributes: dict[str, object]) -> None:
+                pass
+
+        ok = emit_otel_event(_BadReport(), span=_Span())
+        assert ok is False
+
     def test_trace_context_attributes_from_span(self):
         ctx = self._DummySpanContext(
             trace_id=0x11111111111111111111111111111111,

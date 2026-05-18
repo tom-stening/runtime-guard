@@ -6430,6 +6430,26 @@ class TestOpenTelemetryExport:
         attrs = trace_context_attributes(span=span)
         assert attrs == {}
 
+    def test_trace_context_attributes_handles_raising_get_current_span_lookup(self):
+        class _BadTraceModule:
+            def __getattr__(self, name):
+                if name == "get_current_span":
+                    raise RuntimeError("broken get_current_span lookup")
+                raise AttributeError(name)
+
+        attrs = trace_context_attributes(module=_BadTraceModule())
+        assert attrs == {}
+
+    def test_trace_context_attributes_handles_raising_get_span_context_lookup(self):
+        class _BadSpan:
+            def __getattr__(self, name):
+                if name == "get_span_context":
+                    raise RuntimeError("broken get_span_context lookup")
+                raise AttributeError(name)
+
+        attrs = trace_context_attributes(span=_BadSpan())
+        assert attrs == {}
+
 
 # ---------------------------------------------------------------------------
 # M1-C05 — Prometheus renderer scaffold
@@ -9591,6 +9611,17 @@ class TestDistributedTracePropagator:
                 raise RuntimeError("broken malformed header preview slice")
 
         ctx = tp["extract"]({"traceparent": _BadStr("malformed")})
+        assert ctx == {}
+
+    def test_extract_handles_non_text_header_value_after_strip(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _BadBytesValue(bytes):
+            def strip(self, chars=None):  # type: ignore[override]
+                return self
+
+        ctx = tp["extract"]({"traceparent": _BadBytesValue(b"00-abc-def-01")})
         assert ctx == {}
 
     def test_inject_with_no_otel_returns_unchanged(self):

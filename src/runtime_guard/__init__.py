@@ -4848,24 +4848,39 @@ def trace_context_attributes(
                 from opentelemetry import trace as trace_mod  # type: ignore
             except Exception:
                 return {}
-        get_current_span = getattr(trace_mod, "get_current_span", None)
+        try:
+            get_current_span = getattr(trace_mod, "get_current_span", None)
+        except Exception:
+            return {}
         if not callable(get_current_span):
             return {}
-        target_span = get_current_span()
+        try:
+            target_span = get_current_span()
+        except Exception:
+            return {}
 
     if target_span is None:
         return {}
 
-    get_span_context = getattr(target_span, "get_span_context", None)
+    try:
+        get_span_context = getattr(target_span, "get_span_context", None)
+    except Exception:
+        return {}
     if not callable(get_span_context):
         return {}
 
-    span_context = get_span_context()
+    try:
+        span_context = get_span_context()
+    except Exception:
+        return {}
     if span_context is None:
         return {}
 
-    trace_id = getattr(span_context, "trace_id", 0)
-    span_id = getattr(span_context, "span_id", 0)
+    try:
+        trace_id = getattr(span_context, "trace_id", 0)
+        span_id = getattr(span_context, "span_id", 0)
+    except Exception:
+        return {}
     if not isinstance(trace_id, int) or not isinstance(span_id, int):
         return {}
     if trace_id <= 0 or span_id <= 0:
@@ -4876,8 +4891,11 @@ def trace_context_attributes(
         f"{prefix}_span_id": f"{span_id:016x}",
     }
 
-    trace_flags = getattr(span_context, "trace_flags", None)
-    sampled = getattr(trace_flags, "sampled", None)
+    try:
+        trace_flags = getattr(span_context, "trace_flags", None)
+        sampled = getattr(trace_flags, "sampled", None)
+    except Exception:
+        sampled = None
     if isinstance(sampled, bool):
         attrs[f"{prefix}_sampled"] = sampled
 

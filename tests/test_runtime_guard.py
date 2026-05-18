@@ -9745,6 +9745,19 @@ class TestPrometheusEndpoint:
         assert status == 503
         assert b"runtime_guard_mem_available_mb" in body
 
+    def test_render_failure_returns_503_with_empty_body(self):
+        import unittest.mock as mock
+
+        guard = self._make_guard()
+        with (
+            mock.patch.object(guard, "check", return_value=None),
+            mock.patch("runtime_guard.render_prometheus_metrics", side_effect=RuntimeError("broken render")),
+        ):
+            app, _ = install_prometheus_endpoint(guard)
+            status, body = self._run_asgi(app, "GET")
+        assert status == 503
+        assert body == b""
+
 
 # ---------------------------------------------------------------------------
 # M1-C06 — Distributed trace propagator

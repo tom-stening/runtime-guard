@@ -5259,7 +5259,11 @@ def install_prometheus_endpoint(
             except Exception:
                 status = 503
 
-        body = render_prometheus_metrics(report_for_render, prefix=prefix).encode("utf-8")
+        try:
+            body = render_prometheus_metrics(report_for_render, prefix=prefix).encode("utf-8")
+        except Exception:
+            body = b""
+            status = 503
         await send(
             {
                 "type": "http.response.start",

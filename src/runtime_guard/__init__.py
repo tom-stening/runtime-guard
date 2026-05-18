@@ -5078,7 +5078,11 @@ def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtim
         f'{metric_prefix}_vm_swap_mb{{stage="{stage}"}} {snap.vm_swap_mb}',
     ]
     # Add host (Windows) metrics if present
-    if getattr(snap, "host_mem_total_mb", 0):
+    try:
+        include_host_metrics = bool(getattr(snap, "host_mem_total_mb", 0))
+    except Exception:
+        include_host_metrics = False
+    if include_host_metrics:
         lines.append(f'{metric_prefix}_host_mem_total_mb{{stage="{stage}"}} {snap.host_mem_total_mb}')
         lines.append(f'{metric_prefix}_host_mem_available_mb{{stage="{stage}"}} {snap.host_mem_available_mb}')
         lines.append(f'{metric_prefix}_host_swap_total_mb{{stage="{stage}"}} {snap.host_swap_total_mb}')

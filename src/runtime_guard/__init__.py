@@ -4886,10 +4886,13 @@ def trace_context_attributes(
     if trace_id <= 0 or span_id <= 0:
         return {}
 
-    attrs: dict[str, Any] = {
-        f"{prefix}_id": f"{trace_id:032x}",
-        f"{prefix}_span_id": f"{span_id:016x}",
-    }
+    try:
+        attrs: dict[str, Any] = {
+            f"{prefix}_id": f"{trace_id:032x}",
+            f"{prefix}_span_id": f"{span_id:016x}",
+        }
+    except Exception:
+        return {}
 
     try:
         trace_flags = getattr(span_context, "trace_flags", None)
@@ -4897,7 +4900,10 @@ def trace_context_attributes(
     except Exception:
         sampled = None
     if isinstance(sampled, bool):
-        attrs[f"{prefix}_sampled"] = sampled
+        try:
+            attrs[f"{prefix}_sampled"] = sampled
+        except Exception:
+            return {}
 
     return attrs
 

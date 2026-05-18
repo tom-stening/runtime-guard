@@ -6475,6 +6475,20 @@ class TestOpenTelemetryExport:
         attrs = trace_context_attributes(span=_BadSpan())
         assert attrs == {}
 
+    def test_trace_context_attributes_handles_raising_prefix_format(self):
+        class _BadPrefix:
+            def __str__(self) -> str:
+                raise RuntimeError("broken prefix str")
+
+        ctx = self._DummySpanContext(
+            trace_id=0x11111111111111111111111111111111,
+            span_id=0x2222222222222222,
+            sampled=True,
+        )
+        span = self._DummySpan(context=ctx)
+        attrs = trace_context_attributes(span=span, prefix=_BadPrefix())
+        assert attrs == {}
+
 
 # ---------------------------------------------------------------------------
 # M1-C05 — Prometheus renderer scaffold

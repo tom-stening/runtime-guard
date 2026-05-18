@@ -5194,7 +5194,10 @@ def install_prometheus_endpoint(
         if scope.get("type") != "http":
             return
 
-        method = scope.get("method", "GET").upper()
+        try:
+            method = scope.get("method", "GET").upper()
+        except Exception:
+            method = ""
         if method != "GET":
             await send(
                 {

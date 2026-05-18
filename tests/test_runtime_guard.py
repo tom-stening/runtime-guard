@@ -9669,6 +9669,24 @@ class TestPrometheusEndpoint:
         app, _ = install_prometheus_endpoint(guard, path="/custom-metrics")
         assert getattr(app, "_runtime_guard_prometheus_path") == "/custom-metrics"
 
+    def test_hostile_method_normalization_returns_405(self):
+        import asyncio
+
+        class _BadMethod(str):
+            def upper(self):  # type: ignore[override]
+                raise RuntimeError("broken method upper")
+
+        guard = self._make_guard()
+        app, _ = install_prometheus_endpoint(guard)
+        responses = []
+
+        async def _send(msg):
+            responses.append(msg)
+
+        asyncio.run(app({"type": "http", "method": _BadMethod("get")}, None, _send))
+        start = next((r for r in responses if r["type"] == "http.response.start"), {})
+        assert start.get("status") == 405
+
     def test_check_failure_returns_503(self):
         import unittest.mock as mock
 

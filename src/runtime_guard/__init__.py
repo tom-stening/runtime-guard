@@ -5224,16 +5224,32 @@ def install_prometheus_endpoint(
             status = 503
 
         if report is None:
-            snap = _read_snapshot()
-            report_for_render = PressureReport(
-                snapshot=snap,
-                is_critical=False,
-                cause="",
-                self_inflicted=False,
-                self_pct=snap.rss_mb * 100 // max(snap.mem_total_mb, 1),
-                stage=stage,
-                pid=os.getpid(),
-            )
+            try:
+                snap = _read_snapshot()
+            except Exception:
+                snap = MemSnapshot()
+                status = 503
+            try:
+                report_for_render = PressureReport(
+                    snapshot=snap,
+                    is_critical=False,
+                    cause="",
+                    self_inflicted=False,
+                    self_pct=snap.rss_mb * 100 // max(snap.mem_total_mb, 1),
+                    stage=stage,
+                    pid=os.getpid(),
+                )
+            except Exception:
+                report_for_render = PressureReport(
+                    snapshot=MemSnapshot(),
+                    is_critical=False,
+                    cause="",
+                    self_inflicted=False,
+                    self_pct=0,
+                    stage="prometheus",
+                    pid=os.getpid(),
+                )
+                status = 503
             if status is None:
                 status = 200
         else:

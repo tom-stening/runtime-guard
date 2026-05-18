@@ -9732,6 +9732,19 @@ class TestPrometheusEndpoint:
         assert status == 503
         assert b"runtime_guard_mem_available_mb" in body
 
+    def test_snapshot_collection_failure_returns_503(self):
+        import unittest.mock as mock
+
+        guard = self._make_guard()
+        with (
+            mock.patch.object(guard, "check", return_value=None),
+            mock.patch("runtime_guard._read_snapshot", side_effect=RuntimeError("broken snapshot")),
+        ):
+            app, _ = install_prometheus_endpoint(guard)
+            status, body = self._run_asgi(app, "GET")
+        assert status == 503
+        assert b"runtime_guard_mem_available_mb" in body
+
 
 # ---------------------------------------------------------------------------
 # M1-C06 — Distributed trace propagator

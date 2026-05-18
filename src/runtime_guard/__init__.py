@@ -3584,7 +3584,10 @@ def enable_ray_actor_memory_monitoring(
             if decoded:
                 return decoded
         if isinstance(raw, str):
-            value = raw.strip()
+            try:
+                value = raw.strip()
+            except Exception:
+                value = ""
             if value:
                 return value
         _warn_parse()

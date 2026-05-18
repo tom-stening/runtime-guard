@@ -5875,6 +5875,28 @@ class TestRayActorMemoryMonitoring:
         fallback_report = config["get_actor_report"](node_id=123, actor_id={"id": "bad"})
         assert fallback_report["parse_warning_count"] >= 2
 
+    def test_remote_wrapper_handles_string_ids_with_raising_strip(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        class _BadStr(str):
+            def strip(self, chars=None):  # type: ignore[override]
+                raise RuntimeError("broken key strip")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id=_BadStr("node-a"), actor_id=_BadStr("actor-a")) == 2
+
+        report = config["get_actor_report"](node_id="remote-node", actor_id="remote-actor")
+        assert report["ok"] is True
+        assert report["events"] == 1
+        assert report["parse_warning_count"] >= 2
+
     def test_remote_wrapper_normalizes_bytes_node_actor_ids(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

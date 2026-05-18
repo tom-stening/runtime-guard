@@ -6566,6 +6566,18 @@ class TestPrometheusRenderer:
         text = render_prometheus_metrics(report)
         assert "runtime_guard_is_critical" in text
 
+    def test_render_handles_boolean_metric_truthiness_raising(self):
+        class _BadBool:
+            def __bool__(self):
+                raise RuntimeError("broken metric truthiness")
+
+        report = _make_report(stage="metrics")
+        report.is_critical = _BadBool()
+        report.self_inflicted = _BadBool()
+        text = render_prometheus_metrics(report)
+        assert "runtime_guard_is_critical 0" in text
+        assert "runtime_guard_self_inflicted 0" in text
+
 
 # ---------------------------------------------------------------------------
 # M1-C07 — Config schema validation scaffold

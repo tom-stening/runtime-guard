@@ -5061,9 +5061,17 @@ def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtim
         stage = report.stage.replace('"', '\\"')
     except Exception:
         stage = "unknown"
+    try:
+        is_critical_metric = 1 if bool(report.is_critical) else 0
+    except Exception:
+        is_critical_metric = 0
+    try:
+        self_inflicted_metric = 1 if bool(report.self_inflicted) else 0
+    except Exception:
+        self_inflicted_metric = 0
     lines = [
-        f"{metric_prefix}_is_critical {1 if report.is_critical else 0}",
-        f"{metric_prefix}_self_inflicted {1 if report.self_inflicted else 0}",
+        f"{metric_prefix}_is_critical {is_critical_metric}",
+        f"{metric_prefix}_self_inflicted {self_inflicted_metric}",
         f'{metric_prefix}_self_pct{{stage="{stage}"}} {report.self_pct}',
         f'{metric_prefix}_min_mem_mb{{stage="{stage}"}} {report.min_mem_mb}',
         f'{metric_prefix}_max_swap_pct{{stage="{stage}"}} {report.max_swap_pct}',

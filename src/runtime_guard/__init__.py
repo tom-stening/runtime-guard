@@ -4807,26 +4807,29 @@ def collect_polars_integration_evidence(
 
 def pressure_report_attributes(report: "PressureReport") -> dict[str, Any]:
     """Convert a PressureReport into OpenTelemetry-friendly attributes."""
-    snap = report.snapshot
-    return {
-        "runtime_guard.is_critical": report.is_critical,
-        "runtime_guard.cause": report.cause,
-        "runtime_guard.self_inflicted": report.self_inflicted,
-        "runtime_guard.self_pct": report.self_pct,
-        "runtime_guard.pid": report.pid,
-        "runtime_guard.stage": report.stage,
-        "runtime_guard.min_mem_mb": report.min_mem_mb,
-        "runtime_guard.max_swap_pct": report.max_swap_pct,
-        "runtime_guard.missing_mem_mb": report.missing_mem_mb,
-        "runtime_guard.swap_excess_pct": report.swap_excess_pct,
-        "runtime_guard.mem_total_mb": snap.mem_total_mb,
-        "runtime_guard.mem_available_mb": snap.mem_available_mb,
-        "runtime_guard.swap_total_mb": snap.swap_total_mb,
-        "runtime_guard.swap_free_mb": snap.swap_free_mb,
-        "runtime_guard.swap_used_pct": snap.swap_used_pct,
-        "runtime_guard.rss_mb": snap.rss_mb,
-        "runtime_guard.vm_swap_mb": snap.vm_swap_mb,
-    }
+    try:
+        snap = report.snapshot
+        return {
+            "runtime_guard.is_critical": report.is_critical,
+            "runtime_guard.cause": report.cause,
+            "runtime_guard.self_inflicted": report.self_inflicted,
+            "runtime_guard.self_pct": report.self_pct,
+            "runtime_guard.pid": report.pid,
+            "runtime_guard.stage": report.stage,
+            "runtime_guard.min_mem_mb": report.min_mem_mb,
+            "runtime_guard.max_swap_pct": report.max_swap_pct,
+            "runtime_guard.missing_mem_mb": report.missing_mem_mb,
+            "runtime_guard.swap_excess_pct": report.swap_excess_pct,
+            "runtime_guard.mem_total_mb": snap.mem_total_mb,
+            "runtime_guard.mem_available_mb": snap.mem_available_mb,
+            "runtime_guard.swap_total_mb": snap.swap_total_mb,
+            "runtime_guard.swap_free_mb": snap.swap_free_mb,
+            "runtime_guard.swap_used_pct": snap.swap_used_pct,
+            "runtime_guard.rss_mb": snap.rss_mb,
+            "runtime_guard.vm_swap_mb": snap.vm_swap_mb,
+        }
+    except Exception:
+        return {}
 
 
 def trace_context_attributes(
@@ -4963,6 +4966,8 @@ def emit_otel_event(
         attrs = pressure_report_attributes(report)
         attrs.update(trace_context_attributes(span=target_span))
     except Exception:
+        return False
+    if not attrs:
         return False
     try:
         add_event(event_name, attributes=attrs)

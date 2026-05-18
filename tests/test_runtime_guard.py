@@ -6363,6 +6363,14 @@ class TestOpenTelemetryExport:
         assert "runtime_guard.swap_used_pct" in attrs
         assert "runtime_guard.self_inflicted" in attrs
 
+    def test_pressure_report_attributes_handles_raising_report_access(self):
+        class _BadReport:
+            def __getattr__(self, name):
+                raise RuntimeError(f"broken report attr: {name}")
+
+        attrs = pressure_report_attributes(_BadReport())
+        assert attrs == {}
+
     def test_emit_with_explicit_span(self):
         report = _make_report(stage="span-stage")
         ctx = self._DummySpanContext(

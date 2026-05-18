@@ -9631,6 +9631,30 @@ class TestDistributedTracePropagator:
         ctx = tp["extract"]({"x-amzn-trace-id": tp_val})
         assert ctx["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
 
+    def test_inject_handles_header_name_with_raising_lower(self):
+        guard = self._make_guard()
+
+        class _BadStr(str):
+            def lower(self):  # type: ignore[override]
+                raise RuntimeError("broken header_name lower")
+
+        tp = install_distributed_trace_propagator(guard, header_name=_BadStr("traceparent"))
+
+        class _Flags:
+            sampled = True
+
+        class _SpanCtx:
+            trace_id = 0x4BF92F3577B34DA6A3CE929D0E0E4736
+            span_id = 0x00F067AA0BA902B7
+            trace_flags = _Flags()
+
+        class _Span:
+            def get_span_context(self):
+                return _SpanCtx()
+
+        out = tp["inject"]({}, span=_Span())
+        assert out == {}
+
     def test_restore_is_noop(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard)

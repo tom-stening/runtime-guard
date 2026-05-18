@@ -5262,7 +5262,11 @@ def install_distributed_trace_propagator(
         sampled = getattr(trace_flags, "sampled", None)
         flags = "01" if sampled else "00"
 
-        out[header_name.lower()] = f"00-{trace_id:032x}-{span_id:016x}-{flags}"
+        try:
+            header_key = header_name.lower()
+        except Exception:
+            return out
+        out[header_key] = f"00-{trace_id:032x}-{span_id:016x}-{flags}"
         return out
 
     def _restore() -> None:

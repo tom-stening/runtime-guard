@@ -9579,6 +9579,20 @@ class TestDistributedTracePropagator:
         ctx = tp["extract"](_BadIterable())
         assert ctx == {}
 
+    def test_extract_handles_malformed_header_preview_with_raising_slice(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _BadStr(str):
+            def strip(self, chars=None):  # type: ignore[override]
+                return self
+
+            def __getitem__(self, key):  # type: ignore[override]
+                raise RuntimeError("broken malformed header preview slice")
+
+        ctx = tp["extract"]({"traceparent": _BadStr("malformed")})
+        assert ctx == {}
+
     def test_inject_with_no_otel_returns_unchanged(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard, module=object())  # no OTEL

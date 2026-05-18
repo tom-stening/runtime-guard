@@ -5215,8 +5215,12 @@ def install_distributed_trace_propagator(
             return {}
         m = _TRACEPARENT_RE.match(raw)
         if m is None:
+            try:
+                raw_preview = raw[:64]
+            except Exception:
+                raw_preview = ""
             logger.debug(
-                "[RuntimeGuard] Malformed %r header value: %r", header_name, raw[:64]
+                "[RuntimeGuard] Malformed %r header value: %r", header_name, raw_preview
             )
             return {}
         return {

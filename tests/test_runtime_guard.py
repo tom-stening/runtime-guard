@@ -9707,6 +9707,39 @@ class TestDistributedTracePropagator:
         out = tp["inject"]({"ok": "yes"})
         assert out == {"ok": "yes"}
 
+    def test_inject_handles_get_span_context_lookup_raising(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _BadSpan:
+            def __getattr__(self, name):
+                if name == "get_span_context":
+                    raise RuntimeError("broken get_span_context lookup")
+                raise AttributeError(name)
+
+        out = tp["inject"]({"ok": "yes"}, span=_BadSpan())
+        assert out == {"ok": "yes"}
+
+    def test_inject_handles_trace_flags_lookup_raising(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _SpanCtx:
+            trace_id = 0x4BF92F3577B34DA6A3CE929D0E0E4736
+            span_id = 0x00F067AA0BA902B7
+
+            @property
+            def trace_flags(self):
+                raise RuntimeError("broken trace_flags")
+
+        class _Span:
+            def get_span_context(self):
+                return _SpanCtx()
+
+        out = tp["inject"]({"ok": "yes"}, span=_Span())
+        assert "traceparent" in out
+        assert out["traceparent"].endswith("-00")
+
     def test_restore_is_noop(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard)

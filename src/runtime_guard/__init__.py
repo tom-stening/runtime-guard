@@ -5250,7 +5250,10 @@ def install_distributed_trace_propagator(
         if target_span is None:
             return out
 
-        get_span_context = getattr(target_span, "get_span_context", None)
+        try:
+            get_span_context = getattr(target_span, "get_span_context", None)
+        except Exception:
+            return out
         if not callable(get_span_context):
             return out
         try:
@@ -5270,7 +5273,10 @@ def install_distributed_trace_propagator(
         if trace_id <= 0 or span_id <= 0:
             return out
 
-        trace_flags = getattr(span_context, "trace_flags", None)
+        try:
+            trace_flags = getattr(span_context, "trace_flags", None)
+        except Exception:
+            trace_flags = None
         try:
             sampled = getattr(trace_flags, "sampled", None)
         except Exception:

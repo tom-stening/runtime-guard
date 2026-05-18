@@ -9890,6 +9890,20 @@ class TestDistributedTracePropagator:
         ctx = tp["extract"]({"traceparent": _BadBytesValue(b"00-abc-def-01")})
         assert ctx == {}
 
+    def test_extract_handles_header_truthiness_raising(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _BadStr(str):
+            def strip(self, chars=None):  # type: ignore[override]
+                return self
+
+            def __len__(self):  # type: ignore[override]
+                raise RuntimeError("broken header truthiness")
+
+        ctx = tp["extract"]({"traceparent": _BadStr("00-abc-def-01")})
+        assert ctx == {}
+
     def test_inject_with_no_otel_returns_unchanged(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard, module=object())  # no OTEL

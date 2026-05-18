@@ -5367,7 +5367,11 @@ def install_distributed_trace_propagator(
             raw = normalised.get(header_name.lower(), "").strip()
         except Exception:
             raw = ""
-        if not raw:
+        try:
+            missing_header = not raw
+        except Exception:
+            missing_header = True
+        if missing_header:
             if warn_on_missing:
                 logger.warning(
                     "[RuntimeGuard] Distributed trace header %r not found in request.",

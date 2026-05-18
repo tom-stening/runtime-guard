@@ -3884,7 +3884,11 @@ def enable_ray_actor_memory_monitoring(
             if not isinstance(raw_actor_id, str):
                 _warn_parse()
                 continue
-            actor_key = raw_actor_id.strip()
+            try:
+                actor_key = raw_actor_id.strip()
+            except Exception:
+                _warn_parse()
+                continue
             if not actor_key:
                 _warn_parse()
                 continue
@@ -4149,7 +4153,11 @@ def enable_ray_actor_memory_monitoring(
 
             for raw_actor_id, actor_row in actor_items:
                 if isinstance(raw_actor_id, str):
-                    actor_id = raw_actor_id.strip()
+                    try:
+                        actor_id = raw_actor_id.strip()
+                    except Exception:
+                        _warn_parse()
+                        continue
                     if not actor_id:
                         _warn_parse()
                         continue

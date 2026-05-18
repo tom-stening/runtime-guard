@@ -5982,6 +5982,42 @@ class TestRayActorMemoryMonitoring:
         assert report["actors"]["actor-1"]["methods"]["compute"] == 0
         assert report["parse_warning_count"] >= 8
 
+    def test_get_actor_report_and_cluster_summary_handle_actor_keys_with_raising_strip(
+        self, monkeypatch
+    ):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        class _BadStr(str):
+            def strip(self, chars=None):  # type: ignore[override]
+                raise RuntimeError("broken actor key strip")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-a", actor_id="actor-1") == 2
+
+        all_nodes = config["get_all_node_reports"]()
+        nodes = all_nodes["nodes"]
+        node_row = nodes["node-a"]
+        node_row["actors"] = {
+            _BadStr("broken-actor"): {"events": 3},
+            "actor-ok": {"events": 2, "methods": {"compute": 2}},
+        }
+
+        report = config["get_actor_report"](node_id="node-a")
+        assert report["ok"] is True
+        assert set(report["actors"].keys()) == {"actor-ok"}
+        assert report["parse_warning_count"] >= 1
+
+        summary = config["cluster_summary"]()
+        assert summary["ok"] is True
+        assert summary["parse_warning_count"] >= 1
+
     def test_get_actor_report_global_view_sanitizes_malformed_nodes(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

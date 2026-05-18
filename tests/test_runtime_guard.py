@@ -9669,6 +9669,32 @@ class TestPrometheusEndpoint:
         app, _ = install_prometheus_endpoint(guard, path="/custom-metrics")
         assert getattr(app, "_runtime_guard_prometheus_path") == "/custom-metrics"
 
+    def test_check_failure_returns_503(self):
+        import unittest.mock as mock
+
+        guard = self._make_guard()
+        with mock.patch.object(guard, "check", side_effect=RuntimeError("broken check")):
+            app, _ = install_prometheus_endpoint(guard)
+            status, body = self._run_asgi(app, "GET")
+        assert status == 503
+        assert b"runtime_guard_mem_available_mb" in body
+
+    def test_hostile_is_critical_truthiness_returns_503(self):
+        import unittest.mock as mock
+
+        class _BadBool:
+            def __bool__(self):
+                raise RuntimeError("broken is_critical truthiness")
+
+        guard = self._make_guard()
+        fake_report = _make_report(is_critical=False, stage="prometheus")
+        fake_report.is_critical = _BadBool()
+        with mock.patch.object(guard, "check", return_value=fake_report):
+            app, _ = install_prometheus_endpoint(guard)
+            status, body = self._run_asgi(app, "GET")
+        assert status == 503
+        assert b"runtime_guard_mem_available_mb" in body
+
 
 # ---------------------------------------------------------------------------
 # M1-C06 — Distributed trace propagator

@@ -5209,7 +5209,12 @@ def install_prometheus_endpoint(
             await send({"type": "http.response.body", "body": b""})
             return
 
-        report = guard.check(stage=stage)
+        status: int | None = None
+        try:
+            report = guard.check(stage=stage)
+        except Exception:
+            report = None
+            status = 503
 
         if report is None:
             snap = _read_snapshot()
@@ -5222,10 +5227,14 @@ def install_prometheus_endpoint(
                 stage=stage,
                 pid=os.getpid(),
             )
-            status = 200
+            if status is None:
+                status = 200
         else:
             report_for_render = report
-            status = 503 if report.is_critical else 200
+            try:
+                status = 503 if bool(report.is_critical) else 200
+            except Exception:
+                status = 503
 
         body = render_prometheus_metrics(report_for_render, prefix=prefix).encode("utf-8")
         await send(

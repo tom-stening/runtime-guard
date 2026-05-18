@@ -5397,6 +5397,33 @@ class TestRayActorMemoryMonitoring:
         assert report["ok"] is True
         assert report["events"] == 1
 
+    def test_remote_wrapper_handles_alias_keys_with_raising_lower(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        class _BadAliasKey(str):
+            def lower(self):  # type: ignore[override]
+                raise RuntimeError("broken alias key lower")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int, **kwargs: Any) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        result = wrapped(
+            10,
+            node_id="node-z",
+            actor_id="actor-z",
+            **{_BadAliasKey("nodeId"): "node-shadow"},
+        )
+
+        assert result == 11
+        report = config["get_actor_report"](node_id="node-z", actor_id="actor-z")
+        assert report["ok"] is True
+        assert report["events"] == 1
+
     def test_remote_wrapper_drops_node_actor_kwarg_aliases_for_nonmatching_signature(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

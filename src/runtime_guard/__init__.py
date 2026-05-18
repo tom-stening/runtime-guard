@@ -4216,7 +4216,14 @@ def enable_ray_actor_memory_monitoring(
         def _canonical_id_key(raw_key: Any) -> str:
             if not isinstance(raw_key, str):
                 return ""
-            return "".join(ch for ch in raw_key.lower() if ch.isalnum())
+            try:
+                lowered = raw_key.lower()
+            except Exception:
+                return ""
+            try:
+                return "".join(ch for ch in lowered if ch.isalnum())
+            except Exception:
+                return ""
 
         fn_signature: inspect.Signature | None = None
         accepts_var_kwargs = False

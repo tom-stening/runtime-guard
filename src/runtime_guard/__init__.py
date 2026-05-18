@@ -5237,9 +5237,15 @@ def install_distributed_trace_propagator(
                     from opentelemetry import trace as trace_mod  # type: ignore
                 except Exception:
                     return out
-            get_current_span = getattr(trace_mod, "get_current_span", None)
+            try:
+                get_current_span = getattr(trace_mod, "get_current_span", None)
+            except Exception:
+                return out
             if callable(get_current_span):
-                target_span = get_current_span()
+                try:
+                    target_span = get_current_span()
+                except Exception:
+                    return out
 
         if target_span is None:
             return out

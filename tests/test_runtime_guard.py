@@ -9682,6 +9682,31 @@ class TestDistributedTracePropagator:
         out = tp["inject"]({}, span=_Span())
         assert out == {}
 
+    def test_inject_handles_get_current_span_lookup_raising(self):
+        guard = self._make_guard()
+
+        class _BadTraceModule:
+            def __getattr__(self, name):
+                if name == "get_current_span":
+                    raise RuntimeError("broken get_current_span lookup")
+                raise AttributeError(name)
+
+        tp = install_distributed_trace_propagator(guard, module=_BadTraceModule())
+        out = tp["inject"]({"ok": "yes"})
+        assert out == {"ok": "yes"}
+
+    def test_inject_handles_get_current_span_call_raising(self):
+        guard = self._make_guard()
+
+        class _BadTraceModule:
+            @staticmethod
+            def get_current_span():
+                raise RuntimeError("broken get_current_span call")
+
+        tp = install_distributed_trace_propagator(guard, module=_BadTraceModule())
+        out = tp["inject"]({"ok": "yes"})
+        assert out == {"ok": "yes"}
+
     def test_restore_is_noop(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard)

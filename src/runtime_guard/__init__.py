@@ -2621,9 +2621,12 @@ def install_dask_scheduler_callbacks(
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
         def _looks_like_worker_label(value: str) -> bool:
-            lowered = value.lower()
-            host_part, sep, port_part = lowered.rpartition(":")
-            has_host_port_shape = bool(host_part) and sep == ":" and port_part.isdigit()
+            try:
+                lowered = value.lower()
+                host_part, sep, port_part = lowered.rpartition(":")
+                has_host_port_shape = bool(host_part) and sep == ":" and port_part.isdigit()
+            except Exception:
+                return False
             return (
                 "worker" in lowered
                 or lowered.startswith("tcp://")

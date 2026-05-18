@@ -9568,6 +9568,17 @@ class TestDistributedTracePropagator:
         ctx = tp["extract"](_BadHeaders({"traceparent": "00-deadbeef"}))
         assert ctx == {}
 
+    def test_extract_handles_header_iterables_with_raising_iter(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _BadIterable:
+            def __iter__(self):
+                raise RuntimeError("broken header iterable iter")
+
+        ctx = tp["extract"](_BadIterable())
+        assert ctx == {}
+
     def test_inject_with_no_otel_returns_unchanged(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard, module=object())  # no OTEL

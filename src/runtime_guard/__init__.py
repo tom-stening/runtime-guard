@@ -5196,7 +5196,7 @@ def install_distributed_trace_propagator(
         try:
             for k, v in headers:
                 _add_pair(k, v)
-        except (TypeError, ValueError):
+        except Exception:
             return {}
         return out
 

@@ -5015,13 +5015,16 @@ def emit_otel_phase_event(
     if not callable(add_event):
         return False
 
-    attrs: dict[str, Any] = {
-        "runtime_guard.phase.stage": stage,
-        "runtime_guard.phase.lifecycle": str(lifecycle),
-    }
-    attrs.update(trace_context_attributes(span=target_span))
-    if attributes:
-        attrs.update(attributes)
+    try:
+        attrs: dict[str, Any] = {
+            "runtime_guard.phase.stage": stage,
+            "runtime_guard.phase.lifecycle": str(lifecycle),
+        }
+        attrs.update(trace_context_attributes(span=target_span))
+        if attributes:
+            attrs.update(attributes)
+    except Exception:
+        return False
     try:
         add_event(event_name, attributes=attrs)
     except Exception:

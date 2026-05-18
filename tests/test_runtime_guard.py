@@ -6978,6 +6978,48 @@ class TestOtelPhaseEvent:
             is False
         )
 
+    def test_emit_otel_phase_event_handles_raising_lifecycle_str(self):
+        class _Lifecycle:
+            def __str__(self) -> str:
+                raise RuntimeError("broken lifecycle str")
+
+        class _Span:
+            def is_recording(self) -> bool:
+                return True
+
+            def add_event(self, name: str, attributes: dict[str, object] | None = None) -> None:
+                pass
+
+        assert emit_otel_phase_event("stage-a", lifecycle=_Lifecycle(), span=_Span()) is False
+
+    def test_emit_otel_phase_event_handles_raising_attributes_update(self):
+        class _BadAttributes:
+            def __iter__(self):
+                raise RuntimeError("broken attributes iteration")
+
+            def __len__(self) -> int:
+                return 1
+
+            def __getitem__(self, key):
+                raise KeyError(key)
+
+        class _Span:
+            def is_recording(self) -> bool:
+                return True
+
+            def add_event(self, name: str, attributes: dict[str, object] | None = None) -> None:
+                pass
+
+        assert (
+            emit_otel_phase_event(
+                "stage-a",
+                lifecycle="enter",
+                span=_Span(),
+                attributes=_BadAttributes(),
+            )
+            is False
+        )
+
 
 # ---------------------------------------------------------------------------
 # M2-C01 — Signal-based auto-recovery scaffold

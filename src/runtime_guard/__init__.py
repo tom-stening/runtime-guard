@@ -526,26 +526,41 @@ class _GuardPhaseContext:
         """Close the phase span and add final memory snapshot (C08 advanced linking)."""
         if self._phase_span is None or not self._span_context_entered:
             return
-        
-        try:
-            # Add final memory snapshot to span
-            final_snap = _read_snapshot()
-            set_attr = getattr(self._phase_span, "set_attribute", None)
-            if callable(set_attr):
-                set_attr("runtime_guard.final_mem_available_mb", final_snap.mem_available_mb)
-                set_attr("runtime_guard.final_swap_used_pct", final_snap.swap_used_pct)
-                set_attr("runtime_guard.final_rss_mb", final_snap.rss_mb)
 
-            # Set final span status if error occurred
+        try:
+            # Add final memory snapshot to span. Keep this best-effort so close
+            # operations still run even when snapshot/attribute paths are hostile.
+            final_snap: MemSnapshot | None = None
+            try:
+                final_snap = _read_snapshot()
+            except Exception:
+                final_snap = None
+
+            set_attr = getattr(self._phase_span, "set_attribute", None)
+            if callable(set_attr) and final_snap is not None:
+                for key, value in (
+                    ("runtime_guard.final_mem_available_mb", final_snap.mem_available_mb),
+                    ("runtime_guard.final_swap_used_pct", final_snap.swap_used_pct),
+                    ("runtime_guard.final_rss_mb", final_snap.rss_mb),
+                ):
+                    try:
+                        set_attr(key, value)
+                    except Exception:
+                        break
+
+            # Set final span status if error occurred.
             if with_error:
                 set_status = getattr(self._phase_span, "set_status", None)
                 if callable(set_status):
                     try:
                         from opentelemetry.trace import Status, StatusCode
+
                         set_status(Status(StatusCode.ERROR, description="phase exited with exception"))
                     except Exception:
                         pass
-
+        except Exception:
+            pass
+        finally:
             # Prefer context-manager close when available; otherwise end the span directly.
             exited_with_ctx = False
             if self._phase_span_ctx is not None:
@@ -560,12 +575,13 @@ class _GuardPhaseContext:
             if not exited_with_ctx:
                 end = getattr(self._phase_span, "end", None)
                 if callable(end):
-                    end()
+                    try:
+                        end()
+                    except Exception:
+                        pass
             self._phase_span = None
             self._phase_span_ctx = None
             self._span_context_entered = False
-        except Exception:
-            pass
 
 # Core class
 # ---------------------------------------------------------------------------

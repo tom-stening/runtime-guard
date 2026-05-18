@@ -7091,6 +7091,104 @@ class TestPhaseContextManager:
         assert ctx.exit_calls == 1
         assert "runtime_guard.final_mem_available_mb" in ctx.span.attributes
 
+    def test_phase_span_closes_when_set_attribute_raises(self):
+        """Span must still close when final memory attribute writes fail."""
+        guard = RuntimeGuard()
+        ended = {"value": False}
+
+        class _BadSpan:
+            def set_attribute(self, key: str, value: Any) -> None:
+                raise RuntimeError("broken set_attribute")
+
+            def end(self) -> None:
+                ended["value"] = True
+
+            def is_recording(self) -> bool:
+                return True
+
+            def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+                pass
+
+            def get_span_context(self) -> Any:
+                class _Ctx:
+                    trace_id = 0x1
+                    span_id = 0x2
+                    trace_flags = type("_Flags", (), {"sampled": True})()
+
+                return _Ctx()
+
+        class _Tracer:
+            def start_as_current_span(self, name: str) -> _BadSpan:
+                return _BadSpan()
+
+        trace_mod = type(
+            "_TraceMod",
+            (),
+            {
+                "get_current_span": lambda self=None: None,
+                "get_tracer": lambda self=None, name="": _Tracer(),
+            },
+        )()
+
+        with guard.phase("bad-attrs", emit_phase_traces=True, trace_module=trace_mod):
+            pass
+
+        assert ended["value"] is True
+
+    def test_phase_span_closes_when_snapshot_read_raises(self, monkeypatch):
+        """Span must still close when final snapshot acquisition fails."""
+        import runtime_guard as rg
+
+        guard = RuntimeGuard()
+        ended = {"value": False}
+
+        class _Span:
+            def set_attribute(self, key: str, value: Any) -> None:
+                pass
+
+            def end(self) -> None:
+                ended["value"] = True
+
+            def is_recording(self) -> bool:
+                return True
+
+            def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+                pass
+
+            def get_span_context(self) -> Any:
+                class _Ctx:
+                    trace_id = 0x1
+                    span_id = 0x2
+                    trace_flags = type("_Flags", (), {"sampled": True})()
+
+                return _Ctx()
+
+        class _Tracer:
+            def start_as_current_span(self, name: str) -> _Span:
+                return _Span()
+
+        trace_mod = type(
+            "_TraceMod",
+            (),
+            {
+                "get_current_span": lambda self=None: None,
+                "get_tracer": lambda self=None, name="": _Tracer(),
+            },
+        )()
+
+        monkeypatch.setattr(rg, "_read_snapshot", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+
+        with guard.phase(
+            "bad-snapshot",
+            check_on_enter=False,
+            check_on_exit=False,
+            emit_phase_traces=True,
+            trace_module=trace_mod,
+        ):
+            pass
+
+        assert ended["value"] is True
+
 
 
 class TestOtelPhaseEvent:

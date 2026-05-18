@@ -2661,7 +2661,10 @@ def install_dask_scheduler_callbacks(
                     return decoded_label
 
             if isinstance(arg, str):
-                candidate_label = arg.strip()
+                try:
+                    candidate_label = arg.strip()
+                except Exception:
+                    candidate_label = ""
                 if candidate_label and _looks_like_worker_label(candidate_label):
                     return candidate_label
 

@@ -6547,6 +6547,15 @@ class TestPrometheusRenderer:
         assert "runtime_guard_is_critical" in text
         assert 'stage="unknown"' in text
 
+    def test_render_handles_prefix_formatting_raising(self):
+        class _BadPrefix(str):
+            def __format__(self, format_spec):
+                raise RuntimeError("broken prefix formatting")
+
+        report = _make_report(stage="metrics")
+        text = render_prometheus_metrics(report, prefix=_BadPrefix("runtime_guard"))
+        assert "runtime_guard_is_critical" in text
+
 
 # ---------------------------------------------------------------------------
 # M1-C07 — Config schema validation scaffold

@@ -5054,35 +5054,39 @@ def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtim
     """
     snap = report.snapshot
     try:
+        metric_prefix = f"{prefix}"
+    except Exception:
+        metric_prefix = "runtime_guard"
+    try:
         stage = report.stage.replace('"', '\\"')
     except Exception:
         stage = "unknown"
     lines = [
-        f"{prefix}_is_critical {1 if report.is_critical else 0}",
-        f"{prefix}_self_inflicted {1 if report.self_inflicted else 0}",
-        f'{prefix}_self_pct{{stage="{stage}"}} {report.self_pct}',
-        f'{prefix}_min_mem_mb{{stage="{stage}"}} {report.min_mem_mb}',
-        f'{prefix}_max_swap_pct{{stage="{stage}"}} {report.max_swap_pct}',
-        f'{prefix}_missing_mem_mb{{stage="{stage}"}} {report.missing_mem_mb}',
-        f'{prefix}_swap_excess_pct{{stage="{stage}"}} {report.swap_excess_pct}',
-        f'{prefix}_mem_total_mb{{stage="{stage}"}} {snap.mem_total_mb}',
-        f'{prefix}_mem_available_mb{{stage="{stage}"}} {snap.mem_available_mb}',
-        f'{prefix}_swap_total_mb{{stage="{stage}"}} {snap.swap_total_mb}',
-        f'{prefix}_swap_free_mb{{stage="{stage}"}} {snap.swap_free_mb}',
-        f'{prefix}_swap_used_pct{{stage="{stage}"}} {snap.swap_used_pct}',
-        f'{prefix}_rss_mb{{stage="{stage}"}} {snap.rss_mb}',
-        f'{prefix}_vm_swap_mb{{stage="{stage}"}} {snap.vm_swap_mb}',
+        f"{metric_prefix}_is_critical {1 if report.is_critical else 0}",
+        f"{metric_prefix}_self_inflicted {1 if report.self_inflicted else 0}",
+        f'{metric_prefix}_self_pct{{stage="{stage}"}} {report.self_pct}',
+        f'{metric_prefix}_min_mem_mb{{stage="{stage}"}} {report.min_mem_mb}',
+        f'{metric_prefix}_max_swap_pct{{stage="{stage}"}} {report.max_swap_pct}',
+        f'{metric_prefix}_missing_mem_mb{{stage="{stage}"}} {report.missing_mem_mb}',
+        f'{metric_prefix}_swap_excess_pct{{stage="{stage}"}} {report.swap_excess_pct}',
+        f'{metric_prefix}_mem_total_mb{{stage="{stage}"}} {snap.mem_total_mb}',
+        f'{metric_prefix}_mem_available_mb{{stage="{stage}"}} {snap.mem_available_mb}',
+        f'{metric_prefix}_swap_total_mb{{stage="{stage}"}} {snap.swap_total_mb}',
+        f'{metric_prefix}_swap_free_mb{{stage="{stage}"}} {snap.swap_free_mb}',
+        f'{metric_prefix}_swap_used_pct{{stage="{stage}"}} {snap.swap_used_pct}',
+        f'{metric_prefix}_rss_mb{{stage="{stage}"}} {snap.rss_mb}',
+        f'{metric_prefix}_vm_swap_mb{{stage="{stage}"}} {snap.vm_swap_mb}',
     ]
     # Add host (Windows) metrics if present
     if getattr(snap, "host_mem_total_mb", 0):
-        lines.append(f'{prefix}_host_mem_total_mb{{stage="{stage}"}} {snap.host_mem_total_mb}')
-        lines.append(f'{prefix}_host_mem_available_mb{{stage="{stage}"}} {snap.host_mem_available_mb}')
-        lines.append(f'{prefix}_host_swap_total_mb{{stage="{stage}"}} {snap.host_swap_total_mb}')
-        lines.append(f'{prefix}_host_swap_free_mb{{stage="{stage}"}} {snap.host_swap_free_mb}')
-        lines.append(f'{prefix}_host_swap_used_pct{{stage="{stage}"}} {snap.host_swap_used_pct}')
-        lines.append(f'{prefix}_drift_mem_total_mb{{stage="{stage}"}} {snap.drift_mem_total_mb}')
-        lines.append(f'{prefix}_drift_mem_available_mb{{stage="{stage}"}} {snap.drift_mem_available_mb}')
-        lines.append(f'{prefix}_drift_swap_used_pct{{stage="{stage}"}} {snap.drift_swap_used_pct}')
+        lines.append(f'{metric_prefix}_host_mem_total_mb{{stage="{stage}"}} {snap.host_mem_total_mb}')
+        lines.append(f'{metric_prefix}_host_mem_available_mb{{stage="{stage}"}} {snap.host_mem_available_mb}')
+        lines.append(f'{metric_prefix}_host_swap_total_mb{{stage="{stage}"}} {snap.host_swap_total_mb}')
+        lines.append(f'{metric_prefix}_host_swap_free_mb{{stage="{stage}"}} {snap.host_swap_free_mb}')
+        lines.append(f'{metric_prefix}_host_swap_used_pct{{stage="{stage}"}} {snap.host_swap_used_pct}')
+        lines.append(f'{metric_prefix}_drift_mem_total_mb{{stage="{stage}"}} {snap.drift_mem_total_mb}')
+        lines.append(f'{metric_prefix}_drift_mem_available_mb{{stage="{stage}"}} {snap.drift_mem_available_mb}')
+        lines.append(f'{metric_prefix}_drift_swap_used_pct{{stage="{stage}"}} {snap.drift_swap_used_pct}')
     return "\n".join(lines) + "\n"
 
 

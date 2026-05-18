@@ -6578,6 +6578,16 @@ class TestPrometheusRenderer:
         assert "runtime_guard_is_critical 0" in text
         assert "runtime_guard_self_inflicted 0" in text
 
+    def test_render_handles_numeric_metric_formatting_raising(self):
+        class _BadNumber:
+            def __str__(self) -> str:
+                raise RuntimeError("broken numeric formatting")
+
+        report = _make_report(stage="metrics")
+        report.self_pct = _BadNumber()
+        text = render_prometheus_metrics(report)
+        assert 'runtime_guard_self_pct{stage="metrics"} 0' in text
+
 
 # ---------------------------------------------------------------------------
 # M1-C07 — Config schema validation scaffold

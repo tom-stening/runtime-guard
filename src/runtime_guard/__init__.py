@@ -5053,7 +5053,10 @@ def render_prometheus_metrics(report: "PressureReport", *, prefix: str = "runtim
     ``prometheus_client``. It can be served by any HTTP endpoint.
     """
     snap = report.snapshot
-    stage = report.stage.replace('"', '\\"')
+    try:
+        stage = report.stage.replace('"', '\\"')
+    except Exception:
+        stage = "unknown"
     lines = [
         f"{prefix}_is_critical {1 if report.is_critical else 0}",
         f"{prefix}_self_inflicted {1 if report.self_inflicted else 0}",

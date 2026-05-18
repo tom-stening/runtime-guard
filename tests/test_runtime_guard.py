@@ -6537,6 +6537,16 @@ class TestPrometheusRenderer:
         text = render_prometheus_metrics(report)
         assert 'stage="train \\"A\\""' in text
 
+    def test_render_handles_stage_replace_raising(self):
+        class _BadStage(str):
+            def replace(self, old, new, count=-1):  # type: ignore[override]
+                raise RuntimeError("broken stage replace")
+
+        report = _make_report(stage=_BadStage("metrics"))
+        text = render_prometheus_metrics(report)
+        assert "runtime_guard_is_critical" in text
+        assert 'stage="unknown"' in text
+
 
 # ---------------------------------------------------------------------------
 # M1-C07 — Config schema validation scaffold

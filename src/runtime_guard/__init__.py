@@ -5191,7 +5191,11 @@ def install_prometheus_endpoint(
     _ALLOW_HEADER = b"GET"
 
     async def _asgi_metrics_app(scope: Any, receive: Any, send: Any) -> None:
-        if scope.get("type") != "http":
+        try:
+            scope_type = scope.get("type")
+        except Exception:
+            return
+        if scope_type != "http":
             return
 
         try:

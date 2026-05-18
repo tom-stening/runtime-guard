@@ -9659,6 +9659,25 @@ class TestPrometheusEndpoint:
         asyncio.run(app({"type": "lifespan"}, None, _send))
         assert responses == []  # Nothing sent for non-HTTP scopes
 
+    def test_hostile_scope_type_lookup_is_ignored(self):
+        import asyncio
+
+        class _BadScope(dict):
+            def get(self, key, default=None):  # type: ignore[override]
+                if key == "type":
+                    raise RuntimeError("broken scope type lookup")
+                return super().get(key, default)
+
+        guard = self._make_guard()
+        app, _ = install_prometheus_endpoint(guard)
+        responses = []
+
+        async def _send(msg):
+            responses.append(msg)
+
+        asyncio.run(app(_BadScope({"type": "http", "method": "GET"}), None, _send))
+        assert responses == []
+
     def test_restore_is_noop(self):
         guard = self._make_guard()
         _, restore = install_prometheus_endpoint(guard)

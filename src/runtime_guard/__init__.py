@@ -3825,7 +3825,11 @@ def enable_ray_actor_memory_monitoring(
             if not isinstance(raw_method_name, str):
                 _warn_parse()
                 continue
-            method_name = raw_method_name.strip()
+            try:
+                method_name = raw_method_name.strip()
+            except Exception:
+                _warn_parse()
+                continue
             if not method_name:
                 _warn_parse()
                 continue

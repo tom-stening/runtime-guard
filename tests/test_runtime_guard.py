@@ -5909,6 +5909,36 @@ class TestRayActorMemoryMonitoring:
         assert 7 not in report["methods"]
         assert report["parse_warning_count"] >= 4
 
+    def test_get_actor_report_handles_method_names_with_raising_strip(self, monkeypatch):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        class _BadStr(str):
+            def strip(self, chars=None):  # type: ignore[override]
+                raise RuntimeError("broken method name strip")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": None)
+        config = enable_ray_actor_memory_monitoring(guard, check_on_entry=True, check_on_exit=False)
+
+        def compute(x: int) -> int:
+            return x + 1
+
+        wrapped = config["remote_wrapper"](compute)
+        assert wrapped(1, node_id="node-a", actor_id="actor-1") == 2
+
+        all_nodes = config["get_all_node_reports"]()
+        nodes = all_nodes["nodes"]
+        actor_row = nodes["node-a"]["actors"]["actor-1"]
+        actor_row["methods"] = {
+            _BadStr("broken"): 1,
+            "ok": 2,
+        }
+
+        report = config["get_actor_report"](node_id="node-a", actor_id="actor-1")
+        assert report["ok"] is True
+        assert report["methods"] == {"ok": 2}
+        assert report["parse_warning_count"] >= 1
+
     def test_get_actor_report_sanitizes_malformed_node_row_fields(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring
 

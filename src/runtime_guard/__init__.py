@@ -2775,8 +2775,14 @@ def install_dask_scheduler_callbacks(
                 if not isinstance(snapshots, list):
                     snapshots = []
                     worker_row["snapshots"] = snapshots
+
+                try:
+                    snapshot_key = str(key)
+                except Exception:
+                    snapshot_key = "unknown-task"
+
                 snapshot_entry = {
-                    "key": str(key),
+                    "key": snapshot_key,
                     "timestamp": int(time.time()),
                     "severity": "critical" if is_critical else "warning",
                     "cause": cause,

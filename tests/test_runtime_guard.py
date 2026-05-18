@@ -4327,6 +4327,34 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["pressure_events"] == 1
         assert worker_report["snapshots"][0]["missing_mem_mb"] == 0
 
+    def test_scheduler_callbacks_handle_task_keys_with_raising_str(self, monkeypatch):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _BadTaskKey:
+            def __str__(self) -> str:
+                raise RuntimeError("broken task key str")
+
+        class _PressureReport:
+            is_critical = True
+            cause = "memory"
+            missing_mem_mb = 8
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": _PressureReport())
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start(_BadTaskKey(), worker_id="worker-a")
+        callback_cls.finish(_BadTaskKey(), "ok", worker_id="worker-a")
+
+        worker_report = reporter("worker-a")
+        assert worker_report["ok"] is True
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["pressure_events"] == 1
+        assert worker_report["snapshots"][0]["key"] == "unknown-task"
+
     def test_scheduler_callback_context_accepts_worker_alias_key_format_drift(self, monkeypatch):
         from runtime_guard import install_dask_scheduler_callbacks
 

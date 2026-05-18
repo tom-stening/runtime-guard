@@ -9534,6 +9534,29 @@ class TestDistributedTracePropagator:
         ctx = tp["extract"]([(1, tp_value)])
         assert ctx == {}
 
+    def test_extract_handles_header_keys_with_raising_strip(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _BadStr(str):
+            def strip(self, chars=None):  # type: ignore[override]
+                raise RuntimeError("broken trace header key strip")
+
+        tp_value = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        ctx = tp["extract"]({_BadStr("traceparent"): tp_value})
+        assert ctx == {}
+
+    def test_extract_handles_header_values_with_raising_strip(self):
+        guard = self._make_guard()
+        tp = install_distributed_trace_propagator(guard)
+
+        class _BadStr(str):
+            def strip(self, chars=None):  # type: ignore[override]
+                raise RuntimeError("broken trace header value strip")
+
+        ctx = tp["extract"]({"traceparent": _BadStr("00-deadbeef")})
+        assert ctx == {}
+
     def test_inject_with_no_otel_returns_unchanged(self):
         guard = self._make_guard()
         tp = install_distributed_trace_propagator(guard, module=object())  # no OTEL

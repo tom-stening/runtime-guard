@@ -5178,7 +5178,10 @@ def install_distributed_trace_propagator(
         def _add_pair(key: Any, value: Any) -> None:
             if not isinstance(key, str) or not isinstance(value, str):
                 return
-            key_norm = key.strip().lower()
+            try:
+                key_norm = key.strip().lower()
+            except Exception:
+                return
             if not key_norm:
                 return
             out[key_norm] = value
@@ -5196,7 +5199,10 @@ def install_distributed_trace_propagator(
 
     def extract(headers: Any) -> dict[str, Any]:
         normalised = _normalise_headers(headers)
-        raw = normalised.get(header_name.lower(), "").strip()
+        try:
+            raw = normalised.get(header_name.lower(), "").strip()
+        except Exception:
+            raw = ""
         if not raw:
             if warn_on_missing:
                 logger.warning(

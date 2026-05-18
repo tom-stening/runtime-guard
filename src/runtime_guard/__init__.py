@@ -3906,7 +3906,11 @@ def enable_ray_actor_memory_monitoring(
             total_events = 0
             for raw_node_key, row in actor_event_state.items():
                 if isinstance(raw_node_key, str):
-                    node_key = raw_node_key.strip()
+                    try:
+                        node_key = raw_node_key.strip()
+                    except Exception:
+                        _warn_parse()
+                        node_key = "unknown-node"
                     if not node_key:
                         _warn_parse()
                         node_key = "unknown-node"
@@ -3994,7 +3998,11 @@ def enable_ray_actor_memory_monitoring(
         actor_key = _normalize_key(actor_id, fallback="unknown-actor")
         for raw_node_key, node_row in actor_event_state.items():
             if isinstance(raw_node_key, str):
-                node_key = raw_node_key.strip()
+                try:
+                    node_key = raw_node_key.strip()
+                except Exception:
+                    _warn_parse()
+                    node_key = "unknown-node"
                 if not node_key:
                     _warn_parse()
                     node_key = "unknown-node"
@@ -4059,7 +4067,13 @@ def enable_ray_actor_memory_monitoring(
                 return default
 
         for node_id, row in actor_event_state.items():
-            if not isinstance(node_id, str) or not node_id.strip():
+            node_id_valid = isinstance(node_id, str)
+            if node_id_valid:
+                try:
+                    node_id_valid = bool(node_id.strip())
+                except Exception:
+                    node_id_valid = False
+            if not node_id_valid:
                 _warn_parse()
             if not isinstance(row, dict):
                 _warn_parse()
@@ -4111,7 +4125,11 @@ def enable_ray_actor_memory_monitoring(
 
         for raw_node_id, row in actor_event_state.items():
             if isinstance(raw_node_id, str):
-                node_id = raw_node_id.strip()
+                try:
+                    node_id = raw_node_id.strip()
+                except Exception:
+                    _warn_parse()
+                    node_id = "unknown-node"
                 if not node_id:
                     _warn_parse()
                     node_id = "unknown-node"

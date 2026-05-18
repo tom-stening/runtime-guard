@@ -210,6 +210,8 @@ class TestRuntimeGuardInitValidation:
             RuntimeGuard(hints=["ok", 1])
         with pytest.raises(ValueError, match="show_top_procs must be a boolean"):
             RuntimeGuard(show_top_procs="yes")
+        with pytest.raises(ValueError, match="event_redactor must be callable"):
+            RuntimeGuard(event_redactor="not-callable")
 
 
 class TestConftestContent:
@@ -270,6 +272,37 @@ class TestJsonEvents:
             "rss_mb",
         }
         assert required.issubset(payload.keys())
+
+    def test_json_event_redactor_can_mask_fields(self):
+        g = RuntimeGuard(
+            event_redactor=lambda event: {
+                **event,
+                "pid": 0,
+                "cause": "redacted",
+            }
+        )
+        report = _make_report(stage="secret-stage")
+        payload = _capture_json_events(g, report)
+        assert payload["pid"] == 0
+        assert payload["cause"] == "redacted"
+        assert payload["stage"] == "secret-stage"
+
+    def test_json_event_redactor_failure_falls_back_to_original_payload(self):
+        def _broken_redactor(event: dict[str, Any]) -> dict[str, Any]:
+            raise RuntimeError("boom")
+
+        g = RuntimeGuard(event_redactor=_broken_redactor)
+        report = _make_report(stage="fallback-stage")
+        payload = _capture_json_events(g, report)
+        assert payload["stage"] == "fallback-stage"
+        assert payload["cause"] == "test cause"
+
+    def test_json_event_redactor_unserializable_output_falls_back_to_original_payload(self):
+        g = RuntimeGuard(event_redactor=lambda event: {**event, "bad": object()})
+        report = _make_report(stage="fallback-serialize")
+        payload = _capture_json_events(g, report)
+        assert payload["stage"] == "fallback-serialize"
+        assert "bad" not in payload
 
     def test_get_all_node_reports_handles_node_rows_with_raising_get(self, monkeypatch):
         from runtime_guard import enable_ray_actor_memory_monitoring

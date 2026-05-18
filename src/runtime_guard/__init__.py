@@ -603,6 +603,10 @@ class RuntimeGuard:
         When ``True`` (default) include a short table of the top RSS
         consumers from ``ps`` in every log emission.  Set to ``False`` to
         suppress the subprocess call.
+    event_redactor:
+        Optional callable invoked before emitting structured JSON events on
+        ``runtime_guard.events``. It receives a shallow copy of the event
+        payload and may return a redacted mapping.
     """
 
     def __init__(
@@ -612,6 +616,8 @@ class RuntimeGuard:
         cooldown_s: float = 0.0,
         hints: list[str] | None = None,
         show_top_procs: bool = True,
+        event_redactor: Callable[[dict[str, Any]], Mapping[str, Any] | dict[str, Any] | None]
+        | None = None,
     ) -> None:
         if not isinstance(env_prefix, str) or not env_prefix.strip():
             raise ValueError("env_prefix must be a non-empty string")
@@ -632,12 +638,15 @@ class RuntimeGuard:
                 raise ValueError("hints must contain only strings")
         if not isinstance(show_top_procs, bool):
             raise ValueError("show_top_procs must be a boolean")
+        if event_redactor is not None and not callable(event_redactor):
+            raise ValueError("event_redactor must be callable when provided")
 
         self._prefix = prefix
         self._tag = log_tag.strip()
         self._cooldown_s = cooldown_value
         self._hints: list[str] = list(hints) if hints is not None else []
         self._show_top_procs = show_top_procs
+        self._event_redactor = event_redactor
         # Cooldown tracking: keyed by "critical"|"warning"
         self._last_logged: dict[str, float] = {}
         # Background-check state
@@ -856,7 +865,22 @@ class RuntimeGuard:
             json_log["drift_mem_total_mb"] = snap.drift_mem_total_mb
             json_log["drift_mem_available_mb"] = snap.drift_mem_available_mb
             json_log["drift_swap_used_pct"] = snap.drift_swap_used_pct
-        json_log_fn(json.dumps(json_log, separators=(",", ":")))
+        redacted_log: dict[str, Any] = json_log
+        if self._event_redactor is not None:
+            try:
+                redacted_candidate = self._event_redactor(dict(json_log))
+                if isinstance(redacted_candidate, dict):
+                    redacted_log = redacted_candidate
+                elif isinstance(redacted_candidate, Mapping):
+                    redacted_log = dict(redacted_candidate)
+            except Exception:
+                redacted_log = json_log
+
+        try:
+            payload = json.dumps(redacted_log, separators=(",", ":"))
+        except Exception:
+            payload = json.dumps(json_log, separators=(",", ":"))
+        json_log_fn(payload)
 
     def check_and_log(self, stage: str = "", *, auto_intervene: bool = False, kill_hogs_above_mb: int | None = None) -> PressureReport | None:
         """Convenience: check() then log() if pressure is found.

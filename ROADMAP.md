@@ -34,7 +34,7 @@ This principle shapes all roadmap decisions:
 | M0-C01 | Cross-platform snapshot (`/proc`, `vm_stat`, PowerShell/`wmic`) | P0 | ✅ DONE | Linux, macOS, Windows tested. Warn-once fallback on unsupported OS. |
 | M0-C02 | Attribution detection (self vs. external pressure) | P0 | ✅ DONE | Classifies pressure source and confidence. |
 | M0-C03 | Threshold presets (`tight`, `relaxed`, `ci`) | P1 | ✅ DONE | Bundled threshold sets for common use cases. |
-| M0-C04 | Structured JSON events on `runtime_guard.events` logger | P1 | ✅ DONE | Log aggregation pipeline ready. |
+| M0-C04 | Structured JSON events on `runtime_guard.events` logger | P1 | ✅ DONE | Log aggregation pipeline ready; now includes optional per-event redaction hook via `RuntimeGuard(event_redactor=...)` with fail-safe fallback to original payload if redactor execution or serialization fails. |
 | M0-C05 | Cooldown/deduplication for repeat alerts | P1 | ✅ DONE | Configurable `cooldown_s` to reduce log spam. |
 | M0-C06 | Pytest integration + conftest helper | P2 | ✅ DONE | `make_pytest_guard()`, `make_conftest_content()`. |
 | M0-C07 | Background check daemon thread | P2 | ✅ DONE | `start_background_check()`, `stop_background_check()`. |

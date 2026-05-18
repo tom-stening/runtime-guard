@@ -109,6 +109,7 @@ guard = RuntimeGuard(env_prefix="MYAPP", log_tag="MyApp")
 | `cooldown_s` | `float` | `0.0` | Suppress repeat emissions within this many seconds. `0` = always emit. |
 | `hints` | `list[str]` | `[]` | Repo-specific action strings appended to every pressure report. |
 | `show_top_procs` | `bool` | `True` | Include top-RSS process table in log output. |
+| `event_redactor` | `Callable[[dict], dict \| Mapping \| None] \| None` | `None` | Optional structured-event redaction hook for `runtime_guard.events` JSON payloads. |
 
 ---
 
@@ -184,6 +185,7 @@ guard = RuntimeGuard(
     cooldown_s=30.0,
     hints=["Reduce batch size: --batch-size 256", "Run fewer workers: -n 2"],
     show_top_procs=True,
+    event_redactor=lambda event: {**event, "pid": 0, "cause": "redacted"},
 )
 ```
 
@@ -203,6 +205,10 @@ if report:
 #### `log(report: PressureReport) → None`
 
 Emit a structured log event. Also writes a compact JSON line to the `runtime_guard.events` logger.
+
+If `event_redactor` is configured, the redactor runs before JSON emission. If the
+redactor raises or returns an unserializable payload, runtime-guard fails open and
+emits the original unredacted payload so request paths are not interrupted.
 
 #### `check_and_log(stage="") → PressureReport | None`
 

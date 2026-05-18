@@ -135,7 +135,7 @@ A tool that reads process memory statistics must not leak sensitive information,
 | Task | Status | Target version | Notes |
 |---|---|---|---|
 | R5.1 — Threat model: enumerate all data surfaces (logs, JSON events, CLI output, state files) | 📅 Planned | v0.3.0 | Identify which fields could leak PII or sensitive process info. |
-| R5.2 — Redaction policy design for structured events | 📅 Planned | v0.3.0 | Allow caller to register a redaction function. Defaults to no-op. |
+| R5.2 — Redaction policy design for structured events | ✅ DONE | v0.3.0 | Added optional `RuntimeGuard(event_redactor=...)` hook for `runtime_guard.events` JSON payload redaction with fail-safe fallback to original payload on redactor failure or malformed output. |
 | R5.3 — FIPS-140 hash algorithm selection for event deduplication (M2-C05) | 📅 Planned | M2 | SHA-256 via `hashlib`. Verify FIPS mode availability on target kernels. |
 | R5.4 — GDPR / HIPAA compliance guide for deployments in regulated sectors | 📅 Planned | M2 | Written guide: what to redact, log retention recommendations, data residency. Include non-EU / non-US jurisdictions (PIPL, PDPA, LGPD). |
 

@@ -203,7 +203,7 @@ report = get_worker_report()
 print(f"Pressure events: {report['total_pressure_events']}")
 ```
 
-**See:** [INTEGRATION_DASK.md](INTEGRATION_DASK.md) (reference pattern)
+**See:** [README.md#dask](README.md#dask) (reference pattern)
 
 ### Ray Integration
 

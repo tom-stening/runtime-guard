@@ -35,7 +35,7 @@ When available RAM drops below a threshold, the immediate question is: *Who caus
 
 | Task | Status | Target version | Notes |
 |---|---|---|---|
-| R1.1 — Compare `MemAvailable` vs. `MemFree + Buffers + Cached` as pressure signal | 📅 Planned | v0.3.0 | `MemAvailable` is more accurate per kernel docs but not available on kernels < 3.14. Need fallback formula. |
+| R1.1 — Compare `MemAvailable` vs. `MemFree + Buffers + Cached` as pressure signal | ✅ DONE | v0.3.0 | Implemented with `MemAvailable` primary signal and a fallback formula for older kernels when `MemAvailable` is absent. |
 | R1.2 — Validate RSS from `/proc/self/status` vs. `smaps_rollup` for attribution accuracy | 📅 Planned | v0.3.0 | `smaps_rollup` gives PSS (proportional set size) which is more accurate for shared-memory workloads. |
 | R1.3 — Study OOM killer scoring (`/proc/<pid>/oom_score_adj`) as a predictor of eviction risk | 📅 Planned | v0.4.0 | Could expose `oom_risk` in `MemSnapshot` as an early warning. |
 | R1.4 — cgroup v2 memory limits for container-aware attribution | 📅 Planned | M1 | `/sys/fs/cgroup/memory.max` overrides `/proc/meminfo` MemTotal in containers. |
@@ -61,7 +61,7 @@ macOS and Windows do not expose `/proc`. Reliable, locale-independent memory enu
 | Task | Status | Target version | Notes |
 |---|---|---|---|
 | R2.1 — Prototype `ctypes`-based `host_statistics64` call for macOS (no subprocess) | 📅 Planned | v0.3.0 | Eliminates `vm_stat` locale dependency (KI-001). |
-| R2.2 — Prototype PowerShell `Get-CimInstance` fallback for Windows (KI-002 fix) | 📅 Planned | v0.3.0 | Must handle PowerShell execution policy and version differences. |
+| R2.2 — Prototype PowerShell `Get-CimInstance` fallback for Windows (KI-002 fix) | ✅ DONE | v0.3.0 | Implemented as primary Windows path with `wmic` retained as fallback for restricted/older environments. |
 | R2.3 — FreeBSD: assess `sysctl vm.stats.vm.v_free_count` for future support | 📅 Planned | M1 | Low priority but needed for BSD-based NAS / homelab deployments. |
 | R2.4 — WSL 2 memory reporting: document delta between `/proc/meminfo` and Windows Task Manager | 📅 Planned | v0.3.0 | WSL 2 `MemTotal` reflects the dynamic VM ceiling, not the host Windows RAM. Document and expose in `wsl_system_report()`. |
 
@@ -84,7 +84,7 @@ A resource monitor that emits the same alert repeatedly under sustained pressure
 
 | Task | Status | Target version | Notes |
 |---|---|---|---|
-| R3.1 — Design per-stage cooldown store (fixes KI-004) | 📅 Planned | v0.4.0 | `dict[str, float]` keyed by stage. Assess memory cost vs. correctness. |
+| R3.1 — Design per-stage cooldown store (fixes KI-004) | ✅ DONE | v0.3.0 | Implemented as stage+severity keyed cooldown tracking (`dict[str, float]`) to prevent cross-stage dedup interference. |
 | R3.2 — Exponential backoff for repeat alerts (pressure that persists but worsens) | 📅 Planned | v0.5.0 | Suppress repeated same-level alerts but escalate when severity increases. |
 | R3.3 — Dead man's switch: emit alert if *no* check has run in N seconds | 📅 Planned | M1 | Detect silently hung pipeline stages that never call `check()`. |
 

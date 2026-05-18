@@ -4441,6 +4441,30 @@ class TestDaskSchedulerCallbacks:
         assert worker_report["completed_tasks"] == 1
         assert worker_report["healthy_events"] == 1
 
+    def test_scheduler_callbacks_handle_positional_worker_alias_sequences_with_raising_iter(
+        self, monkeypatch
+    ):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _BadSequence(list):
+            def __iter__(self):
+                raise RuntimeError("broken worker alias sequence iter")
+
+        guard = RuntimeGuard()
+        monkeypatch.setattr(guard, "check_and_log", lambda *, stage="": None)
+
+        reporter = install_dask_scheduler_callbacks(guard)
+        callback_cls = getattr(reporter, "callback_context_class")
+
+        callback_cls.start("task-1", _BadSequence([{"worker": "worker-a"}]))
+        callback_cls.finish("task-1", "ok", _BadSequence([{"worker": "worker-a"}]))
+
+        worker_report = reporter("unknown-worker")
+        assert worker_report["ok"] is True
+        assert worker_report["task_count"] == 1
+        assert worker_report["completed_tasks"] == 1
+        assert worker_report["healthy_events"] == 1
+
     def test_scheduler_callback_static_start_accepts_positional_host_port_worker_id(
         self, monkeypatch
     ):

@@ -2543,30 +2543,33 @@ def install_dask_scheduler_callbacks(
             if container_id in seen_ids:
                 return None
             seen_ids.add(container_id)
-            for item in value:
-                if isinstance(item, (Mapping, list, tuple)):
-                    candidate = _extract_worker_alias_value(item, _seen_ids=seen_ids)
-                else:
-                    has_alias_attr = False
-                    for attr in (
-                        "worker_id",
-                        "workerId",
-                        "worker",
-                        "worker_addr",
-                        "workerAddr",
-                        "worker_address",
-                        "workerAddress",
-                        "address",
-                    ):
-                        attr_value = _safe_get_alias_attr(item, attr)
-                        if attr_value is not None and not callable(attr_value):
-                            has_alias_attr = True
-                            break
-                    if not has_alias_attr:
-                        continue
-                    candidate = _extract_worker_alias_value(item, _seen_ids=seen_ids)
-                if candidate is not None:
-                    return candidate
+            try:
+                for item in value:
+                    if isinstance(item, (Mapping, list, tuple)):
+                        candidate = _extract_worker_alias_value(item, _seen_ids=seen_ids)
+                    else:
+                        has_alias_attr = False
+                        for attr in (
+                            "worker_id",
+                            "workerId",
+                            "worker",
+                            "worker_addr",
+                            "workerAddr",
+                            "worker_address",
+                            "workerAddress",
+                            "address",
+                        ):
+                            attr_value = _safe_get_alias_attr(item, attr)
+                            if attr_value is not None and not callable(attr_value):
+                                has_alias_attr = True
+                                break
+                        if not has_alias_attr:
+                            continue
+                        candidate = _extract_worker_alias_value(item, _seen_ids=seen_ids)
+                    if candidate is not None:
+                        return candidate
+            except Exception:
+                return None
             return None
 
         current = value

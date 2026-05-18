@@ -6402,6 +6402,31 @@ class TestOpenTelemetryExport:
         ok = emit_otel_event(report, module=object())
         assert ok is False
 
+    def test_emit_handles_raising_get_current_span_lookup(self):
+        class _BadTraceModule:
+            def __getattr__(self, name):
+                if name == "get_current_span":
+                    raise RuntimeError("broken get_current_span lookup")
+                raise AttributeError(name)
+
+        report = _make_report()
+        ok = emit_otel_event(report, module=_BadTraceModule())
+        assert ok is False
+
+    def test_emit_handles_raising_add_event_lookup(self):
+        class _BadSpan:
+            def is_recording(self) -> bool:
+                return True
+
+            def __getattr__(self, name):
+                if name == "add_event":
+                    raise RuntimeError("broken add_event lookup")
+                raise AttributeError(name)
+
+        report = _make_report()
+        ok = emit_otel_event(report, span=_BadSpan())
+        assert ok is False
+
     def test_trace_context_attributes_from_span(self):
         ctx = self._DummySpanContext(
             trace_id=0x11111111111111111111111111111111,
@@ -6940,6 +6965,18 @@ class TestPhaseContextManager:
 class TestOtelPhaseEvent:
     def test_emit_otel_phase_event_returns_false_without_otel(self):
         assert emit_otel_phase_event("stage-a", lifecycle="enter", module=object()) is False
+
+    def test_emit_otel_phase_event_handles_raising_get_current_span_lookup(self):
+        class _BadTraceModule:
+            def __getattr__(self, name):
+                if name == "get_current_span":
+                    raise RuntimeError("broken get_current_span lookup")
+                raise AttributeError(name)
+
+        assert (
+            emit_otel_phase_event("stage-a", lifecycle="enter", module=_BadTraceModule())
+            is False
+        )
 
 
 # ---------------------------------------------------------------------------

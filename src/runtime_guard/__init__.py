@@ -4922,25 +4922,43 @@ def emit_otel_event(
                 from opentelemetry import trace as trace_mod  # type: ignore
             except Exception:
                 return False
-        get_current_span = getattr(trace_mod, "get_current_span", None)
+        try:
+            get_current_span = getattr(trace_mod, "get_current_span", None)
+        except Exception:
+            return False
         if not callable(get_current_span):
             return False
-        target_span = get_current_span()
+        try:
+            target_span = get_current_span()
+        except Exception:
+            return False
 
     if target_span is None:
         return False
 
-    is_recording = getattr(target_span, "is_recording", None)
-    if callable(is_recording) and not is_recording():
+    try:
+        is_recording = getattr(target_span, "is_recording", None)
+    except Exception:
+        return False
+    try:
+        if callable(is_recording) and not is_recording():
+            return False
+    except Exception:
         return False
 
-    add_event = getattr(target_span, "add_event", None)
+    try:
+        add_event = getattr(target_span, "add_event", None)
+    except Exception:
+        return False
     if not callable(add_event):
         return False
 
     attrs = pressure_report_attributes(report)
     attrs.update(trace_context_attributes(span=target_span))
-    add_event(event_name, attributes=attrs)
+    try:
+        add_event(event_name, attributes=attrs)
+    except Exception:
+        return False
     return True
 
 
@@ -4966,19 +4984,34 @@ def emit_otel_phase_event(
                 from opentelemetry import trace as trace_mod  # type: ignore
             except Exception:
                 return False
-        get_current_span = getattr(trace_mod, "get_current_span", None)
+        try:
+            get_current_span = getattr(trace_mod, "get_current_span", None)
+        except Exception:
+            return False
         if not callable(get_current_span):
             return False
-        target_span = get_current_span()
+        try:
+            target_span = get_current_span()
+        except Exception:
+            return False
 
     if target_span is None:
         return False
 
-    is_recording = getattr(target_span, "is_recording", None)
-    if callable(is_recording) and not is_recording():
+    try:
+        is_recording = getattr(target_span, "is_recording", None)
+    except Exception:
+        return False
+    try:
+        if callable(is_recording) and not is_recording():
+            return False
+    except Exception:
         return False
 
-    add_event = getattr(target_span, "add_event", None)
+    try:
+        add_event = getattr(target_span, "add_event", None)
+    except Exception:
+        return False
     if not callable(add_event):
         return False
 
@@ -4989,7 +5022,10 @@ def emit_otel_phase_event(
     attrs.update(trace_context_attributes(span=target_span))
     if attributes:
         attrs.update(attributes)
-    add_event(event_name, attributes=attrs)
+    try:
+        add_event(event_name, attributes=attrs)
+    except Exception:
+        return False
     return True
 
 

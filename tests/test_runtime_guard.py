@@ -5436,6 +5436,29 @@ class TestRayActorMemoryMonitoring:
         assert callable(config["get_all_node_reports"])
         assert callable(config["cluster_summary"])
 
+    def test_enable_ray_actor_memory_monitoring_rejects_non_string_stage_prefix(self):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        with pytest.raises(ValueError, match="stage_prefix must be a non-empty string"):
+            enable_ray_actor_memory_monitoring(guard, stage_prefix=123)  # type: ignore[arg-type]
+
+    def test_enable_ray_actor_memory_monitoring_rejects_blank_stage_prefix(self):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        with pytest.raises(ValueError, match="stage_prefix must be a non-empty string"):
+            enable_ray_actor_memory_monitoring(guard, stage_prefix="   ")
+
+    def test_enable_ray_actor_memory_monitoring_rejects_non_boolean_entry_exit_flags(self):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        guard = RuntimeGuard()
+        with pytest.raises(ValueError, match="check_on_entry must be a boolean"):
+            enable_ray_actor_memory_monitoring(guard, check_on_entry="true")  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="check_on_exit must be a boolean"):
+            enable_ray_actor_memory_monitoring(guard, check_on_exit="false")  # type: ignore[arg-type]
+
     def test_actor_method_decorator_calls_check_on_entry(self, monkeypatch):
         """Actor method decorator calls check_and_log on entry."""
         from runtime_guard import enable_ray_actor_memory_monitoring

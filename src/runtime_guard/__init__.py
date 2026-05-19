@@ -3648,6 +3648,13 @@ def enable_ray_actor_memory_monitoring(
     - Each actor instance maintains independent pressure tracking
     - Remote function wrappers are recommended for lightweight monitoring
     """
+    if not isinstance(stage_prefix, str) or not stage_prefix.strip():
+        raise ValueError("stage_prefix must be a non-empty string")
+    if not isinstance(check_on_entry, bool):
+        raise ValueError("check_on_entry must be a boolean")
+    if not isinstance(check_on_exit, bool):
+        raise ValueError("check_on_exit must be a boolean")
+
     actor_event_state: dict[str, dict[str, Any]] = {}
     parse_warning_count = 0
 

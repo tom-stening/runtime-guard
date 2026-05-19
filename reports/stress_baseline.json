@@ -1,0 +1,34 @@
+{
+  "benchmarks": {
+    "check": {
+      "call_count": 2,
+      "current_traced_kib": 108,
+      "max_ms": 975.037723000014,
+      "mean_ms": 940.1476815000365,
+      "min_ms": 905.2576400000589,
+      "p50_ms": 940.1476815000365,
+      "p95_ms": 971.5487188500163,
+      "p99_ms": 974.3399221700145,
+      "peak_traced_kib": 189
+    }
+  },
+  "config": {
+    "duration_s": 1.0,
+    "stage": "stress",
+    "total_check_calls": 2,
+    "workers": 1
+  },
+  "environment": {
+    "machine": "x86_64",
+    "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python_version": "3.12.3",
+    "system": "Linux"
+  },
+  "gates": {
+    "failure_count": 0,
+    "failure_reasons": [],
+    "healthy": true
+  },
+  "generated_at_utc": "2026-05-19T16:30:36Z",
+  "tool": "scripts/stress_test_runtime_guard.py"
+}

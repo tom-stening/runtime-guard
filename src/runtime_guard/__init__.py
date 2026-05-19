@@ -2053,6 +2053,16 @@ def attach_polars_guard(
                 return ""
             return "".join(ch for ch in raw_key.lower() if ch.isalnum())
 
+        def _select_preferred_callback_name(candidate_names: tuple[str, ...]) -> str:
+            if not candidate_names:
+                return ""
+            # Prefer stable snake_case names when multiple explicit params map to
+            # the same canonical alias key (e.g. optimization_callback vs optimizationCallback).
+            for candidate in candidate_names:
+                if "_" in candidate:
+                    return candidate
+            return candidate_names[0]
+
         signature: inspect.Signature | None = None
         accepts_var_kwargs = False
         accepted_keyword_param_names: set[str] = set()
@@ -2138,15 +2148,30 @@ def attach_polars_guard(
             positional_callback_alias_values: dict[str, Any] = {}
             if callback_kw_names:
                 callback_kw_names_set = set(callback_kw_names)
+                explicit_alias_candidates: dict[str, list[str]] = {}
+                for callback_name in callback_kw_names:
+                    if callback_name not in accepted_keyword_param_names:
+                        continue
+                    canonical_key = _canonical_callback_key(callback_name)
+                    if not canonical_key:
+                        continue
+                    explicit_alias_candidates.setdefault(canonical_key, []).append(callback_name)
                 explicit_alias_map = {
-                    _canonical_callback_key(callback_name): callback_name
-                    for callback_name in callback_kw_names
-                    if callback_name in accepted_keyword_param_names
+                    canonical_key: _select_preferred_callback_name(tuple(candidate_names))
+                    for canonical_key, candidate_names in explicit_alias_candidates.items()
                 }
+
+                explicit_positional_alias_candidates: dict[str, list[str]] = {}
+                for callback_name in explicit_callback_kw_names:
+                    if callback_name in accepted_keyword_param_names:
+                        continue
+                    canonical_key = _canonical_callback_key(callback_name)
+                    if not canonical_key:
+                        continue
+                    explicit_positional_alias_candidates.setdefault(canonical_key, []).append(callback_name)
                 explicit_positional_alias_map = {
-                    _canonical_callback_key(callback_name): callback_name
-                    for callback_name in explicit_callback_kw_names
-                    if callback_name not in accepted_keyword_param_names
+                    canonical_key: _select_preferred_callback_name(tuple(candidate_names))
+                    for canonical_key, candidate_names in explicit_positional_alias_candidates.items()
                 }
                 explicit_positional_callback_names = set(explicit_positional_alias_map.values())
                 for kw_name in list(kwargs):

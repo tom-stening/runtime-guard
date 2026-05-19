@@ -2654,6 +2654,40 @@ class TestPolarsIntegration:
         finally:
             restore()
 
+    def test_attach_prefers_snake_case_callback_param_when_alias_key_collides(
+        self, monkeypatch
+    ):
+        class CallbackPolars:
+            class LazyFrame:
+                def collect(
+                    self,
+                    optimization_callback: Any | None = None,
+                    optimizationCallback: Any | None = None,
+                ) -> tuple[int, Any, Any]:
+                    if callable(optimization_callback):
+                        optimization_callback("snake")
+                    if callable(optimizationCallback):
+                        optimizationCallback("camel")
+                    return 42, optimization_callback, optimizationCallback
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_polars_guard(guard, stage="polars-native", module=CallbackPolars)
+        try:
+            user_calls: list[str] = []
+            result, snake_cb, camel_cb = CallbackPolars.LazyFrame().collect(
+                **{"optimization-callback": lambda plan: user_calls.append(plan)}
+            )
+            assert result == 42
+            assert callable(snake_cb)
+            assert camel_cb is None
+            assert calls == ["polars-native", "polars-native-native-callback"]
+            assert user_calls == ["snake"]
+        finally:
+            restore()
+
 
 # ---------------------------------------------------------------------------
 # M1-C02 — Dask integration hook

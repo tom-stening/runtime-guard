@@ -2176,6 +2176,14 @@ def attach_polars_guard(
                 explicit_positional_callback_names = set(explicit_positional_alias_map.values())
                 for kw_name in list(kwargs):
                     if kw_name in callback_kw_names:
+                        canonical_explicit_name = explicit_alias_map.get(_canonical_callback_key(kw_name), "")
+                        if (
+                            canonical_explicit_name
+                            and canonical_explicit_name != kw_name
+                            and canonical_explicit_name not in kwargs
+                        ):
+                            kwargs[canonical_explicit_name] = kwargs.pop(kw_name)
+                            continue
                         if accepts_var_kwargs and kw_name in explicit_positional_callback_names:
                             # Positional-only callback params cannot be passed as kwargs; hydrate and
                             # remove canonical callback kwargs so binding/call paths stay deterministic.

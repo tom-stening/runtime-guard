@@ -1,0 +1,77 @@
+{
+  "audit_window": {
+    "end": "2026-06-30T23:59:59Z",
+    "start": "2026-06-01T00:00:00Z"
+  },
+  "contacts": {
+    "audit_contact": "audit@runtime-guard.local",
+    "company": "runtime-guard",
+    "engineering_owner": "engineering@runtime-guard.local",
+    "notes": "Replace placeholder emails before external distribution.",
+    "security_owner": "security@runtime-guard.local"
+  },
+  "generated_at_utc": "2026-05-19T16:53:18Z",
+  "kickoff_checklist": [
+    "Confirm auditor scope and trust service criteria in writing",
+    "Freeze evidence collection window and repository tags",
+    "Assign control owners for each open SOC2 control",
+    "Export and verify hash-chained audit log evidence",
+    "Schedule weekly remediation and evidence review with auditor"
+  ],
+  "open_items": [
+    {
+      "action": "Attach required artifacts for A1.1",
+      "category": "missing_evidence",
+      "control_id": "A1.1"
+    },
+    {
+      "action": "Attach required artifacts for A1.2",
+      "category": "missing_evidence",
+      "control_id": "A1.2"
+    },
+    {
+      "action": "Attach required artifacts for CC6.2",
+      "category": "missing_evidence",
+      "control_id": "CC6.2"
+    },
+    {
+      "action": "Attach required artifacts for CC6.6",
+      "category": "missing_evidence",
+      "control_id": "CC6.6"
+    },
+    {
+      "action": "Attach required artifacts for CC7.1",
+      "category": "missing_evidence",
+      "control_id": "CC7.1"
+    },
+    {
+      "action": "Attach required artifacts for CC7.2",
+      "category": "missing_evidence",
+      "control_id": "CC7.2"
+    },
+    {
+      "action": "Attach required artifacts for CC7.3",
+      "category": "missing_evidence",
+      "control_id": "CC7.3"
+    },
+    {
+      "action": "Attach required artifacts for CC8.1",
+      "category": "missing_evidence",
+      "control_id": "CC8.1"
+    },
+    {
+      "action": "Attach required artifacts for PI1.2",
+      "category": "missing_evidence",
+      "control_id": "PI1.2"
+    }
+  ],
+  "readiness_summary": {
+    "coverage_ratio": 1.0,
+    "covered_controls": 10,
+    "evidence_ratio": 0.12,
+    "maturity": "controls-implemented-evidence-pending",
+    "status": "evidence-missing",
+    "total_controls": 10
+  },
+  "tool": "soc2_audit_kickoff_pack"
+}

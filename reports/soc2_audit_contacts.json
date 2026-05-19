@@ -1,0 +1,7 @@
+{
+  "company": "runtime-guard",
+  "security_owner": "security@runtime-guard.local",
+  "engineering_owner": "engineering@runtime-guard.local",
+  "audit_contact": "audit@runtime-guard.local",
+  "notes": "Replace placeholder emails before external distribution."
+}

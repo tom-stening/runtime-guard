@@ -1,0 +1,12 @@
+{
+  "CC6.1": ["access-review-log", "privileged-action-audit-trail"],
+  "CC6.2": ["mfa-enforcement-record"],
+  "CC6.6": ["vendor-access-review"],
+  "CC7.1": ["monitoring-alert-history", "incident-response-drill"],
+  "CC7.2": ["system-health-dashboard-export"],
+  "CC7.3": ["change-management-audit-trail"],
+  "CC8.1": ["threat-detection-runbook"],
+  "A1.1": ["processing-integrity-policy"],
+  "A1.2": ["data-validation-sample-report"],
+  "PI1.2": ["customer-data-integrity-control-test"]
+}

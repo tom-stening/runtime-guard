@@ -1,0 +1,68 @@
+{
+  "coverage_ratio": 1.0,
+  "covered_controls": 10,
+  "evidence_ratio": 0.12,
+  "expected_evidence_count": 25,
+  "invalid_control_state_fields": [],
+  "invalid_evidence_fields": [],
+  "maturity": "controls-implemented-evidence-pending",
+  "missing_controls": [],
+  "missing_evidence_by_control": {
+    "A1.1": [
+      "capacity-baseline-report",
+      "memory-pressure-trend-log",
+      "availability-sla-evidence"
+    ],
+    "A1.2": [
+      "recovery-procedure-doc",
+      "signal-recovery-test-log",
+      "business-continuity-plan"
+    ],
+    "CC6.2": [
+      "least-privilege-policy-doc",
+      "resource-access-role-matrix",
+      "privileged-access-review-log"
+    ],
+    "CC6.6": [
+      "external-threat-detection-log",
+      "anomaly-alert-configuration",
+      "threat-response-runbook"
+    ],
+    "CC7.1": [
+      "on-call-acknowledgement-record"
+    ],
+    "CC7.2": [
+      "incident-timeline",
+      "post-incident-corrective-actions"
+    ],
+    "CC7.3": [
+      "alert-triage-record",
+      "incident-retrospective"
+    ],
+    "CC8.1": [
+      "change-approval-record",
+      "rollback-validation-log"
+    ],
+    "PI1.2": [
+      "input-validation-policy",
+      "authorized-pipeline-run-log",
+      "data-integrity-audit-record"
+    ]
+  },
+  "missing_evidence_controls": [
+    "A1.1",
+    "A1.2",
+    "CC6.2",
+    "CC6.6",
+    "CC7.1",
+    "CC7.2",
+    "CC7.3",
+    "CC8.1",
+    "PI1.2"
+  ],
+  "missing_required_controls": [],
+  "provided_evidence_count": 3,
+  "status": "evidence-missing",
+  "total_controls": 10,
+  "unknown_controls": []
+}

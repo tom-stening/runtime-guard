@@ -1,0 +1,41 @@
+{
+  "benchmarks": {
+    "check": {
+      "current_traced_kib": 13,
+      "max_ms": 2207.5522589984757,
+      "mean_ms": 1055.3494243100067,
+      "min_ms": 807.4879979976686,
+      "p50_ms": 994.9610370003938,
+      "p95_ms": 1389.3865869013096,
+      "p99_ms": 1586.8515035710873,
+      "peak_traced_kib": 90
+    },
+    "snapshot": {
+      "max_ms": 1564.9470040007145,
+      "mean_ms": 1025.8187226250448,
+      "min_ms": 812.0499890028441,
+      "p50_ms": 1012.5662144982925,
+      "p95_ms": 1264.6943620027735,
+      "p99_ms": 1460.636332621215
+    }
+  },
+  "config": {
+    "disable_top_procs": true,
+    "iterations": 200,
+    "stage": "benchmark",
+    "warmup": 20
+  },
+  "environment": {
+    "machine": "x86_64",
+    "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python_version": "3.12.3",
+    "system": "Linux"
+  },
+  "gates": {
+    "failure_count": 0,
+    "failure_reasons": [],
+    "healthy": true
+  },
+  "generated_at_utc": "2026-05-19T16:11:12Z",
+  "tool": "scripts/benchmark_runtime_guard.py"
+}

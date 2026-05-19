@@ -6,7 +6,10 @@
         "/home/thomas_stening/runtime-guard/.venv/bin/python",
         "/home/thomas_stening/runtime-guard/scripts/validate_polars_integration.py",
         "--json",
-        "--check-budget-api"
+        "--check-budget-api",
+        "--check-callback-api",
+        "--run-id",
+        "33ea7065-538b-4567-8175-f1b68dd1d4ac"
       ],
       "errors": [],
       "exit_code": 0,
@@ -19,9 +22,37 @@
         "evidence_items": [],
         "hooks_installed": false,
         "milestone": "M1-I01",
+        "native_callback_api": {
+          "available": true,
+          "errors": []
+        },
         "ok": true,
         "polars_available": false,
         "polars_version": "not-installed",
+        "provenance": {
+          "artifact_sha256": "02914f22157ba789aea3ef3bdb2069ca7ecceb3cedaaaf5fba0f9f6e204b2c9e",
+          "generated_at_utc": "2026-05-17T07:15:18Z",
+          "git_commit": "8bc5f7f",
+          "inputs": {
+            "check_budget_api": true,
+            "check_callback_api": true,
+            "require_hooks": false,
+            "stage": "polars-collect"
+          },
+          "run_id": "33ea7065-538b-4567-8175-f1b68dd1d4ac",
+          "schema_version": 1,
+          "script": "/home/thomas_stening/runtime-guard/scripts/validate_polars_integration.py",
+          "signature": {
+            "algorithm": "",
+            "key_id": "",
+            "mode": "unsigned",
+            "signature": "",
+            "signed_field": "artifact_sha256",
+            "signed_value": "02914f22157ba789aea3ef3bdb2069ca7ecceb3cedaaaf5fba0f9f6e204b2c9e"
+          },
+          "tool": "validate_polars_integration"
+        },
+        "run_id": "33ea7065-538b-4567-8175-f1b68dd1d4ac",
         "runtime_guard_version": "unknown",
         "scan_budget_api": {
           "available": true,
@@ -54,7 +85,9 @@
         "/home/thomas_stening/runtime-guard/scripts/validate_dask_integration.py",
         "--json",
         "--check-guard-api",
-        "--check-scheduler-api"
+        "--check-scheduler-api",
+        "--run-id",
+        "33ea7065-538b-4567-8175-f1b68dd1d4ac"
       ],
       "errors": [],
       "exit_code": 0,
@@ -70,10 +103,35 @@
         "hooks_installed": false,
         "milestone": "M1-I02",
         "ok": true,
+        "provenance": {
+          "artifact_sha256": "f320dce0599f85a0016db2e03534e3f40eb7cbe41f3d83fccd2abf4db826c821",
+          "generated_at_utc": "2026-05-17T07:15:19Z",
+          "git_commit": "8bc5f7f",
+          "inputs": {
+            "check_guard_api": true,
+            "check_scheduler_api": true,
+            "require_hooks": false,
+            "stage": "dask-compute"
+          },
+          "run_id": "33ea7065-538b-4567-8175-f1b68dd1d4ac",
+          "schema_version": 1,
+          "script": "/home/thomas_stening/runtime-guard/scripts/validate_dask_integration.py",
+          "signature": {
+            "algorithm": "",
+            "key_id": "",
+            "mode": "unsigned",
+            "signature": "",
+            "signed_field": "artifact_sha256",
+            "signed_value": "f320dce0599f85a0016db2e03534e3f40eb7cbe41f3d83fccd2abf4db826c821"
+          },
+          "tool": "validate_dask_integration"
+        },
+        "run_id": "33ea7065-538b-4567-8175-f1b68dd1d4ac",
         "runtime_guard_version": "unknown",
         "scheduler_callback_api": {
           "available": true,
-          "errors": []
+          "errors": [],
+          "telemetry_counters_present": true
         },
         "task_graph_guard_api": {
           "available": true,
@@ -104,7 +162,9 @@
         "/home/thomas_stening/runtime-guard/.venv/bin/python",
         "/home/thomas_stening/runtime-guard/scripts/validate_ray_integration.py",
         "--json",
-        "--check-actor-api"
+        "--check-actor-api",
+        "--run-id",
+        "33ea7065-538b-4567-8175-f1b68dd1d4ac"
       ],
       "errors": [],
       "exit_code": 0,
@@ -112,7 +172,8 @@
       "report": {
         "actor_monitoring_api": {
           "available": true,
-          "errors": []
+          "errors": [],
+          "hotspot_fields_present": true
         },
         "api_importable": true,
         "errors": [
@@ -122,8 +183,31 @@
         "hooks_installed": false,
         "milestone": "M1-I03",
         "ok": true,
+        "provenance": {
+          "artifact_sha256": "7828362e194dc1ee5f2fb8ae2ba5ed5a78315dc0ae60bfa7730e3f55be703344",
+          "generated_at_utc": "2026-05-17T07:15:20Z",
+          "git_commit": "8bc5f7f",
+          "inputs": {
+            "check_actor_api": true,
+            "require_hooks": false,
+            "stage": "ray-get"
+          },
+          "run_id": "33ea7065-538b-4567-8175-f1b68dd1d4ac",
+          "schema_version": 1,
+          "script": "/home/thomas_stening/runtime-guard/scripts/validate_ray_integration.py",
+          "signature": {
+            "algorithm": "",
+            "key_id": "",
+            "mode": "unsigned",
+            "signature": "",
+            "signed_field": "artifact_sha256",
+            "signed_value": "7828362e194dc1ee5f2fb8ae2ba5ed5a78315dc0ae60bfa7730e3f55be703344"
+          },
+          "tool": "validate_ray_integration"
+        },
         "ray_available": false,
         "ray_version": "not-installed",
+        "run_id": "33ea7065-538b-4567-8175-f1b68dd1d4ac",
         "runtime_guard_version": "unknown",
         "tool": "validate_ray_integration",
         "validation": {
@@ -148,46 +232,52 @@
   "execution_mode": "live",
   "milestone": "M1-integration",
   "pressure_fallback": {
-    "enabled": true,
+    "enabled": false,
     "fallback_report_dir": "/home/thomas_stening/runtime-guard/reports",
+    "max_report_age_hours": 0,
     "note": null,
     "pressure_detected": false
   },
   "provenance": {
-    "artifact_sha256": "e50f646c90d41258253b27ce61fd6946b0c067ab987a8b935273075e1b79b4f8",
-    "generated_at_utc": "2026-05-12T10:06:29Z",
-    "git_commit": "d27cd33",
+    "artifact_sha256": "7ffc3a53ac62d65d4a778c1a80420c71f9a26ec55da1b81730f875777da3cf3d",
+    "generated_at_utc": "2026-05-17T07:15:20Z",
+    "git_commit": "8bc5f7f",
     "inputs": {
-      "fallback_on_pressure": true,
+      "fallback_on_pressure": false,
       "fallback_report_dir": "/home/thomas_stening/runtime-guard/reports",
+      "max_fallback_report_age_hours": 0,
+      "max_report_signature_age_hours": 0,
+      "report_allowed_key_ids": [],
+      "require_signed_report_inputs": false,
       "source_artifact_hashes": {},
       "validator_script_hashes": {
-        "dask": "4f9361a1f2656b6a5214a2d85797e7256608144eef0631a9638cc5a1f9ec8af1",
-        "polars": "d4439151c75e2e9f1b2951f28ea6f92d9b999cac033d9a77313ea5e61b2a3aa7",
-        "ray": "bc4b40d2cd107743b8abca254cf0e4ddf16914e4d3a88610eea5107e319ff37f"
-      }
+        "dask": "a10d37e116512a47ffd476c5343d60eb6e0e620e4178429a14ff3acd858005b9",
+        "polars": "cd6655ab46ef4c98638497bccfd031344285aee6270035883e42c149b5dc3a1b",
+        "ray": "b2f836c208bfe896e92b7d33f620e427fed827ee478d5b38a9604dd0acf97437"
+      },
+      "verify_report_input_signatures": false
     },
-    "run_id": "472b9852-d786-4c67-93e5-cf0ad5f278d7",
+    "run_id": "33ea7065-538b-4567-8175-f1b68dd1d4ac",
     "schema_version": 1,
     "script": "/home/thomas_stening/runtime-guard/scripts/validate_integration_fleet.py",
     "signature": {
-      "algorithm": "ed25519",
-      "key_id": "test-key-1",
-      "mode": "detached",
-      "signature": "deadbeef",
+      "algorithm": "",
+      "key_id": "",
+      "mode": "unsigned",
+      "signature": "",
       "signed_field": "artifact_sha256",
-      "signed_value": "e50f646c90d41258253b27ce61fd6946b0c067ab987a8b935273075e1b79b4f8"
+      "signed_value": "7ffc3a53ac62d65d4a778c1a80420c71f9a26ec55da1b81730f875777da3cf3d"
     },
     "tool": "validate_integration_fleet"
   },
-  "run_id": "472b9852-d786-4c67-93e5-cf0ad5f278d7",
+  "run_id": "33ea7065-538b-4567-8175-f1b68dd1d4ac",
   "summary": {
     "components_healthy": 3,
     "components_total": 3,
     "components_unhealthy": 0,
     "overall_healthy": true,
     "risk_level": "low",
-    "run_id": "472b9852-d786-4c67-93e5-cf0ad5f278d7"
+    "run_id": "33ea7065-538b-4567-8175-f1b68dd1d4ac"
   },
   "tool": "validate_integration_fleet",
   "warnings": []

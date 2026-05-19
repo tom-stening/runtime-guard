@@ -3,14 +3,14 @@
   "env_prefix": "RUNTIME_GUARD",
   "posture": "wsl_dev",
   "provenance": {
-    "artifact_sha256": "a9b454f2ca2a7a8e6811f9b2da4a4951c04a176ef99d9e62454ab4d9a32f169f",
-    "generated_at_utc": "2026-05-15T16:36:20Z",
-    "git_commit": "2bce7ab",
+    "artifact_sha256": "1f0897cbd5316888a084258c8683dbe836a6217d3fa391a0b2fde68555c729ea",
+    "generated_at_utc": "2026-05-19T15:42:49Z",
+    "git_commit": "4757610",
     "inputs": {
-      "args_digest": "d9cfd76641f1b29b43c7950926f06c0ba17cbd2c26936823e9d80228f5e20240",
+      "args_digest": "692be261e9ccf4d577b1e560a1333d2c14044b8d84c3135b86c68ad164e5fd36",
       "root": "/home/thomas_stening"
     },
-    "run_id": "c34edbea-4885-4ea4-8359-e9e822ffdd1f",
+    "run_id": "fb9cedf3-76bb-459f-b0d5-3137288df22e",
     "schema_version": 1,
     "script": "/home/thomas_stening/runtime-guard/scripts/enforce_runtime_guard_all_repos.py",
     "signature": {
@@ -19,7 +19,7 @@
       "mode": "unsigned",
       "signature": "",
       "signed_field": "artifact_sha256",
-      "signed_value": "a9b454f2ca2a7a8e6811f9b2da4a4951c04a176ef99d9e62454ab4d9a32f169f"
+      "signed_value": "1f0897cbd5316888a084258c8683dbe836a6217d3fa391a0b2fde68555c729ea"
     },
     "tool": "enforce_runtime_guard_all_repos"
   },
@@ -33,12 +33,12 @@
       "status": "already_enforced"
     },
     {
-      "details": "Created RuntimeGuard-managed sitecustomize.py",
-      "is_python_repo": true,
+      "details": "No Python markers detected; cover via runtime_guard_repo_watcher",
+      "is_python_repo": false,
       "repo_name": "plugins",
       "repo_path": "/home/thomas_stening/.codex/.tmp/plugins",
-      "sitecustomize_path": "/home/thomas_stening/.codex/.tmp/plugins/sitecustomize.py",
-      "status": "enforced"
+      "sitecustomize_path": null,
+      "status": "watcher_only_candidate"
     },
     {
       "details": "RuntimeGuard-managed sitecustomize.py already present",
@@ -458,17 +458,17 @@
     }
   ],
   "root": "/home/thomas_stening",
-  "run_id": "c34edbea-4885-4ea4-8359-e9e822ffdd1f",
+  "run_id": "fb9cedf3-76bb-459f-b0d5-3137288df22e",
   "stage": "repo-autostart",
   "summary": {
     "already_enforced": 53,
     "blocked_existing_sitecustomize": 0,
     "dry_run_candidates": 0,
-    "enforced": 1,
-    "non_python_repos": 0,
-    "python_repos": 54,
-    "run_id": "c34edbea-4885-4ea4-8359-e9e822ffdd1f",
+    "enforced": 0,
+    "non_python_repos": 1,
+    "python_repos": 53,
+    "run_id": "fb9cedf3-76bb-459f-b0d5-3137288df22e",
     "total_repos": 54,
-    "watcher_only_candidates": 0
+    "watcher_only_candidates": 1
   }
 }

@@ -7750,6 +7750,17 @@ def install_otel_memory_exporter(
     Callable[[], None]
         Restore function that removes the OTEL wrapper.
     """
+    if not isinstance(service_name, str) or not service_name.strip():
+        raise ValueError("service_name must be a non-empty string")
+    if not isinstance(span_name_prefix, str) or not span_name_prefix.strip():
+        raise ValueError("span_name_prefix must be a non-empty string")
+    if not isinstance(include_rss, bool):
+        raise ValueError("include_rss must be a boolean")
+    if not isinstance(include_swap, bool):
+        raise ValueError("include_swap must be a boolean")
+    if not isinstance(include_available, bool):
+        raise ValueError("include_available must be a boolean")
+
     _OTEL_ATTR = "_runtime_guard_otel_wrapped"
 
     original_check_and_log = guard.check_and_log

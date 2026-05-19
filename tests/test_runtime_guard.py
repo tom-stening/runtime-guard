@@ -3440,6 +3440,25 @@ class TestDaskTaskGraphGuard:
 class TestOtelMemoryExporter:
     """Tests for install_otel_memory_exporter()."""
 
+    def test_rejects_non_string_service_name(self):
+        guard = RuntimeGuard()
+        with pytest.raises(ValueError, match="service_name must be a non-empty string"):
+            install_otel_memory_exporter(guard, service_name=123)  # type: ignore[arg-type]
+
+    def test_rejects_blank_span_name_prefix(self):
+        guard = RuntimeGuard()
+        with pytest.raises(ValueError, match="span_name_prefix must be a non-empty string"):
+            install_otel_memory_exporter(guard, span_name_prefix="   ")
+
+    def test_rejects_non_boolean_include_flags(self):
+        guard = RuntimeGuard()
+        with pytest.raises(ValueError, match="include_rss must be a boolean"):
+            install_otel_memory_exporter(guard, include_rss="true")  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="include_swap must be a boolean"):
+            install_otel_memory_exporter(guard, include_swap="false")  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="include_available must be a boolean"):
+            install_otel_memory_exporter(guard, include_available=1)  # type: ignore[arg-type]
+
     def test_noop_when_otel_not_installed(self, monkeypatch):
         """Falls back gracefully when opentelemetry is not importable."""
         guard = RuntimeGuard()

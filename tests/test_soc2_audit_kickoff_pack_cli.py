@@ -156,3 +156,80 @@ def test_soc2_kickoff_cli_fail_on_gaps_ready_exits_0(tmp_path: Path):
     assert proc.returncode == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["readiness_summary"]["status"] == "ready"
+
+
+def test_soc2_kickoff_cli_fail_on_placeholder_contacts_exits_1(tmp_path: Path):
+    readiness = tmp_path / "readiness.json"
+    contacts = tmp_path / "contacts.json"
+    output = tmp_path / "kickoff.json"
+
+    readiness.write_text(json.dumps({"status": "ready"}), encoding="utf-8")
+    contacts.write_text(
+        json.dumps(
+            {
+                "company": "ExampleCo",
+                "security_owner": "security@example.com",
+                "engineering_owner": "eng@prod.example.org",
+                "audit_contact": "audit@example.net",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(_script_path()),
+            "--readiness-report",
+            str(readiness),
+            "--contacts",
+            str(contacts),
+            "--output",
+            str(output),
+            "--fail-on-placeholder-contacts",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 1
+    assert "placeholder or missing contact values detected" in proc.stderr
+
+
+def test_soc2_kickoff_cli_fail_on_placeholder_contacts_ready_exits_0(tmp_path: Path):
+    readiness = tmp_path / "readiness.json"
+    contacts = tmp_path / "contacts.json"
+    output = tmp_path / "kickoff.json"
+
+    readiness.write_text(json.dumps({"status": "ready"}), encoding="utf-8")
+    contacts.write_text(
+        json.dumps(
+            {
+                "company": "ExampleCo",
+                "security_owner": "security@company.tld",
+                "engineering_owner": "engineering@company.tld",
+                "audit_contact": "audit@auditor.tld",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(_script_path()),
+            "--readiness-report",
+            str(readiness),
+            "--contacts",
+            str(contacts),
+            "--output",
+            str(output),
+            "--fail-on-placeholder-contacts",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0

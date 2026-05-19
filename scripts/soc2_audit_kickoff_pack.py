@@ -40,6 +40,10 @@ def _validate_cli_configuration(args: argparse.Namespace) -> list[str]:
     if not isinstance(fail_on_gaps, bool):
         errors.append("--fail-on-gaps flag must be boolean")
 
+    fail_on_placeholder_contacts = getattr(args, "fail_on_placeholder_contacts", False)
+    if not isinstance(fail_on_placeholder_contacts, bool):
+        errors.append("--fail-on-placeholder-contacts flag must be boolean")
+
     return errors
 
 
@@ -106,6 +110,20 @@ def _normalize_contacts(contacts: dict[str, Any]) -> dict[str, str]:
     for key in keys:
         normalized[key] = _as_string(contacts.get(key), default="")
     return normalized
+
+
+def _placeholder_contact_fields(contacts: dict[str, str]) -> list[str]:
+    placeholder_domains = (".local", "example.com", "example.org", "example.net")
+    fields: list[str] = []
+    for key in ("security_owner", "engineering_owner", "audit_contact"):
+        value = contacts.get(key, "")
+        if not value:
+            fields.append(key)
+            continue
+        lowered = value.strip().lower()
+        if any(domain in lowered for domain in placeholder_domains):
+            fields.append(key)
+    return fields
 
 
 def _build_kickoff_package(
@@ -176,6 +194,11 @@ def main() -> int:
         action="store_true",
         help="Exit 1 when readiness status is not 'ready'",
     )
+    parser.add_argument(
+        "--fail-on-placeholder-contacts",
+        action="store_true",
+        help="Exit 1 when auditor contact fields use placeholder values",
+    )
 
     args = parser.parse_args()
 
@@ -200,6 +223,22 @@ def main() -> int:
 
     rendered = json.dumps(package, indent=2, sort_keys=True)
     Path(args.output).write_text(rendered + "\n", encoding="utf-8")
+
+    if args.fail_on_placeholder_contacts:
+        contacts = package.get("contacts", {})
+        if not isinstance(contacts, dict):
+            print("error: contacts payload must be an object", file=sys.stderr)
+            return 2
+        placeholder_fields = _placeholder_contact_fields(
+            {k: v for k, v in contacts.items() if isinstance(k, str)}
+        )
+        if placeholder_fields:
+            joined = ", ".join(sorted(placeholder_fields))
+            print(
+                f"error: placeholder or missing contact values detected for: {joined}",
+                file=sys.stderr,
+            )
+            return 1
 
     if args.fail_on_gaps:
         status = package.get("readiness_summary", {}).get("status", "")

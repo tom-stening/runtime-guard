@@ -45,11 +45,13 @@ def test_validate_cli_configuration_rejects_optional_type_mismatches() -> None:
         audit_window_start = 123  # type: ignore[assignment]
         audit_window_end = 456  # type: ignore[assignment]
         fail_on_gaps = "true"  # type: ignore[assignment]
+        fail_on_placeholder_contacts = "true"  # type: ignore[assignment]
 
     errors = module._validate_cli_configuration(_Args())
     assert any("--audit-window-start must be a string" in row for row in errors)
     assert any("--audit-window-end must be a string" in row for row in errors)
     assert any("--fail-on-gaps flag must be boolean" in row for row in errors)
+    assert any("--fail-on-placeholder-contacts flag must be boolean" in row for row in errors)
 
 
 def test_validate_cli_configuration_accepts_valid_values() -> None:
@@ -62,6 +64,7 @@ def test_validate_cli_configuration_accepts_valid_values() -> None:
         audit_window_start = "2026-06-01T00:00:00Z"
         audit_window_end = "2026-06-30T23:59:59Z"
         fail_on_gaps = True
+        fail_on_placeholder_contacts = False
 
     assert module._validate_cli_configuration(_Args()) == []
 
@@ -82,6 +85,7 @@ def test_main_rejects_non_string_status(tmp_path, monkeypatch, capsys) -> None:
         audit_window_start=None,
         audit_window_end=None,
         fail_on_gaps=True,
+        fail_on_placeholder_contacts=False,
     )
 
     monkeypatch.setattr(module.argparse.ArgumentParser, "parse_args", lambda self: args)

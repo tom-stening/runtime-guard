@@ -3294,18 +3294,22 @@ def install_dask_scheduler_callbacks(
     callback_base = getattr(callbacks_mod, "Callback", None) if callbacks_mod is not None else None
 
     if isinstance(callback_base, type):
-        callback_api_available = True
+        base_enter = getattr(callback_base, "__enter__", None)
+        base_exit = getattr(callback_base, "__exit__", None)
+        callback_api_available = callable(base_enter) and callable(base_exit)
 
-        class _RuntimeGuardDaskCallback(callback_base):
-            def _pretask(self, key: str, *_args: Any, **kwargs: Any) -> None:
-                worker_id = _extract_worker_id(args=_args, kwargs=kwargs)
-                _callback_start(key, worker_id=worker_id)
+        if callback_api_available:
 
-            def _posttask(self, key: str, value: Any, *_args: Any, **kwargs: Any) -> None:
-                worker_id = _extract_worker_id(args=_args, kwargs=kwargs)
-                _callback_finish(key, value, worker_id=worker_id)
+            class _RuntimeGuardDaskCallback(callback_base):
+                def _pretask(self, key: str, *_args: Any, **kwargs: Any) -> None:
+                    worker_id = _extract_worker_id(args=_args, kwargs=kwargs)
+                    _callback_start(key, worker_id=worker_id)
 
-        callback_context_cls = _RuntimeGuardDaskCallback
+                def _posttask(self, key: str, value: Any, *_args: Any, **kwargs: Any) -> None:
+                    worker_id = _extract_worker_id(args=_args, kwargs=kwargs)
+                    _callback_finish(key, value, worker_id=worker_id)
+
+            callback_context_cls = _RuntimeGuardDaskCallback
 
     def _create_callback_context() -> Any:
         if not callback_api_available:

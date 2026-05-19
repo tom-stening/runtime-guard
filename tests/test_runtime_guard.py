@@ -3006,6 +3006,35 @@ class TestDaskIntegration:
         finally:
             restore()
 
+    def test_attach_with_scheduler_callbacks_falls_back_when_callback_base_lacks_lifecycle(
+        self, monkeypatch
+    ):
+        class _DaskWithBrokenCallbackBase(self._DummyDask):
+            class callbacks:
+                class Callback:
+                    # Missing __enter__/__exit__: should fail closed as unavailable.
+                    pass
+
+        guard = RuntimeGuard()
+        calls: list[str] = []
+        monkeypatch.setattr(guard, "check_and_log", lambda stage="": calls.append(stage))
+
+        restore = attach_dask_guard(
+            guard,
+            stage="dask-broken-callback-base",
+            enable_scheduler_callbacks=True,
+            module=_DaskWithBrokenCallbackBase,
+        )
+        try:
+            assert _DaskWithBrokenCallbackBase.compute(3, add=4) == 7
+            assert calls == ["dask-broken-callback-base"]
+
+            validation = validate_dask_integration(guard, module=_DaskWithBrokenCallbackBase)
+            assert validation["scheduler_callbacks_wrapped"] is True
+            assert validation["scheduler_callback_context_available"] is False
+        finally:
+            restore()
+
     def test_attach_with_scheduler_callbacks_fails_open_when_context_enter_raises(self, monkeypatch):
         callback_events: list[str] = []
 
@@ -3704,6 +3733,22 @@ class TestDaskSchedulerCallbacks:
 
         guard = RuntimeGuard()
         reporter = install_dask_scheduler_callbacks(guard)
+
+        assert getattr(reporter, "callback_api_available", True) is False
+        create_ctx = getattr(reporter, "create_callback_context")
+        with pytest.raises(RuntimeError, match="callback API unavailable"):
+            create_ctx()
+
+    def test_scheduler_callback_adapter_fails_closed_when_callback_base_lacks_lifecycle(self):
+        from runtime_guard import install_dask_scheduler_callbacks
+
+        class _FakeDaskBrokenLifecycle:
+            class callbacks:
+                class Callback:
+                    pass
+
+        guard = RuntimeGuard()
+        reporter = install_dask_scheduler_callbacks(guard, module=_FakeDaskBrokenLifecycle)
 
         assert getattr(reporter, "callback_api_available", True) is False
         create_ctx = getattr(reporter, "create_callback_context")

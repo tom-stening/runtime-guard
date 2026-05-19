@@ -344,3 +344,88 @@ not dominate RCA output:
 
 This keeps host diagnostics useful while reducing false-positive causal hints.
 
+---
+
+## Feedback from Airlines Manager Optimiser (2026-05-20, challenge-route distance analyzer)
+
+> Added by cross-repo WSL crash resolution workflow (see AGENTS.md).
+> Source: /home/thomas_stening/Airlines Manager Optimiser
+
+### Context
+
+A new analysis script (`scripts/scheduling/challenge_route_distance_analyzer.py`)
+was added to evaluate every challenge route in a 22,366-route dataset and
+select max weekly-distance assignments per aircraft.  During development and
+execution, RuntimeGuard memory-pressure warnings were emitted:
+
+```
+[RuntimeGuard] High pressure: MemAvailable=692MB, SwapUsed=98% (thresholds: min_mem=512MB, max_swap=96%)
+[RuntimeGuard] Suggestion: stop heavy python/node jobs, then run `wsl --shutdown` from PowerShell
+```
+
+These warnings appeared at Python startup before analysis began — they fired
+correctly and were useful, but the script continued regardless (pressure was
+above threshold but not critical enough to abort).  No crash resulted, but
+swap saturation was high throughout.
+
+### Local implementation attempt
+
+The analyzer allocates route candidates in a single pass from a 22k-entry list,
+building `List[RouteCandidate]` entirely in memory before computing per-aircraft
+assignments.  No chunking or streaming is applied because peak RSS remained
+within safe bounds for this dataset size.
+
+No additional runtime-guard hooks were added beyond the project-level
+`sitecustomize.py` autostart, which was sufficient.
+
+### Validation evidence
+
+- Script completed successfully: `22,366` routes processed, `135` aircraft
+  assigned, `14,670,060.70 km/week` total — both scenario variants produced.
+- RuntimeGuard warnings emitted and visible; no crash; script exited cleanly.
+- Output JSON written to `outputs/challenge_route_distance_analysis.json`.
+
+### Suggested improvement for runtime-guard core
+
+**Preflight low-memory execution profile suggestion**
+
+**Problem:** When swap is near-saturated but MemAvailable is above the hard
+abort floor, the guard warns but the caller has no standard way to request a
+"low-memory mode" from the library.  Scripts that process large datasets must
+implement their own chunking heuristics without knowing whether the warning was
+marginal or severe.
+
+**Suggested addition:**
+
+Add a `suggest_profile()` method (or extend `check()` return value) that
+returns a named execution profile when pressure is elevated but not critical:
+
+```python
+from runtime_guard import RuntimeGuard
+
+guard = RuntimeGuard(env_prefix="MY_APP_GUARD")
+profile = guard.suggest_profile(stage="pre-analysis")
+# profile: "normal" | "low_memory" | "minimal" | "abort"
+
+if profile == "low_memory":
+    chunk_size = 1000          # process in smaller batches
+    retain_intermediates = False
+elif profile == "minimal":
+    chunk_size = 200
+    skip_secondary_scenarios = True
+elif profile == "abort":
+    raise RuntimeError("Insufficient memory to proceed safely")
+```
+
+The profile could be derived from existing thresholds:
+- `normal`:     MemAvailable ≥ warn_threshold and SwapUsed ≤ warn_swap
+- `low_memory`: MemAvailable between warn and critical, or SwapUsed 96–98%
+- `minimal`:    MemAvailable between critical and abort, or SwapUsed 98–99%
+- `abort`:      MemAvailable below abort floor or SwapUsed ≥ 99.5%
+
+This removes the need for every adopter to independently interpret raw
+`MemAvailable` values to decide whether to chunk their dataset.  It
+standardizes the decision boundary once in runtime-guard and exposes a
+human-readable profile name that callers can branch on cleanly.
+
+

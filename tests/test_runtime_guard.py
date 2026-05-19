@@ -5429,6 +5429,15 @@ class TestRayIntegration:
 class TestRayActorMemoryMonitoring:
     """Tests for Ray actor-level memory monitoring decorators."""
 
+    def test_enable_ray_actor_memory_monitoring_rejects_guard_without_callable_check_and_log(self):
+        from runtime_guard import enable_ray_actor_memory_monitoring
+
+        class _BadGuard:
+            check_and_log = None
+
+        with pytest.raises(ValueError, match="guard must provide callable check_and_log"):
+            enable_ray_actor_memory_monitoring(_BadGuard())  # type: ignore[arg-type]
+
     def test_enable_ray_actor_memory_monitoring_returns_config(self):
         """enable_ray_actor_memory_monitoring returns configuration dict."""
         from runtime_guard import enable_ray_actor_memory_monitoring

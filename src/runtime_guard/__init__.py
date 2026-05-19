@@ -3648,6 +3648,8 @@ def enable_ray_actor_memory_monitoring(
     - Each actor instance maintains independent pressure tracking
     - Remote function wrappers are recommended for lightweight monitoring
     """
+    if not callable(getattr(guard, "check_and_log", None)):
+        raise ValueError("guard must provide callable check_and_log(stage=...) method")
     if not isinstance(stage_prefix, str) or not stage_prefix.strip():
         raise ValueError("stage_prefix must be a non-empty string")
     if not isinstance(check_on_entry, bool):
